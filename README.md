@@ -1,78 +1,80 @@
 # NoteData
 
-Ứng dụng ghi chú cá nhân xây dựng bằng **Svelte 5 + Vite**, sử dụng **Firebase Authentication** và **Firebase Realtime Database**. Mỗi người dùng chỉ truy cập được dữ liệu của chính mình.
+> **Tiếng Việt:** Xem [README_vi.md](README_vi.md) để đọc bản tiếng Việt.
 
-## Tính năng
+A personal notes app built with **Svelte 5 + Vite**, using **Firebase Authentication** and **Firebase Realtime Database**. Each user can only access their own data.
 
-- Đăng ký / đăng nhập bằng Email + Password
-- Đăng ký / đăng nhập bằng Google
-- Tạo, sửa, xóa ghi chú
-- Đồng bộ realtime theo `userId`
-- Deploy lên Firebase Hosting
+## Features
 
-## Yêu cầu
+- Sign up / sign in with Email + Password
+- Sign up / sign in with Google
+- Create, edit, and delete notes
+- Realtime sync scoped by `userId`
+- Deploy to Firebase Hosting
 
-- [Node.js](https://nodejs.org/) 18 trở lên
+## Requirements
+
+- [Node.js](https://nodejs.org/) 18 or later
 - [npm](https://www.npmjs.com/)
 - [Firebase CLI](https://firebase.google.com/docs/cli): `npm install -g firebase-tools`
-- Tài khoản Google để tạo project trên [Firebase Console](https://console.firebase.google.com/)
+- A Google account to create a project in [Firebase Console](https://console.firebase.google.com/)
 
 ---
 
-## Hướng dẫn cài đặt từng bước
+## Step-by-step setup
 
-Tài liệu này giúp bạn chạy project với **bất kỳ Firebase project nào**, không chỉ project mặc định.
+This guide helps you run the project with **any Firebase project**, not just the default one.
 
-### Bước 1: Tạo Firebase project mới
+### Step 1: Create a new Firebase project
 
-1. Mở [Firebase Console](https://console.firebase.google.com/)
-2. Chọn **Add project** (hoặc **Tạo dự án**)
-3. Đặt tên project, làm theo các bước hướng dẫn và tạo xong
-4. Ghi lại **Project ID** (ví dụ: `my-notes-app`)
+1. Open [Firebase Console](https://console.firebase.google.com/)
+2. Click **Add project**
+3. Name the project, follow the setup wizard, and finish creation
+4. Note the **Project ID** (e.g. `my-notes-app`)
 
-### Bước 2: Bật Firebase Realtime Database
+### Step 2: Enable Firebase Realtime Database
 
-1. Trong Firebase Console, vào **Build → Realtime Database**
-2. Chọn **Create Database**
-3. Chọn region gần bạn (ví dụ: `asia-southeast1`)
-4. Chọn **Start in test mode** tạm thời (sẽ deploy rules bảo mật ở bước sau)
-5. Copy **Database URL**, có dạng:
+1. In Firebase Console, go to **Build → Realtime Database**
+2. Click **Create Database**
+3. Choose a region close to you (e.g. `asia-southeast1`)
+4. Choose **Start in test mode** temporarily (you will deploy secure rules later)
+5. Copy the **Database URL**, which looks like:
 
 ```
 https://<project-id>-default-rtdb.<region>.firebasedatabase.app
 ```
 
-Ví dụ:
+Example:
 
 ```
 https://my-notes-app-default-rtdb.asia-southeast1.firebasedatabase.app
 ```
 
-### Bước 3: Bật Firebase Authentication
+### Step 3: Enable Firebase Authentication
 
-1. Vào **Build → Authentication → Get started**
-2. Tab **Sign-in method**, bật các provider sau:
+1. Go to **Build → Authentication → Get started**
+2. Open the **Sign-in method** tab and enable:
 
 #### Email/Password
 
-- Chọn **Email/Password**
-- Bật **Enable**
-- Lưu lại
+- Select **Email/Password**
+- Turn on **Enable**
+- Save
 
 #### Google
 
-- Chọn **Google**
-- Bật **Enable**
-- Chọn **Project support email**
-- Lưu lại
+- Select **Google**
+- Turn on **Enable**
+- Choose a **Project support email**
+- Save
 
-### Bước 4: Tạo Web App và lấy cấu hình
+### Step 4: Create a Web App and get the config
 
-1. Vào **Project settings** (biểu tượng bánh răng)
-2. Tab **General → Your apps**
-3. Chọn **Web** (`</>`) để thêm app mới
-4. Đặt nickname (ví dụ: `notedata-web`) và **Register app**
-5. Copy các giá trị trong `firebaseConfig`:
+1. Go to **Project settings** (gear icon)
+2. Open **General → Your apps**
+3. Click **Web** (`</>`) to add a new app
+4. Set a nickname (e.g. `notedata-web`) and click **Register app**
+5. Copy the values from `firebaseConfig`:
 
 ```js
 const firebaseConfig = {
@@ -86,16 +88,16 @@ const firebaseConfig = {
 };
 ```
 
-### Bước 5: Cấu hình Authorized domains (nếu deploy production)
+### Step 5: Configure authorized domains (for production)
 
-1. Vào **Authentication → Settings → Authorized domains**
-2. Đảm bảo có:
-   - `localhost` (cho dev)
-   - Domain hosting của bạn (ví dụ: `my-notes-app.web.app`)
+1. Go to **Authentication → Settings → Authorized domains**
+2. Make sure these are listed:
+   - `localhost` (for local development)
+   - Your hosting domain (e.g. `my-notes-app.web.app`)
 
-Firebase thường tự thêm domain sau khi deploy hosting lần đầu.
+Firebase usually adds the hosting domain automatically after the first deploy.
 
-### Bước 6: Clone project và cài dependencies
+### Step 6: Clone the project and install dependencies
 
 ```bash
 git clone <repository-url>
@@ -103,13 +105,13 @@ cd notedata
 npm install
 ```
 
-### Bước 7: Tạo file môi trường `.env`
+### Step 7: Create the `.env` file
 
 ```bash
 cp .env.example .env
 ```
 
-Mở `.env` và điền thông tin từ Firebase Console (Bước 4):
+Open `.env` and fill in the values from Firebase Console (Step 4):
 
 ```env
 VITE_FIREBASE_API_KEY=your_api_key_here
@@ -121,23 +123,23 @@ VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
 VITE_FIREBASE_APP_ID=your_app_id
 ```
 
-> **Lưu ý:** Các biến `VITE_*` được Vite nhúng vào frontend khi build. Không commit file `.env` lên git.
+> **Note:** `VITE_*` variables are embedded into the frontend at build time. Do not commit `.env` to git.
 
-### Bước 8: Liên kết Firebase CLI với project
+### Step 8: Link Firebase CLI to your project
 
-Đăng nhập Firebase CLI:
+Log in to Firebase CLI:
 
 ```bash
 firebase login
 ```
 
-Liên kết project local với Firebase project mới:
+Link the local project to your Firebase project:
 
 ```bash
 firebase use --add
 ```
 
-Chọn project vừa tạo. File `.firebaserc` sẽ được cập nhật, ví dụ:
+Select the project you created. `.firebaserc` will be updated, for example:
 
 ```json
 {
@@ -147,48 +149,48 @@ Chọn project vừa tạo. File `.firebaserc` sẽ được cập nhật, ví d
 }
 ```
 
-Hoặc sửa trực tiếp `.firebaserc` nếu bạn biết Project ID.
+Or edit `.firebaserc` directly if you already know the Project ID.
 
-### Bước 9: Deploy Database Rules
+### Step 9: Deploy database rules
 
-Project đã có file `database.rules.json` để mỗi user chỉ đọc/ghi dữ liệu của mình:
+The project includes `database.rules.json` so each user can only read/write their own data:
 
 ```
 users/{userId}/notes/{noteId}
 ```
 
-Deploy rules:
+Deploy the rules:
 
 ```bash
 npm run firebase:deploy:database
 ```
 
-### Bước 10: Chạy development
+### Step 10: Run development server
 
 ```bash
 npm run dev
 ```
 
-Mở URL hiển thị trong terminal (thường là `http://localhost:5173`).
+Open the URL shown in the terminal (usually `http://localhost:5173`).
 
-Thử:
+Try:
 
-1. Đăng ký tài khoản email/password
-2. Hoặc đăng nhập bằng Google
-3. Tạo và lưu ghi chú
+1. Register with email/password
+2. Or sign in with Google
+3. Create and save a note
 
-### Bước 11: Deploy lên Firebase Hosting
+### Step 11: Deploy to Firebase Hosting
 
 ```bash
 npm run firebase:deploy:hosting
 ```
 
-Lệnh này sẽ:
+This command will:
 
-1. Chạy `npm run build` (build ra thư mục `dist/`)
-2. Deploy `dist/` lên Firebase Hosting
+1. Run `npm run build` (output goes to `dist/`)
+2. Deploy `dist/` to Firebase Hosting
 
-Sau khi deploy, Firebase cung cấp URL dạng:
+After deploy, Firebase provides a URL like:
 
 ```
 https://your-project-id.web.app
@@ -196,7 +198,7 @@ https://your-project-id.web.app
 
 ---
 
-## Cấu trúc dữ liệu
+## Data structure
 
 ```
 users/
@@ -211,78 +213,78 @@ users/
 
 ---
 
-## Scripts npm
+## npm scripts
 
-| Lệnh | Mô tả |
-|------|-------|
-| `npm run dev` | Chạy dev server |
-| `npm run build` | Build production vào `dist/` |
-| `npm run preview` | Xem trước bản build |
-| `npm run check` | Kiểm tra TypeScript + Svelte |
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start dev server |
+| `npm run build` | Build production output to `dist/` |
+| `npm run preview` | Preview the production build |
+| `npm run check` | Run TypeScript + Svelte checks |
 | `npm run firebase:deploy:database` | Deploy Realtime Database rules |
 | `npm run firebase:deploy:hosting` | Build + deploy Firebase Hosting |
 
 ---
 
-## Chuyển sang Firebase project khác (checklist nhanh)
+## Switch to another Firebase project (quick checklist)
 
-Khi muốn dùng project Firebase mới, làm lần lượt:
+To use a new Firebase project:
 
-1. Tạo project mới trên Firebase Console
-2. Bật **Realtime Database** và copy `databaseURL`
-3. Bật **Authentication**: Email/Password + Google
-4. Tạo **Web app** và copy `firebaseConfig`
-5. Cập nhật file `.env` với config mới
-6. Chạy `firebase use --add` hoặc sửa `.firebaserc`
-7. Chạy `npm run firebase:deploy:database`
-8. Chạy `npm run dev` để test local
-9. Chạy `npm run firebase:deploy:hosting` để deploy
-
----
-
-## Xử lý lỗi thường gặp
-
-### `auth/invalid-api-key` hoặc app không kết nối Firebase
-
-- Kiểm tra lại `.env`, đảm bảo không có khoảng trắng thừa
-- Restart dev server sau khi sửa `.env`
-
-### Đăng nhập Google bị lỗi / popup bị chặn
-
-- Bật Google provider trong Authentication
-- Cho phép popup trên trình duyệt
-- Kiểm tra domain hiện tại có trong **Authorized domains**
-
-### `Permission denied` khi đọc/ghi ghi chú
-
-- Chưa deploy database rules: chạy `npm run firebase:deploy:database`
-- User chưa đăng nhập
-- Rules chưa khớp cấu trúc `users/{uid}/notes`
-
-### Deploy hosting xong nhưng vào URL bị trắng trang / 404
-
-- Chạy lại `npm run firebase:deploy:hosting`
-- Kiểm tra `firebase.json` trỏ `public` tới `dist`
-- Kiểm tra rewrite SPA về `/index.html`
+1. Create a new project in Firebase Console
+2. Enable **Realtime Database** and copy `databaseURL`
+3. Enable **Authentication**: Email/Password + Google
+4. Create a **Web app** and copy `firebaseConfig`
+5. Update `.env` with the new config
+6. Run `firebase use --add` or edit `.firebaserc`
+7. Run `npm run firebase:deploy:database`
+8. Run `npm run dev` to test locally
+9. Run `npm run firebase:deploy:hosting` to deploy
 
 ---
 
-## Cấu trúc thư mục chính
+## Troubleshooting
+
+### `auth/invalid-api-key` or the app cannot connect to Firebase
+
+- Double-check `.env` and remove extra whitespace
+- Restart the dev server after editing `.env`
+
+### Google sign-in fails / popup blocked
+
+- Enable the Google provider in Authentication
+- Allow popups in your browser
+- Make sure the current domain is in **Authorized domains**
+
+### `Permission denied` when reading/writing notes
+
+- Database rules not deployed yet: run `npm run firebase:deploy:database`
+- User is not signed in
+- Rules do not match the `users/{uid}/notes` structure
+
+### Blank page or 404 after hosting deploy
+
+- Run `npm run firebase:deploy:hosting` again
+- Check that `firebase.json` points `public` to `dist`
+- Check the SPA rewrite to `/index.html`
+
+---
+
+## Project structure
 
 ```
 src/
   lib/
-    firebase.ts          # Khởi tạo Firebase từ biến môi trường
-    auth.svelte.ts       # Đăng nhập, đăng ký, Google auth
-    notes.ts             # CRUD ghi chú trên Realtime Database
+    firebase.ts          # Initialize Firebase from env variables
+    auth.svelte.ts       # Login, register, Google auth
+    notes.ts             # Note CRUD on Realtime Database
     components/          # UI: AuthPage, NotesApp, ...
-database.rules.json      # Security rules cho Realtime Database
-firebase.json            # Cấu hình Firebase Hosting + Database
-.env.example             # Mẫu biến môi trường
+database.rules.json      # Security rules for Realtime Database
+firebase.json            # Firebase Hosting + Database config
+.env.example             # Environment variable template
 ```
 
 ---
 
-## Gợi ý IDE
+## Recommended IDE
 
-[VS Code](https://code.visualstudio.com/) + extension [Svelte](https://marketplace.visualstudio.com/items?itemName=svelte.svelte-vscode)
+[VS Code](https://code.visualstudio.com/) + [Svelte](https://marketplace.visualstudio.com/items?itemName=svelte.svelte-vscode) extension
