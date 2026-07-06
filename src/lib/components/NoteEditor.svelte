@@ -1,5 +1,10 @@
 <script lang="ts">
   import { decryptContent, encryptContent, isNoteEncrypted } from '../crypto'
+  import {
+    clearDraftContent,
+    draftContentStore,
+    setDraftContent,
+  } from '../draft-content'
   import { formatAppDate, t } from '../i18n.svelte'
   import { renderMarkdown } from '../markdown'
   import { portal } from '../portal'
@@ -23,6 +28,7 @@
     readonly?: boolean
     deletedAt?: number
     onRestore?: () => void
+    onDelete?: () => void
     onPermanentDelete?: () => void
     onManageKeys?: () => void
     emptyTitle?: string
@@ -37,6 +43,7 @@
     readonly = false,
     deletedAt,
     onRestore,
+    onDelete,
     onPermanentDelete,
     onManageKeys,
     emptyTitle = '',
@@ -48,6 +55,7 @@
   let tagInput = $state('')
   let plainContent = $state('')
   let lastLoadedId = $state<string | null>(null)
+  let savedPlainSnapshot = $state<string | null>(null)
   let isUnlocked = $state(false)
   let keyModalOpen = $state(false)
   let keyModalMode = $state<'unlock' | 'save'>('unlock')
@@ -58,7 +66,11 @@
   const resolvedEmptyTitle = $derived(emptyTitle || t('selectOrCreateNote'))
   const resolvedEmptyDescription = $derived(emptyDescription || t('selectOrCreateNoteHint'))
   const noteIsEncrypted = $derived(note ? isNoteEncrypted(note) : false)
-  const showLockedState = $derived(Boolean(note && noteIsEncrypted && !isUnlocked))
+  const hasDraft = $derived(note ? note.id in $draftContentStore : false)
+  const hasUnsavedChanges = $derived(hasDraft)
+  const showLockedState = $derived(
+    Boolean(note && noteIsEncrypted && !isUnlocked && !hasDraft),
+  )
   const renderedMarkdown = $derived(renderMarkdown(plainContent))
 
   $effect(() => {
@@ -68,6 +80,7 @@
       tagInput = ''
       plainContent = ''
       lastLoadedId = null
+      savedPlainSnapshot = null
       isUnlocked = false
       decryptError = null
       keyModalOpen = false
@@ -80,13 +93,59 @@
       title = note.title
       tags = note.tags ? [...note.tags] : []
       tagInput = ''
-      plainContent = ''
       lastLoadedId = note.id
-      isUnlocked = !isNoteEncrypted(note)
       decryptError = null
       keyModalOpen = false
       markdownView = false
       headerCollapsed = false
+
+      const draft = $draftContentStore[note.id]
+      if (draft !== undefined) {
+        plainContent = draft
+        savedPlainSnapshot = null
+        isUnlocked = true
+      } else if (!isNoteEncrypted(note)) {
+        plainContent = note.content
+        savedPlainSnapshot = note.content
+        isUnlocked = true
+      } else {
+        plainContent = ''
+        savedPlainSnapshot = null
+        isUnlocked = false
+      }
+    }
+  })
+
+  $effect(() => {
+    if (!note || readonly || note.id !== lastLoadedId) return
+
+    const noteId = note.id
+    const content = plainContent
+    const draft = $draftContentStore[noteId]
+
+    if (draft !== undefined) {
+      const matchesSaved =
+        savedPlainSnapshot !== null
+          ? content === savedPlainSnapshot
+          : !isNoteEncrypted(note) && content === note.content
+
+      if (matchesSaved) {
+        clearDraftContent(noteId)
+      } else if (draft !== content) {
+        setDraftContent(noteId, content)
+      }
+      return
+    }
+
+    if (savedPlainSnapshot !== null) {
+      if (content !== savedPlainSnapshot) {
+        setDraftContent(noteId, content)
+      }
+      return
+    }
+
+    if (!isNoteEncrypted(note) && content !== note.content) {
+      setDraftContent(noteId, content)
     }
   })
 
@@ -121,7 +180,9 @@
     if (!note) return
 
     try {
-      plainContent = await decryptContent(note.content, payload.code, payload.keyId)
+      const decrypted = await decryptContent(note.content, payload.code, payload.keyId)
+      plainContent = decrypted
+      savedPlainSnapshot = decrypted
       isUnlocked = true
       decryptError = null
     } catch {
@@ -159,9 +220,14 @@
       encrypted: options.encrypted,
       keyId: options.keyId,
     })
+    clearDraftContent(note.id)
+
     if (options.encrypted) {
       isUnlocked = false
       plainContent = ''
+      savedPlainSnapshot = null
+    } else {
+      savedPlainSnapshot = options.content ?? plainContent
     }
   }
 
@@ -211,36 +277,45 @@
 
 <section class="editor">
   {#if note}
-    <button
-      type="button"
-      class="header-collapse-btn"
-      class:collapsed={headerCollapsed}
-      onclick={toggleHeaderCollapse}
-      aria-label={headerCollapsed ? t('expandHeader') : t('collapseHeader')}
-      title={headerCollapsed ? t('expandHeader') : t('collapseHeader')}
-    >
-      <svg class="header-collapse-icon" viewBox="0 0 24 24" aria-hidden="true">
-        {#if headerCollapsed}
-          <path
-            d="M6 9l6 6 6-6"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        {:else}
-          <path
-            d="M6 15l6-6 6 6"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        {/if}
-      </svg>
-    </button>
+    <div class="header-collapse-wrap">
+      <button
+        type="button"
+        class="header-collapse-btn"
+        class:collapsed={headerCollapsed}
+        onclick={toggleHeaderCollapse}
+        aria-label={headerCollapsed ? t('expandHeader') : t('collapseHeader')}
+        title={headerCollapsed ? t('expandHeader') : t('collapseHeader')}
+      >
+        <svg class="header-collapse-icon" viewBox="0 0 24 24" aria-hidden="true">
+          {#if headerCollapsed}
+            <path
+              d="M6 9l6 6 6-6"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          {:else}
+            <path
+              d="M6 15l6-6 6 6"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          {/if}
+        </svg>
+      </button>
+      {#if hasUnsavedChanges && !readonly}
+        <span
+          class="header-unsaved-dot"
+          title={t('unsavedContent')}
+          aria-label={t('unsavedContent')}
+        ></span>
+      {/if}
+    </div>
     <div class="editor-header" class:collapsed={headerCollapsed}>
       <input
         type="text"
@@ -285,7 +360,28 @@
       <div class="meta">
         <div class="meta-info">
           <span>{t('updatedAt', { date: formatAppDate(note.updatedAt) })}</span>
-          {#if noteIsEncrypted}
+          {#if hasUnsavedChanges && !readonly}
+            <span class="draft-badge">
+              <svg class="draft-badge-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M14 2v6h6M12 18v-6M9 15h6"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+              {t('unsavedContent')}
+            </span>
+          {:else if noteIsEncrypted}
             <span class="encrypted-badge">🔒 {t('encryptedNote')}</span>
           {/if}
           {#if deletedAt}
@@ -312,6 +408,17 @@
           </div>
         {:else}
           <div class="editor-actions">
+            {#if onDelete}
+              <button
+                type="button"
+                class="delete-btn"
+                onclick={onDelete}
+                title={t('moveToTrash')}
+                aria-label={t('deleteNote')}
+              >
+                {t('deleteNote')}
+              </button>
+            {/if}
             <button
               type="button"
               class="markdown-btn"
@@ -321,7 +428,13 @@
             >
               {markdownView ? t('editMode') : t('viewMarkdown')}
             </button>
-            <button type="button" class="save-btn" onclick={openSaveModal} disabled={saving || showLockedState}>
+            <button
+              type="button"
+              class="save-btn"
+              class:unsaved={hasUnsavedChanges}
+              onclick={openSaveModal}
+              disabled={saving || showLockedState}
+            >
               {saving ? t('saving') : t('save')}
             </button>
           </div>
@@ -401,11 +514,28 @@
     position: relative;
   }
 
-  .header-collapse-btn {
+  .header-collapse-wrap {
     position: absolute;
     top: 0;
     left: 50%;
     z-index: 2;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.35rem;
+    transform: translateX(-50%);
+  }
+
+  .header-unsaved-dot {
+    flex-shrink: 0;
+    width: 0.5rem;
+    height: 0.5rem;
+    margin-top: 0.18rem;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 2px var(--surface);
+  }
+
+  .header-collapse-btn {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -418,7 +548,6 @@
     background: var(--surface);
     color: var(--text-muted);
     cursor: pointer;
-    transform: translateX(-50%);
     transition:
       color 0.2s,
       background 0.2s,
@@ -444,7 +573,7 @@
 
   .editor-header {
     flex-shrink: 0;
-    padding: 1.5rem 2rem 1rem;
+    padding: 1rem;
     border-bottom: 1px solid var(--border);
     background: var(--surface);
     overflow: hidden;
@@ -505,8 +634,8 @@
     gap: 0.25rem;
     padding: 0.2rem 0.55rem;
     border-radius: 999px;
-    background: rgba(245, 158, 11, 0.12);
-    color: var(--accent);
+    background: color-mix(in srgb, var(--text-muted) 14%, transparent);
+    color: var(--text-muted);
     font-size: 0.8rem;
     font-weight: 600;
   }
@@ -580,9 +709,19 @@
     text-align: right;
   }
 
-  .encrypted-badge {
+  .encrypted-badge,
+  .draft-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
     color: var(--accent) !important;
     font-weight: 600;
+  }
+
+  .draft-badge-icon {
+    width: 0.9rem;
+    height: 0.9rem;
+    flex-shrink: 0;
   }
 
   .deleted-at {
@@ -619,10 +758,21 @@
     color: var(--danger);
   }
 
-  .save-btn,
   .unlock-btn {
     background: var(--accent);
     color: white;
+  }
+
+  .save-btn {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+
+  .save-btn.unsaved {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
   }
 
   .markdown-btn {
@@ -684,7 +834,7 @@
   .content-input {
     flex: 1;
     width: 100%;
-    padding: 2rem;
+    padding: 1rem;
     border: none;
     background: transparent;
     color: var(--text);
@@ -711,7 +861,7 @@
   .markdown-preview {
     flex: 1;
     overflow-y: auto;
-    padding: 2rem;
+    padding: 1rem;
   }
 
   .markdown-empty {

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { isNoteEncrypted } from '../crypto'
+  import { draftContentStore } from '../draft-content'
   import { formatAppDate, localeState, t } from '../i18n.svelte'
   import { sortNotes, type NoteSortOrder } from '../notes'
   import { PAGE_SIZE } from '../pagination'
@@ -43,7 +44,6 @@
     searching?: boolean
     onSelect: (id: string) => void
     onCreate: () => void
-    onDelete: (id: string) => void
     onOpenTrash: () => void
     onToggleCheck: (id: string) => void
     onCheckIds: (ids: string[]) => void
@@ -63,7 +63,6 @@
     searching = false,
     onSelect,
     onCreate,
-    onDelete,
     onOpenTrash,
     onToggleCheck,
     onCheckIds,
@@ -94,6 +93,12 @@
   )
 
   function preview(note: Note) {
+    const draft = $draftContentStore[note.id]
+    if (draft !== undefined) {
+      const text = draft.trim()
+      return text.length > 80 ? `${text.slice(0, 80)}...` : text || t('noContent')
+    }
+
     if (isNoteEncrypted(note)) {
       return `🔒 ${t('encryptedContent')}`
     }
@@ -297,7 +302,12 @@
             />
           </div>
           <button type="button" class="note-btn" onclick={() => onSelect(note.id)}>
-            <span class="title">{note.title}</span>
+            <span class="title" class:unsaved={note.id in $draftContentStore}>
+              {#if note.id in $draftContentStore}
+                <span class="unsaved-dot" aria-hidden="true"></span>
+              {/if}
+              {note.title}
+            </span>
             {#if note.tags && note.tags.length > 0}
               <span class="tags">
                 {#each note.tags as tag (tag)}
@@ -307,15 +317,6 @@
             {/if}
             <span class="preview">{preview(note)}</span>
             <span class="date">{formatAppDate(note.updatedAt)}</span>
-          </button>
-          <button
-            type="button"
-            class="delete-btn"
-            onclick={() => onDelete(note.id)}
-            title={t('moveToTrash')}
-            aria-label={t('moveToTrash')}
-          >
-            ×
           </button>
         </div>
       {/each}
@@ -345,7 +346,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 1.25rem 1rem 1rem;
+    padding: 0.5rem 1rem;
     border-bottom: 1px solid var(--border);
   }
 
@@ -535,7 +536,6 @@
   .note-list {
     flex: 1;
     overflow-y: auto;
-    padding: 0.75rem;
   }
 
   .select-all {
@@ -567,7 +567,6 @@
   .note-item {
     display: flex;
     align-items: stretch;
-    gap: 0.35rem;
     margin-bottom: 0.5rem;
     border-radius: 12px;
     overflow: hidden;
@@ -618,6 +617,9 @@
   }
 
   .title {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
     width: 100%;
     font-weight: 600;
     color: var(--text);
@@ -625,6 +627,18 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .title.unsaved {
+    color: color-mix(in srgb, var(--accent) 42%, var(--text));
+  }
+
+  .unsaved-dot {
+    flex-shrink: 0;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: var(--accent);
   }
 
   .tags {
@@ -637,8 +651,8 @@
   .tag {
     padding: 0.1rem 0.45rem;
     border-radius: 999px;
-    background: rgba(245, 158, 11, 0.12);
-    color: var(--accent);
+    background: color-mix(in srgb, var(--text-muted) 14%, transparent);
+    color: var(--text-muted);
     font-size: 0.7rem;
     font-weight: 600;
     line-height: 1.4;
@@ -657,29 +671,6 @@
     font-size: 0.75rem;
     color: var(--text-muted);
     opacity: 0.8;
-  }
-
-  .delete-btn {
-    flex-shrink: 0;
-    width: 32px;
-    align-self: center;
-    border: none;
-    border-radius: 8px;
-    background: transparent;
-    color: var(--text-muted);
-    font-size: 1.25rem;
-    cursor: pointer;
-    opacity: 0;
-    transition: all 0.2s;
-  }
-
-  .note-item:hover .delete-btn {
-    opacity: 1;
-  }
-
-  .delete-btn:hover {
-    background: rgba(239, 68, 68, 0.1);
-    color: var(--danger);
   }
 
   .load-more-wrap {

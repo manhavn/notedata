@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte'
   import { authState, getUserDisplayLabel } from '../auth.svelte'
+  import { clearDraftContent, clearDraftContents } from '../draft-content'
   import { downloadNotesJson, readNotesFromFile } from '../note-io'
   import {
     createNote,
@@ -235,6 +236,7 @@
     if (!confirm(t('confirmMoveToTrash'))) return
 
     await moveNoteToTrash(userId, note)
+    clearDraftContent(id)
     checkedIds.delete(id)
     checkedIds = new Set(checkedIds)
     if (selectedId === id) {
@@ -250,6 +252,7 @@
     if (!confirm(t('confirmBulkMoveToTrash', { count: selectedNotes.length }))) return
 
     await moveNotesToTrash(userId, selectedNotes)
+    clearDraftContents(selectedNotes.map((note) => note.id))
     clearSelection()
     if (selectedId && !notes.some((n) => n.id === selectedId)) {
       selectedId = notes[0]?.id ?? null
@@ -509,7 +512,6 @@
           {searching}
           onSelect={handleSelect}
           onCreate={handleCreate}
-          onDelete={handleMoveToTrash}
           onOpenTrash={openTrash}
           onToggleCheck={toggleCheck}
           onCheckIds={checkIds}
@@ -555,6 +557,7 @@
           onSave={handleSave}
           onSaveTags={handleSaveTags}
           {saving}
+          onDelete={() => selectedId && handleMoveToTrash(selectedId)}
           onManageKeys={openKeyManager}
         />
       {:else}
@@ -594,7 +597,7 @@
     display: flex;
     align-items: center;
     gap: 1rem;
-    padding: 0.75rem 1.25rem;
+    padding: 1rem;
     background: var(--surface);
     border-bottom: 1px solid var(--border);
     z-index: 10;
@@ -780,7 +783,7 @@
   @media (max-width: 768px) {
     .topbar {
       gap: 0.5rem;
-      padding: 0.75rem 1rem;
+      padding: 0.5rem;
       width: 100%;
       max-width: 100%;
       overflow-x: auto;

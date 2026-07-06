@@ -188,7 +188,7 @@
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    padding: 1.25rem 1rem 1rem;
+    padding: 0.5rem 1rem;
     border-bottom: 1px solid var(--border);
   }
 
@@ -298,7 +298,6 @@
   .note-list {
     flex: 1;
     overflow-y: auto;
-    padding: 0.75rem;
   }
 
   .select-all {
@@ -331,7 +330,6 @@
   .note-item {
     display: flex;
     align-items: stretch;
-    gap: 0.35rem;
     margin-bottom: 0.5rem;
     border-radius: 12px;
     overflow: hidden;
