@@ -10,6 +10,8 @@ A personal notes app built with **Svelte 5 + Vite**, using **Firebase Authentica
 
 - Sign up / sign in with Email + Password
 - Sign up / sign in with Google
+- **Forgot password** — Firebase sends a reset link by email (`sendPasswordResetEmail`)
+- **Account settings** — display name (shown in the top bar), change password, or add a password for Google-only accounts
 - Login required before using the app
 
 ### Notes
@@ -117,6 +119,36 @@ https://my-notes-app-default-rtdb.asia-southeast1.firebasedatabase.app
 - Choose a **Project support email**
 - Save
 
+#### Password reset email (Forgot password)
+
+The app uses Firebase **`sendPasswordResetEmail`**. After the user submits their email on the auth screen, Firebase emails a one-time reset link (if that email uses email/password sign-in).
+
+Configure the email in Firebase Console:
+
+1. Go to **Build → Authentication → Templates**
+2. Open **Password reset**
+3. Customize (recommended):
+   - **Sender name** — e.g. `NoteData`
+   - **Subject** and **body** — keep the `%LINK%` placeholder so the reset button/link works
+   - **Reply-to** (optional)
+4. Save
+
+By default, the link opens a **Firebase-hosted** page where the user sets a new password, then returns to sign in on your app. You do not need a custom backend for this flow.
+
+> **Google-only accounts:** If the user signed up with Google and never added a password, the reset email may not help them sign in with email/password. They should use **Sign in with Google**, or open **Account settings** in the app (user icon in the notes sidebar) and use **Add password**.
+
+#### Account settings (in-app)
+
+After sign-in, open the **user icon** in the notes sidebar header (before the sort button):
+
+| Feature | Firebase API | Notes |
+|---------|--------------|-------|
+| Display name | `updateProfile` | Shown in the top bar; falls back to email if empty |
+| Change password | `reauthenticateWithCredential` + `updatePassword` | Email/password accounts only |
+| Add password | `linkWithCredential` | Google-only accounts can link email/password sign-in |
+
+No extra Firebase Console setup is required beyond enabling **Email/Password** and **Google**.
+
 ### Step 4: Create a Web App and get the config
 
 1. Go to **Project settings** (gear icon)
@@ -137,14 +169,16 @@ const firebaseConfig = {
 };
 ```
 
-### Step 5: Configure authorized domains (for production)
+### Step 5: Configure authorized domains
+
+Required for **Google sign-in**, **password reset links**, and other auth redirects.
 
 1. Go to **Authentication → Settings → Authorized domains**
 2. Make sure these are listed:
    - `localhost` (for local development)
-   - Your hosting domain (e.g. `my-notes-app.web.app`)
+   - Your hosting domain (e.g. `my-notes-app.web.app` and `my-notes-app.firebaseapp.com`)
 
-Firebase usually adds the hosting domain automatically after the first deploy.
+Firebase usually adds the hosting domain automatically after the first deploy. If reset links or Google login fail on production, add the missing domain here first.
 
 ### Step 6: Clone the project and install dependencies
 
@@ -226,7 +260,9 @@ Try:
 
 1. Register with email/password
 2. Or sign in with Google
-3. Create and save a note
+3. Try **Forgot password?** on the login screen (check inbox/spam for the Firebase email)
+4. Create and save a note
+5. Open **Account settings** from the sidebar user icon to set a display name
 
 ### Step 11: Deploy to Firebase Hosting
 
@@ -364,12 +400,14 @@ To use a new Firebase project:
 1. Create a new project in Firebase Console
 2. Enable **Realtime Database** and copy `databaseURL`
 3. Enable **Authentication**: Email/Password + Google
-4. Create a **Web app** and copy `firebaseConfig`
-5. Update `.env` with the new config
-6. Run `firebase use --add` or edit `.firebaserc`
-7. Run `npm run firebase:deploy:database`
-8. Run `npm run dev` to test locally
-9. Run `npm run firebase:deploy:hosting` to deploy
+4. Customize **Authentication → Templates → Password reset** (optional but recommended)
+5. Create a **Web app** and copy `firebaseConfig`
+6. Update `.env` with the new config
+7. Run `firebase use --add` or edit `.firebaserc`
+8. Run `npm run firebase:deploy:database`
+9. Run `npm run dev` to test locally (including forgot password)
+10. Run `npm run firebase:deploy:hosting` to deploy
+11. Confirm **Authorized domains** includes your hosting URL
 
 ---
 
@@ -385,6 +423,20 @@ To use a new Firebase project:
 - Enable the Google provider in Authentication
 - Allow popups in your browser
 - Make sure the current domain is in **Authorized domains**
+
+### Forgot password: no email received
+
+- Check **spam/junk** folder
+- Confirm **Email/Password** is enabled in Authentication → Sign-in method
+- The account may be **Google-only** (no password set) — use Google sign-in or **Add password** in Account settings
+- Firebase does not reveal whether an email is registered (anti-enumeration); the app always shows a generic success message
+- Verify **Password reset** template is saved under Authentication → Templates
+- On production, ensure the site domain is in **Authorized domains**
+
+### Password reset link does not open or shows an error
+
+- Add both `your-project.web.app` and `your-project.firebaseapp.com` to **Authorized domains**
+- Do not remove `%LINK%` from the Password reset email template
 
 ### `Permission denied` when reading/writing notes
 
@@ -412,7 +464,7 @@ To use a new Firebase project:
 src/
   lib/
     firebase.ts          # Initialize Firebase from env variables
-    auth.svelte.ts       # Login, register, Google auth
+    auth.svelte.ts       # Login, register, Google auth, password reset, profile
     theme.svelte.ts      # Dark/light theme state and persistence
     i18n.svelte.ts       # Locale state, t(), date formatting
     i18n/
@@ -428,6 +480,7 @@ src/
       KeyManagerModal.svelte      # Create/delete encryption keys
       KeySelectModal.svelte       # Pick key or passcode when save/unlock
       PasscodePad.svelte          # iPhone-style 6-digit pad
+      UserAccountModal.svelte   # Display name and password management
       ...                # AuthPage, NotesApp, NoteSidebar, TrashSidebar, ...
 scripts/
   run-manual-lint.sh     # oxlint + svelte-check manual lint script

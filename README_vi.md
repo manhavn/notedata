@@ -10,6 +10,8 @@
 
 - Đăng ký / đăng nhập bằng Email + Password
 - Đăng ký / đăng nhập bằng Google
+- **Quên mật khẩu** — Firebase gửi link đặt lại qua email (`sendPasswordResetEmail`)
+- **Cài đặt tài khoản** — tên hiển thị (trên topbar), đổi mật khẩu, hoặc thêm mật khẩu cho tài khoản chỉ đăng nhập Google
 - Bắt buộc đăng nhập trước khi sử dụng app
 
 ### Ghi chú
@@ -117,6 +119,36 @@ https://my-notes-app-default-rtdb.asia-southeast1.firebasedatabase.app
 - Chọn **Project support email**
 - Lưu lại
 
+#### Email đặt lại mật khẩu (Quên mật khẩu)
+
+App dùng Firebase **`sendPasswordResetEmail`**. Khi người dùng nhập email trên màn đăng nhập, Firebase gửi link đặt lại mật khẩu (nếu email đó dùng đăng nhập email/mật khẩu).
+
+Cấu hình email trên Firebase Console:
+
+1. Vào **Build → Authentication → Templates**
+2. Mở **Password reset** (Đặt lại mật khẩu)
+3. Tùy chỉnh (nên làm):
+   - **Sender name** — ví dụ: `NoteData`
+   - **Subject** và **body** — giữ placeholder `%LINK%` để nút/link đặt lại hoạt động
+   - **Reply-to** (tuỳ chọn)
+4. Lưu lại
+
+Mặc định, link mở **trang do Firebase host** để người dùng nhập mật khẩu mới, sau đó quay lại app để đăng nhập. Không cần backend riêng cho luồng này.
+
+> **Tài khoản chỉ Google:** Nếu người dùng đăng ký bằng Google và chưa thêm mật khẩu, email đặt lại có thể không giúp đăng nhập bằng email/mật khẩu. Họ nên dùng **Đăng nhập với Google**, hoặc mở **Cài đặt tài khoản** trong app (icon user trên sidebar ghi chú) và chọn **Thêm mật khẩu**.
+
+#### Cài đặt tài khoản (trong app)
+
+Sau khi đăng nhập, bấm **icon user** trên header sidebar ghi chú (trước nút sắp xếp):
+
+| Tính năng | Firebase API | Ghi chú |
+|-----------|--------------|---------|
+| Tên hiển thị | `updateProfile` | Hiện trên topbar; trống thì dùng email |
+| Đổi mật khẩu | `reauthenticateWithCredential` + `updatePassword` | Tài khoản email/mật khẩu |
+| Thêm mật khẩu | `linkWithCredential` | Tài khoản chỉ Google có thể liên kết đăng nhập email/mật khẩu |
+
+Không cần cấu hình thêm trên Firebase Console ngoài việc bật **Email/Password** và **Google**.
+
 ### Bước 4: Tạo Web App và lấy cấu hình
 
 1. Vào **Project settings** (biểu tượng bánh răng)
@@ -137,14 +169,16 @@ const firebaseConfig = {
 };
 ```
 
-### Bước 5: Cấu hình Authorized domains (nếu deploy production)
+### Bước 5: Cấu hình Authorized domains
+
+Bắt buộc cho **đăng nhập Google**, **link đặt lại mật khẩu**, và các redirect auth khác.
 
 1. Vào **Authentication → Settings → Authorized domains**
 2. Đảm bảo có:
    - `localhost` (cho dev)
-   - Domain hosting của bạn (ví dụ: `my-notes-app.web.app`)
+   - Domain hosting của bạn (ví dụ: `my-notes-app.web.app` và `my-notes-app.firebaseapp.com`)
 
-Firebase thường tự thêm domain sau khi deploy hosting lần đầu.
+Firebase thường tự thêm domain sau khi deploy hosting lần đầu. Nếu link reset hoặc Google login lỗi trên production, kiểm tra và thêm domain thiếu tại đây trước.
 
 ### Bước 6: Clone project và cài dependencies
 
@@ -226,7 +260,9 @@ Thử:
 
 1. Đăng ký tài khoản email/password
 2. Hoặc đăng nhập bằng Google
-3. Tạo và lưu ghi chú
+3. Thử **Quên mật khẩu?** trên màn đăng nhập (kiểm tra hộp thư và thư rác)
+4. Tạo và lưu ghi chú
+5. Mở **Cài đặt tài khoản** từ icon user trên sidebar để đặt tên hiển thị
 
 ### Bước 11: Deploy lên Firebase Hosting
 
@@ -364,12 +400,14 @@ Khi muốn dùng project Firebase mới, làm lần lượt:
 1. Tạo project mới trên Firebase Console
 2. Bật **Realtime Database** và copy `databaseURL`
 3. Bật **Authentication**: Email/Password + Google
-4. Tạo **Web app** và copy `firebaseConfig`
-5. Cập nhật file `.env` với config mới
-6. Chạy `firebase use --add` hoặc sửa `.firebaserc`
-7. Chạy `npm run firebase:deploy:database`
-8. Chạy `npm run dev` để test local
-9. Chạy `npm run firebase:deploy:hosting` để deploy
+4. Tùy chỉnh **Authentication → Templates → Password reset** (tuỳ chọn nhưng nên làm)
+5. Tạo **Web app** và copy `firebaseConfig`
+6. Cập nhật file `.env` với config mới
+7. Chạy `firebase use --add` hoặc sửa `.firebaserc`
+8. Chạy `npm run firebase:deploy:database`
+9. Chạy `npm run dev` để test local (kể cả quên mật khẩu)
+10. Chạy `npm run firebase:deploy:hosting` để deploy
+11. Xác nhận **Authorized domains** có URL hosting của bạn
 
 ---
 
@@ -385,6 +423,20 @@ Khi muốn dùng project Firebase mới, làm lần lượt:
 - Bật Google provider trong Authentication
 - Cho phép popup trên trình duyệt
 - Kiểm tra domain hiện tại có trong **Authorized domains**
+
+### Quên mật khẩu: không nhận được email
+
+- Kiểm tra thư mục **spam/thư rác**
+- Xác nhận đã bật **Email/Password** trong Authentication → Sign-in method
+- Tài khoản có thể **chỉ dùng Google** (chưa đặt mật khẩu) — đăng nhập Google hoặc **Thêm mật khẩu** trong Cài đặt tài khoản
+- Firebase không tiết lộ email có tồn tại hay không (chống dò email); app luôn hiện thông báo thành công chung
+- Kiểm tra template **Password reset** đã lưu tại Authentication → Templates
+- Trên production, đảm bảo domain site nằm trong **Authorized domains**
+
+### Link đặt lại mật khẩu không mở hoặc báo lỗi
+
+- Thêm cả `your-project.web.app` và `your-project.firebaseapp.com` vào **Authorized domains**
+- Không xóa `%LINK%` khỏi template email Password reset
 
 ### `Permission denied` khi đọc/ghi ghi chú
 
@@ -412,7 +464,7 @@ Khi muốn dùng project Firebase mới, làm lần lượt:
 src/
   lib/
     firebase.ts          # Khởi tạo Firebase từ biến môi trường
-    auth.svelte.ts       # Đăng nhập, đăng ký, Google auth
+    auth.svelte.ts       # Đăng nhập, đăng ký, Google auth, quên mật khẩu, profile
     theme.svelte.ts      # Trạng thái dark/light và lưu preference
     i18n.svelte.ts       # Locale, hàm t(), format ngày
     i18n/
@@ -428,6 +480,7 @@ src/
       KeyManagerModal.svelte      # Tạo/xóa mã khóa
       KeySelectModal.svelte       # Chọn mã khi lưu/mở khóa
       PasscodePad.svelte          # Bàn phím 6 số kiểu iPhone
+      UserAccountModal.svelte   # Tên hiển thị và quản lý mật khẩu
       ...                # AuthPage, NotesApp, NoteSidebar, TrashSidebar, ...
 scripts/
   run-manual-lint.sh     # Script oxlint + svelte-check

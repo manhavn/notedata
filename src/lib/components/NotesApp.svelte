@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte'
-  import { authState, logout } from '../auth.svelte'
+  import { authState, getUserDisplayLabel, logout } from '../auth.svelte'
   import { downloadNotesJson, readNotesFromFile } from '../note-io'
   import {
     createNote,
@@ -20,6 +20,7 @@
   import type { Note, NoteInput, TrashedNote } from '../types'
   import { t } from '../i18n.svelte'
   import KeyManagerModal from './KeyManagerModal.svelte'
+  import UserAccountModal from './UserAccountModal.svelte'
   import LocaleThemeControls from './LocaleThemeControls.svelte'
   import NoteEditor from './NoteEditor.svelte'
   import NoteSidebar from './NoteSidebar.svelte'
@@ -35,6 +36,7 @@
   let saving = $state(false)
   let sidebarOpen = $state(false)
   let keyManagerOpen = $state(false)
+  let accountModalOpen = $state(false)
   let importInput = $state<HTMLInputElement | undefined>(undefined)
   let searchInput = $state('')
   let debouncedSearch = $state('')
@@ -47,6 +49,11 @@
   let searchRequestId = 0
 
   const isSearchActive = $derived(view === 'notes' && debouncedSearch.trim().length > 0)
+
+  const topbarUserLabel = $derived.by(() => {
+    authState.profileTick
+    return getUserDisplayLabel(authState.user)
+  })
 
   const displayedNotes = $derived(
     isSearchActive && searchResults !== null ? searchResults : notes,
@@ -451,7 +458,7 @@
           </svg>
         </button>
       {/if}
-      <span class="email">{authState.user?.email}</span>
+      <span class="email" title={authState.user?.email ?? ''}>{topbarUserLabel}</span>
       <LocaleThemeControls />
       <button
         type="button"
@@ -508,6 +515,7 @@
           onBulkDelete={handleBulkDelete}
           onBulkExport={handleBulkExport}
           onImport={triggerImport}
+          onOpenAccount={() => (accountModalOpen = true)}
         />
       {:else}
         <TrashSidebar
@@ -566,6 +574,7 @@
 </div>
 
 <KeyManagerModal open={keyManagerOpen} onClose={() => (keyManagerOpen = false)} />
+<UserAccountModal open={accountModalOpen} onClose={() => (accountModalOpen = false)} />
 
 <style>
   .hidden-input {

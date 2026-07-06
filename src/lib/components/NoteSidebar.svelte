@@ -52,6 +52,7 @@
     onBulkDelete: () => void
     onBulkExport: () => void
     onImport: () => void
+    onOpenAccount: () => void
   }
 
   let {
@@ -72,6 +73,7 @@
     onBulkDelete,
     onBulkExport,
     onImport,
+    onOpenAccount,
   }: Props = $props()
 
   let displayLimit = $state(PAGE_SIZE)
@@ -154,6 +156,23 @@
   <div class="sidebar-header">
     <h2>{t('notes')}</h2>
     <div class="header-actions">
+      <button
+        type="button"
+        class="icon-btn account-btn"
+        onclick={onOpenAccount}
+        title={t('userAccount')}
+        aria-label={t('userAccount')}
+      >
+        <svg class="account-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M20 21a8 8 0 0 0-16 0M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+          />
+        </svg>
+      </button>
       <div class="sort-wrap" bind:this={sortWrapEl}>
         <button
           type="button"
@@ -371,11 +390,6 @@
     background: rgba(245, 158, 11, 0.08);
   }
 
-  .sort-icon {
-    width: 18px;
-    height: 18px;
-  }
-
   .sort-menu {
     position: absolute;
     top: calc(100% + 0.35rem);
@@ -440,10 +454,17 @@
     color: var(--danger);
   }
 
+  .account-icon,
   .import-icon,
-  .trash-icon {
+  .trash-icon,
+  .sort-icon {
     width: 18px;
     height: 18px;
+  }
+
+  .account-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
   }
 
   .trash-count {
