@@ -1,8 +1,38 @@
 <script lang="ts">
   import { isNoteEncrypted } from '../crypto'
-  import { formatAppDate, t } from '../i18n.svelte'
+  import { formatAppDate, localeState, t } from '../i18n.svelte'
+  import { sortNotes, type NoteSortOrder } from '../notes'
   import { PAGE_SIZE } from '../pagination'
   import type { Note } from '../types'
+  import type { TranslationKey } from '../i18n/translations'
+
+  const SORT_STORAGE_KEY = 'notedata-note-sort'
+
+  const SORT_OPTIONS: { value: NoteSortOrder; labelKey: TranslationKey }[] = [
+    { value: 'title-asc', labelKey: 'sortTitleAsc' },
+    { value: 'title-desc', labelKey: 'sortTitleDesc' },
+    { value: 'create-asc', labelKey: 'sortCreateAsc' },
+    { value: 'create-desc', labelKey: 'sortCreateDesc' },
+    { value: 'update-asc', labelKey: 'sortUpdateAsc' },
+    { value: 'update-desc', labelKey: 'sortUpdateDesc' },
+  ]
+
+  function loadSortOrder(): NoteSortOrder {
+    const stored = localStorage.getItem(SORT_STORAGE_KEY)
+    if (stored === 'time-asc') return 'update-asc'
+    if (stored === 'time-desc') return 'update-desc'
+    if (
+      stored === 'title-asc' ||
+      stored === 'title-desc' ||
+      stored === 'update-asc' ||
+      stored === 'update-desc' ||
+      stored === 'create-asc' ||
+      stored === 'create-desc'
+    ) {
+      return stored
+    }
+    return 'update-desc'
+  }
 
   interface Props {
     notes: Note[]
@@ -45,9 +75,15 @@
   }: Props = $props()
 
   let displayLimit = $state(PAGE_SIZE)
+  let sortOrder = $state<NoteSortOrder>(loadSortOrder())
+  let sortMenuOpen = $state(false)
+  let sortWrapEl = $state<HTMLDivElement | undefined>(undefined)
 
-  const visibleNotes = $derived(notes.slice(0, displayLimit))
-  const hasMore = $derived(notes.length > displayLimit)
+  const sortedNotes = $derived(
+    sortNotes(notes, sortOrder, localeState.locale === 'vi' ? 'vi' : 'en'),
+  )
+  const visibleNotes = $derived(sortedNotes.slice(0, displayLimit))
+  const hasMore = $derived(sortedNotes.length > displayLimit)
   const visibleIds = $derived(visibleNotes.map((note) => note.id))
   const checkedCount = $derived(checkedIds.size)
   const allVisibleChecked = $derived(
@@ -76,12 +112,87 @@
   function loadMore() {
     displayLimit += PAGE_SIZE
   }
+
+  function toggleSortMenu(event: MouseEvent) {
+    event.stopPropagation()
+    sortMenuOpen = !sortMenuOpen
+  }
+
+  function selectSort(order: NoteSortOrder) {
+    sortOrder = order
+    sortMenuOpen = false
+    displayLimit = PAGE_SIZE
+    localStorage.setItem(SORT_STORAGE_KEY, order)
+  }
+
+  $effect(() => {
+    if (!sortMenuOpen) return
+
+    const onPointerDown = (event: MouseEvent) => {
+      if (!sortWrapEl?.contains(event.target as Node)) {
+        sortMenuOpen = false
+      }
+    }
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        sortMenuOpen = false
+      }
+    }
+
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  })
 </script>
 
 <aside class="sidebar">
   <div class="sidebar-header">
     <h2>{t('notes')}</h2>
     <div class="header-actions">
+      <div class="sort-wrap" bind:this={sortWrapEl}>
+        <button
+          type="button"
+          class="icon-btn sort-btn"
+          class:active={sortMenuOpen}
+          onclick={toggleSortMenu}
+          title={t('sortNotes')}
+          aria-label={t('sortNotes')}
+          aria-haspopup="menu"
+          aria-expanded={sortMenuOpen}
+        >
+          <svg class="sort-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M8 9l4-4 4 4M8 15l4 4 4-4"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </button>
+        {#if sortMenuOpen}
+          <div class="sort-menu" role="menu">
+            {#each SORT_OPTIONS as option (option.value)}
+              <button
+                type="button"
+                class="sort-option"
+                class:active={sortOrder === option.value}
+                role="menuitemradio"
+                aria-checked={sortOrder === option.value}
+                onclick={() => selectSort(option.value)}
+              >
+                {t(option.labelKey)}
+              </button>
+            {/each}
+          </div>
+        {/if}
+      </div>
       <button type="button" class="icon-btn" onclick={onImport} title={t('importJson')} aria-label={t('importJson')}>
         <svg class="import-icon" viewBox="0 0 24 24" aria-hidden="true">
           <path
@@ -211,7 +322,7 @@
 
       {#if hasMore}
         <div class="load-more-wrap">
-          <p class="load-more-info">{t('showingCount', { visible: visibleNotes.length, total: notes.length })}</p>
+          <p class="load-more-info">{t('showingCount', { visible: visibleNotes.length, total: sortedNotes.length })}</p>
           <button type="button" class="load-more-btn" onclick={loadMore}>
             {t('loadMore')}
           </button>
@@ -248,6 +359,58 @@
     display: flex;
     align-items: center;
     gap: 0.35rem;
+  }
+
+  .sort-wrap {
+    position: relative;
+  }
+
+  .sort-btn.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(245, 158, 11, 0.08);
+  }
+
+  .sort-icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  .sort-menu {
+    position: absolute;
+    top: calc(100% + 0.35rem);
+    right: 0;
+    z-index: 20;
+    min-width: 9.5rem;
+    padding: 0.3rem;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .sort-option {
+    display: block;
+    width: 100%;
+    padding: 0.45rem 0.65rem;
+    border: none;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--text);
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+
+  .sort-option:hover {
+    background: var(--bg);
+  }
+
+  .sort-option.active {
+    background: rgba(245, 158, 11, 0.12);
+    color: var(--accent);
   }
 
   .icon-btn {

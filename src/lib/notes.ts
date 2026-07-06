@@ -58,10 +58,47 @@ function parseNoteRecord(id: string, note: Omit<Note, 'id'> & { tags?: unknown }
   return tags ? { id, ...rest, tags } : { id, ...rest }
 }
 
+export type NoteSortOrder =
+  | 'title-asc'
+  | 'title-desc'
+  | 'update-asc'
+  | 'update-desc'
+  | 'create-asc'
+  | 'create-desc'
+
+export function sortNotes(
+  notes: Note[],
+  order: NoteSortOrder,
+  locale = 'en',
+): Note[] {
+  const sorted = [...notes]
+
+  switch (order) {
+    case 'title-asc':
+      return sorted.sort((a, b) =>
+        a.title.localeCompare(b.title, locale, { sensitivity: 'base' }),
+      )
+    case 'title-desc':
+      return sorted.sort((a, b) =>
+        b.title.localeCompare(a.title, locale, { sensitivity: 'base' }),
+      )
+    case 'update-asc':
+      return sorted.sort((a, b) => a.updatedAt - b.updatedAt)
+    case 'create-asc':
+      return sorted.sort((a, b) => a.createdAt - b.createdAt)
+    case 'create-desc':
+      return sorted.sort((a, b) => b.createdAt - a.createdAt)
+    case 'update-desc':
+    default:
+      return sorted.sort((a, b) => b.updatedAt - a.updatedAt)
+  }
+}
+
 function parseNotes(data: Record<string, Omit<Note, 'id'> & { tags?: unknown }>): Note[] {
-  return Object.entries(data)
-    .map(([id, note]) => parseNoteRecord(id, note))
-    .sort((a, b) => b.updatedAt - a.updatedAt)
+  return sortNotes(
+    Object.entries(data).map(([id, note]) => parseNoteRecord(id, note)),
+    'update-desc',
+  )
 }
 
 function noteMatchesSearch(note: Note, query: string): boolean {
