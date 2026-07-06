@@ -74,8 +74,23 @@
 
 <aside class="sidebar">
   <div class="sidebar-header">
-    <button type="button" class="back-btn" onclick={onBack} title={t('backToNotes')}>
-      ←
+    <button
+      type="button"
+      class="back-btn"
+      onclick={onBack}
+      title={t('backToNotes')}
+      aria-label={t('backToNotes')}
+    >
+      <svg class="back-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          d="M15 18l-6-6 6-6"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </svg>
     </button>
     <div class="header-text">
       <h2>{t('trash')}</h2>
@@ -137,6 +152,13 @@
           </div>
           <button type="button" class="note-btn" onclick={() => onSelect(note.id)}>
             <span class="title">{note.title}</span>
+            {#if note.tags && note.tags.length > 0}
+              <span class="tags">
+                {#each note.tags as tag (tag)}
+                  <span class="tag">{tag}</span>
+                {/each}
+              </span>
+            {/if}
             <span class="preview">{preview(note)}</span>
             <span class="date">{t('deletedAt', { date: formatAppDate(note.deletedAt) })}</span>
           </button>
@@ -193,19 +215,27 @@
   }
 
   .back-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     width: 36px;
     height: 36px;
+    padding: 0;
     border: 1px solid var(--border);
     border-radius: 10px;
     background: var(--bg);
     color: var(--text);
-    font-size: 1.1rem;
     cursor: pointer;
-    transition: background 0.2s;
+    transition: background 0.2s, border-color 0.2s;
   }
 
   .back-btn:hover {
     background: var(--surface);
+  }
+
+  .back-icon {
+    width: 18px;
+    height: 18px;
   }
 
   .header-text h2 {
@@ -379,6 +409,23 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    width: 100%;
+  }
+
+  .tag {
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--text-muted) 14%, transparent);
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    font-weight: 600;
+    line-height: 1.4;
   }
 
   .preview {

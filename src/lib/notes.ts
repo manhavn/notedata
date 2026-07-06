@@ -112,9 +112,11 @@ function noteMatchesSearch(note: Note, query: string): boolean {
   return (note.tags ?? []).some((tag) => tag.toLowerCase().includes(term))
 }
 
-function parseTrashedNotes(data: Record<string, Omit<TrashedNote, 'id'>>): TrashedNote[] {
+function parseTrashedNotes(
+  data: Record<string, Omit<TrashedNote, 'id'> & { tags?: unknown }>,
+): TrashedNote[] {
   return Object.entries(data)
-    .map(([id, note]) => ({ id, ...note }))
+    .map(([id, note]) => parseNoteRecord(id, note) as TrashedNote)
     .sort((a, b) => b.deletedAt - a.deletedAt)
 }
 

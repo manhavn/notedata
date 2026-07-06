@@ -91,7 +91,7 @@
 
     if (note.id !== lastLoadedId) {
       title = note.title
-      tags = note.tags ? [...note.tags] : []
+      tags = normalizeTags(note.tags)
       tagInput = ''
       lastLoadedId = note.id
       decryptError = null
@@ -422,6 +422,17 @@
               {t('deleteNote')}
             </button>
           {/if}
+          {#if onPermanentDelete && readonly}
+            <button
+              type="button"
+              class="delete-note-link"
+              onclick={onPermanentDelete}
+              title={t('permanentDelete')}
+              aria-label={t('permanentDeleteNote')}
+            >
+              {t('permanentDelete')}
+            </button>
+          {/if}
         </div>
         {#if readonly}
           <div class="trash-actions">
@@ -437,9 +448,6 @@
             </button>
             <button type="button" class="restore-btn" onclick={onRestore}>
               {t('restore')}
-            </button>
-            <button type="button" class="delete-btn" onclick={onPermanentDelete}>
-              {t('permanentDelete')}
             </button>
           </div>
         {:else}
@@ -799,7 +807,6 @@
   }
 
   .restore-btn,
-  .delete-btn,
   .save-btn,
   .cancel-edit-btn,
   .markdown-btn,
@@ -813,13 +820,9 @@
   }
 
   .restore-btn {
-    background: var(--success);
-    color: white;
-  }
-
-  .delete-btn {
-    background: var(--danger-bg);
-    color: var(--danger);
+    background: var(--surface);
+    color: var(--success);
+    border: 1px solid color-mix(in srgb, var(--success) 55%, var(--border));
   }
 
   .unlock-btn {
@@ -853,10 +856,6 @@
   .markdown-btn.accessible:not(.active),
   .markdown-btn.active {
     border: 1px solid color-mix(in srgb, #3b82f6 55%, var(--border));
-  }
-
-  .markdown-btn.active {
-    color: color-mix(in srgb, #3b82f6 80%, var(--text));
   }
 
   .save-btn:disabled,
