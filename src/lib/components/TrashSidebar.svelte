@@ -347,6 +347,7 @@
 
   .note-btn {
     flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
@@ -365,22 +366,22 @@
   }
 
   .title {
+    width: 100%;
     font-weight: 600;
     color: var(--text);
     font-size: 0.95rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 100%;
   }
 
   .preview {
+    width: 100%;
     font-size: 0.8rem;
     color: var(--text-muted);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 100%;
   }
 
   .date {
@@ -390,6 +391,7 @@
   }
 
   .item-actions {
+    flex-shrink: 0;
     display: flex;
     flex-direction: column;
     justify-content: center;
