@@ -774,11 +774,26 @@
     .topbar {
       gap: 0.5rem;
       padding: 0.75rem 1rem;
+      width: 100%;
+      max-width: 100%;
+      overflow-x: auto;
+      overflow-y: hidden;
+      flex-wrap: nowrap;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .topbar::-webkit-scrollbar {
+      display: none;
+      width: 0;
+      height: 0;
     }
 
     .menu-btn {
       display: grid;
       place-items: center;
+      flex-shrink: 0;
     }
 
     .app-name {
@@ -831,8 +846,8 @@
 
     .topbar.search-expanded .search-wrap {
       display: flex;
-      flex: 1;
-      min-width: 0;
+      flex: 1 0 12rem;
+      min-width: 12rem;
       max-width: none;
     }
 
@@ -842,6 +857,12 @@
 
     .user-area {
       gap: 0.5rem;
+      flex-shrink: 0;
+    }
+
+    .keys-btn,
+    .logout-btn {
+      flex-shrink: 0;
     }
 
     .email {
