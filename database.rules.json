@@ -8,6 +8,11 @@
           "$noteId": {
             ".validate": "newData.hasChildren(['title', 'content', 'createdAt', 'updatedAt']) && newData.child('title').isString() && newData.child('content').isString() && newData.child('createdAt').isNumber() && newData.child('updatedAt').isNumber()"
           }
+        },
+        "trash": {
+          "$noteId": {
+            ".validate": "newData.hasChildren(['title', 'content', 'createdAt', 'updatedAt', 'deletedAt']) && newData.child('title').isString() && newData.child('content').isString() && newData.child('createdAt').isNumber() && newData.child('updatedAt').isNumber() && newData.child('deletedAt').isNumber()"
+          }
         }
       }
     }

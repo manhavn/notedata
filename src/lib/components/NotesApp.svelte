@@ -3,15 +3,24 @@
   import { authState, logout } from '../auth.svelte'
   import {
     createNote,
-    deleteNote,
+    emptyTrash,
+    moveNoteToTrash,
+    permanentlyDeleteNote,
+    restoreNoteFromTrash,
     subscribeToNotes,
+    subscribeToTrash,
     updateNote,
   } from '../notes'
-  import type { Note } from '../types'
+  import type { Note, TrashedNote } from '../types'
   import NoteEditor from './NoteEditor.svelte'
   import NoteSidebar from './NoteSidebar.svelte'
+  import TrashSidebar from './TrashSidebar.svelte'
 
+  type View = 'notes' | 'trash'
+
+  let view = $state<View>('notes')
   let notes = $state<Note[]>([])
+  let trashedNotes = $state<TrashedNote[]>([])
   let selectedId = $state<string | null>(null)
   let saving = $state(false)
   let sidebarOpen = $state(false)
@@ -20,24 +29,39 @@
     notes.find((n) => n.id === selectedId) ?? null,
   )
 
+  const selectedTrashedNote = $derived(
+    trashedNotes.find((n) => n.id === selectedId) ?? null,
+  )
+
   onMount(() => {
     const userId = authState.user?.uid
     if (!userId) return
 
-    const unsubscribe = subscribeToNotes(userId, (loaded) => {
+    const unsubscribeNotes = subscribeToNotes(userId, (loaded) => {
       notes = loaded
-      if (selectedId && !loaded.some((n) => n.id === selectedId)) {
+      if (view === 'notes' && selectedId && !loaded.some((n) => n.id === selectedId)) {
         selectedId = loaded[0]?.id ?? null
       }
     })
 
-    return unsubscribe
+    const unsubscribeTrash = subscribeToTrash(userId, (loaded) => {
+      trashedNotes = loaded
+      if (view === 'trash' && selectedId && !loaded.some((n) => n.id === selectedId)) {
+        selectedId = loaded[0]?.id ?? null
+      }
+    })
+
+    return () => {
+      unsubscribeNotes()
+      unsubscribeTrash()
+    }
   })
 
   async function handleCreate() {
     const userId = authState.user?.uid
     if (!userId) return
 
+    view = 'notes'
     const id = await createNote(userId, { title: '', content: '' })
     selectedId = id
     sidebarOpen = false
@@ -45,7 +69,7 @@
 
   async function handleSave(title: string, content: string) {
     const userId = authState.user?.uid
-    if (!userId || !selectedId) return
+    if (!userId || !selectedId || view !== 'notes') return
 
     saving = true
     try {
@@ -55,20 +79,70 @@
     }
   }
 
-  async function handleDelete(id: string) {
+  async function handleMoveToTrash(id: string) {
     const userId = authState.user?.uid
     if (!userId) return
 
-    if (!confirm('Bạn có chắc muốn xóa ghi chú này?')) return
+    const note = notes.find((n) => n.id === id)
+    if (!note) return
 
-    await deleteNote(userId, id)
+    if (!confirm('Chuyển ghi chú này vào thùng rác?')) return
+
+    await moveNoteToTrash(userId, note)
     if (selectedId === id) {
       selectedId = notes.find((n) => n.id !== id)?.id ?? null
     }
   }
 
+  async function handleRestore(id: string) {
+    const userId = authState.user?.uid
+    if (!userId) return
+
+    const note = trashedNotes.find((n) => n.id === id)
+    if (!note) return
+
+    await restoreNoteFromTrash(userId, note)
+    view = 'notes'
+    selectedId = id
+    sidebarOpen = false
+  }
+
+  async function handlePermanentDelete(id: string) {
+    const userId = authState.user?.uid
+    if (!userId) return
+
+    if (!confirm('Xóa vĩnh viễn ghi chú này? Hành động này không thể hoàn tác.')) return
+
+    await permanentlyDeleteNote(userId, id)
+    if (selectedId === id) {
+      selectedId = trashedNotes.find((n) => n.id !== id)?.id ?? null
+    }
+  }
+
+  async function handleEmptyTrash() {
+    const userId = authState.user?.uid
+    if (!userId || trashedNotes.length === 0) return
+
+    if (!confirm(`Xóa vĩnh viễn ${trashedNotes.length} ghi chú trong thùng rác?`)) return
+
+    await emptyTrash(userId)
+    selectedId = null
+  }
+
   function handleSelect(id: string) {
     selectedId = id
+    sidebarOpen = false
+  }
+
+  function openTrash() {
+    view = 'trash'
+    selectedId = trashedNotes[0]?.id ?? null
+    sidebarOpen = false
+  }
+
+  function backToNotes() {
+    view = 'notes'
+    selectedId = notes[0]?.id ?? null
     sidebarOpen = false
   }
 </script>
@@ -92,13 +166,27 @@
 
   <div class="layout">
     <div class="sidebar-wrap" class:open={sidebarOpen}>
-      <NoteSidebar
-        {notes}
-        selectedId={selectedId}
-        onSelect={handleSelect}
-        onCreate={handleCreate}
-        onDelete={handleDelete}
-      />
+      {#if view === 'notes'}
+        <NoteSidebar
+          {notes}
+          trashCount={trashedNotes.length}
+          selectedId={selectedId}
+          onSelect={handleSelect}
+          onCreate={handleCreate}
+          onDelete={handleMoveToTrash}
+          onOpenTrash={openTrash}
+        />
+      {:else}
+        <TrashSidebar
+          notes={trashedNotes}
+          selectedId={selectedId}
+          onSelect={handleSelect}
+          onRestore={handleRestore}
+          onPermanentDelete={handlePermanentDelete}
+          onEmptyTrash={handleEmptyTrash}
+          onBack={backToNotes}
+        />
+      {/if}
     </div>
 
     {#if sidebarOpen}
@@ -111,7 +199,21 @@
     {/if}
 
     <main class="main">
-      <NoteEditor note={selectedNote} onSave={handleSave} {saving} />
+      {#if view === 'notes'}
+        <NoteEditor note={selectedNote} onSave={handleSave} {saving} />
+      {:else}
+        <NoteEditor
+          note={selectedTrashedNote}
+          onSave={handleSave}
+          saving={false}
+          readonly
+          deletedAt={selectedTrashedNote?.deletedAt}
+          onRestore={() => selectedTrashedNote && handleRestore(selectedTrashedNote.id)}
+          onPermanentDelete={() => selectedTrashedNote && handlePermanentDelete(selectedTrashedNote.id)}
+          emptyTitle="Chọn ghi chú trong thùng rác"
+          emptyDescription="Bạn có thể khôi phục hoặc xóa vĩnh viễn các ghi chú đã xóa"
+        />
+      {/if}
     </main>
   </div>
 </div>

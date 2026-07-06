@@ -8,10 +8,26 @@ import {
   type Unsubscribe,
 } from 'firebase/database'
 import { db } from './firebase'
-import type { Note, NoteInput } from './types'
+import type { Note, NoteInput, TrashedNote } from './types'
 
 function notesPath(userId: string) {
   return `users/${userId}/notes`
+}
+
+function trashPath(userId: string) {
+  return `users/${userId}/trash`
+}
+
+function parseNotes(data: Record<string, Omit<Note, 'id'>>): Note[] {
+  return Object.entries(data)
+    .map(([id, note]) => ({ id, ...note }))
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+}
+
+function parseTrashedNotes(data: Record<string, Omit<TrashedNote, 'id'>>): TrashedNote[] {
+  return Object.entries(data)
+    .map(([id, note]) => ({ id, ...note }))
+    .sort((a, b) => b.deletedAt - a.deletedAt)
 }
 
 export function subscribeToNotes(
@@ -21,15 +37,18 @@ export function subscribeToNotes(
   const notesRef = ref(db, notesPath(userId))
 
   return onValue(notesRef, (snapshot) => {
-    const data = snapshot.val() ?? {}
-    const notes = Object.entries(data)
-      .map(([id, note]) => ({
-        id,
-        ...(note as Omit<Note, 'id'>),
-      }))
-      .sort((a, b) => b.updatedAt - a.updatedAt)
+    callback(parseNotes(snapshot.val() ?? {}))
+  })
+}
 
-    callback(notes)
+export function subscribeToTrash(
+  userId: string,
+  callback: (notes: TrashedNote[]) => void,
+): Unsubscribe {
+  const trashRef = ref(db, trashPath(userId))
+
+  return onValue(trashRef, (snapshot) => {
+    callback(parseTrashedNotes(snapshot.val() ?? {}))
   })
 }
 
@@ -66,7 +85,37 @@ export async function updateNote(
   await update(noteRef, updates)
 }
 
-export async function deleteNote(userId: string, noteId: string): Promise<void> {
-  const noteRef = ref(db, `${notesPath(userId)}/${noteId}`)
-  await remove(noteRef)
+export async function moveNoteToTrash(userId: string, note: Note): Promise<void> {
+  const now = Date.now()
+
+  await set(ref(db, `${trashPath(userId)}/${note.id}`), {
+    title: note.title,
+    content: note.content,
+    createdAt: note.createdAt,
+    updatedAt: note.updatedAt,
+    deletedAt: now,
+  })
+
+  await remove(ref(db, `${notesPath(userId)}/${note.id}`))
+}
+
+export async function restoreNoteFromTrash(userId: string, note: TrashedNote): Promise<void> {
+  const now = Date.now()
+
+  await set(ref(db, `${notesPath(userId)}/${note.id}`), {
+    title: note.title,
+    content: note.content,
+    createdAt: note.createdAt,
+    updatedAt: now,
+  })
+
+  await remove(ref(db, `${trashPath(userId)}/${note.id}`))
+}
+
+export async function permanentlyDeleteNote(userId: string, noteId: string): Promise<void> {
+  await remove(ref(db, `${trashPath(userId)}/${noteId}`))
+}
+
+export async function emptyTrash(userId: string): Promise<void> {
+  await remove(ref(db, trashPath(userId)))
 }

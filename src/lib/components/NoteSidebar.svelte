@@ -3,13 +3,15 @@
 
   interface Props {
     notes: Note[]
+    trashCount: number
     selectedId: string | null
     onSelect: (id: string) => void
     onCreate: () => void
     onDelete: (id: string) => void
+    onOpenTrash: () => void
   }
 
-  let { notes, selectedId, onSelect, onCreate, onDelete }: Props = $props()
+  let { notes, trashCount, selectedId, onSelect, onCreate, onDelete, onOpenTrash }: Props = $props()
 
   function formatDate(timestamp: number) {
     return new Intl.DateTimeFormat('vi-VN', {
@@ -50,14 +52,24 @@
             type="button"
             class="delete-btn"
             onclick={() => onDelete(note.id)}
-            title="Xóa ghi chú"
-            aria-label="Xóa ghi chú"
+            title="Chuyển vào thùng rác"
+            aria-label="Chuyển vào thùng rác"
           >
             ×
           </button>
         </div>
       {/each}
     {/if}
+  </div>
+
+  <div class="sidebar-footer">
+    <button type="button" class="trash-btn" onclick={onOpenTrash}>
+      <span class="trash-icon">🗑</span>
+      <span>Thùng rác</span>
+      {#if trashCount > 0}
+        <span class="trash-badge">{trashCount}</span>
+      {/if}
+    </button>
   </div>
 </aside>
 
@@ -192,5 +204,49 @@
   .delete-btn:hover {
     background: rgba(239, 68, 68, 0.1);
     color: #dc2626;
+  }
+
+  .sidebar-footer {
+    padding: 0.75rem 1rem 1rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .trash-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+  }
+
+  .trash-btn:hover {
+    background: var(--surface);
+    border-color: #d6d3d1;
+  }
+
+  .trash-icon {
+    font-size: 1rem;
+  }
+
+  .trash-badge {
+    margin-left: auto;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 0.4rem;
+    border-radius: 999px;
+    background: rgba(239, 68, 68, 0.12);
+    color: #dc2626;
+    font-size: 0.75rem;
+    font-weight: 700;
+    display: grid;
+    place-items: center;
   }
 </style>

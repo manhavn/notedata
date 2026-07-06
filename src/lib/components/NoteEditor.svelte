@@ -5,9 +5,25 @@
     note: Note | null
     onSave: (title: string, content: string) => void
     saving: boolean
+    readonly?: boolean
+    deletedAt?: number
+    onRestore?: () => void
+    onPermanentDelete?: () => void
+    emptyTitle?: string
+    emptyDescription?: string
   }
 
-  let { note, onSave, saving }: Props = $props()
+  let {
+    note,
+    onSave,
+    saving,
+    readonly = false,
+    deletedAt,
+    onRestore,
+    onPermanentDelete,
+    emptyTitle = 'Chọn hoặc tạo ghi chú',
+    emptyDescription = 'Nhấn nút + ở thanh bên để tạo ghi chú mới',
+  }: Props = $props()
 
   let title = $state('')
   let content = $state('')
@@ -18,6 +34,8 @@
       title = note.title
       content = note.content
       lastSavedId = note.id
+    } else if (!note) {
+      lastSavedId = null
     }
   })
 
@@ -45,25 +63,44 @@
         class="title-input"
         bind:value={title}
         placeholder="Tiêu đề ghi chú"
+        readonly={readonly}
       />
       <div class="meta">
-        <span>Cập nhật: {formatDate(note.updatedAt)}</span>
-        <button type="button" class="save-btn" onclick={handleSave} disabled={saving}>
-          {saving ? 'Đang lưu...' : 'Lưu'}
-        </button>
+        <div class="meta-info">
+          <span>Cập nhật: {formatDate(note.updatedAt)}</span>
+          {#if deletedAt}
+            <span class="deleted-at">Đã xóa: {formatDate(deletedAt)}</span>
+          {/if}
+        </div>
+        {#if readonly}
+          <div class="trash-actions">
+            <button type="button" class="restore-btn" onclick={onRestore}>
+              Khôi phục
+            </button>
+            <button type="button" class="delete-btn" onclick={onPermanentDelete}>
+              Xóa vĩnh viễn
+            </button>
+          </div>
+        {:else}
+          <button type="button" class="save-btn" onclick={handleSave} disabled={saving}>
+            {saving ? 'Đang lưu...' : 'Lưu'}
+          </button>
+        {/if}
       </div>
     </div>
 
     <textarea
       class="content-input"
+      class:readonly
       bind:value={content}
       placeholder="Bắt đầu viết ghi chú của bạn..."
+      readonly={readonly}
     ></textarea>
   {:else}
     <div class="placeholder">
-      <div class="placeholder-icon">📝</div>
-      <h3>Chọn hoặc tạo ghi chú</h3>
-      <p>Nhấn nút + ở thanh bên để tạo ghi chú mới</p>
+      <div class="placeholder-icon">{readonly ? '🗑' : '📝'}</div>
+      <h3>{emptyTitle}</h3>
+      <p>{emptyDescription}</p>
     </div>
   {/if}
 </section>
@@ -109,9 +146,51 @@
     flex-wrap: wrap;
   }
 
-  .meta span {
+  .meta-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  .meta-info span,
+  .deleted-at {
     font-size: 0.85rem;
     color: var(--text-muted);
+  }
+
+  .deleted-at {
+    color: #dc2626;
+  }
+
+  .trash-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .restore-btn,
+  .delete-btn {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+
+  .restore-btn {
+    background: #16a34a;
+    color: white;
+  }
+
+  .delete-btn {
+    background: rgba(239, 68, 68, 0.12);
+    color: #dc2626;
+  }
+
+  .restore-btn:hover,
+  .delete-btn:hover {
+    opacity: 0.9;
   }
 
   .save-btn {
@@ -154,6 +233,16 @@
   .content-input::placeholder {
     color: var(--text-muted);
     opacity: 0.5;
+  }
+
+  .content-input.readonly {
+    cursor: default;
+    opacity: 0.85;
+  }
+
+  .title-input:read-only {
+    cursor: default;
+    opacity: 0.9;
   }
 
   .placeholder {
