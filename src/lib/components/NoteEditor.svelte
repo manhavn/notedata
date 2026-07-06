@@ -157,6 +157,28 @@
     headerCollapsed = !headerCollapsed
   }
 
+  function cancelEdit() {
+    if (!note || readonly || !hasUnsavedChanges) return
+
+    clearDraftContent(note.id)
+
+    if (!isNoteEncrypted(note)) {
+      plainContent = note.content
+      savedPlainSnapshot = note.content
+      isUnlocked = true
+    } else if (savedPlainSnapshot !== null) {
+      plainContent = savedPlainSnapshot
+      isUnlocked = true
+    } else {
+      plainContent = ''
+      savedPlainSnapshot = null
+      isUnlocked = false
+    }
+
+    markdownView = false
+    decryptError = null
+  }
+
   function openUnlockModal() {
     if (keyModalOpen) return
     keyModalMode = 'unlock'
@@ -419,6 +441,14 @@
                 {t('deleteNote')}
               </button>
             {/if}
+            <button
+              type="button"
+              class="cancel-edit-btn"
+              onclick={cancelEdit}
+              disabled={!hasUnsavedChanges}
+            >
+              {t('cancelEdit')}
+            </button>
             <button
               type="button"
               class="markdown-btn"
@@ -738,6 +768,7 @@
   .restore-btn,
   .delete-btn,
   .save-btn,
+  .cancel-edit-btn,
   .markdown-btn,
   .unlock-btn {
     padding: 0.5rem 1rem;
@@ -775,6 +806,7 @@
     border-color: var(--accent);
   }
 
+  .cancel-edit-btn,
   .markdown-btn {
     background: var(--surface);
     color: var(--text);
@@ -787,6 +819,7 @@
   }
 
   .save-btn:disabled,
+  .cancel-edit-btn:disabled,
   .markdown-btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
