@@ -6,11 +6,35 @@
 
 ## Tính năng
 
+### Xác thực
+
 - Đăng ký / đăng nhập bằng Email + Password
 - Đăng ký / đăng nhập bằng Google
-- Tạo, sửa, xóa ghi chú
+- Bắt buộc đăng nhập trước khi sử dụng app
+
+### Ghi chú
+
+- Tạo, sửa và lưu ghi chú
 - Đồng bộ realtime theo `userId`
-- Deploy lên Firebase Hosting
+- Danh sách phân trang với nút **Tải thêm** (20 ghi chú mỗi lần)
+- **Thùng rác** — xóa mềm, có thể khôi phục hoặc xóa vĩnh viễn
+
+### Thao tác hàng loạt
+
+- Checkbox chọn từng ghi chú và **Chọn tất cả** (các mục đang hiển thị)
+- Xóa hàng loạt (chuyển vào thùng rác)
+- Export hàng loạt các ghi chú đã chọn ra JSON
+- Khôi phục hoặc xóa vĩnh viễn hàng loạt trong thùng rác
+
+### Import / Export
+
+- **Export** ghi chú đã chọn thành file `.json`
+- **Import** ghi chú từ JSON (mảng, `{ notes: [...] }`, hoặc định dạng export của NoteData)
+
+### Triển khai
+
+- Build và deploy lên Firebase Hosting
+- Deploy security rules Realtime Database theo từng user
 
 ## Yêu cầu
 
@@ -209,7 +233,42 @@ users/
         content: string
         createdAt: number (timestamp)
         updatedAt: number (timestamp)
+    trash/
+      {noteId}/
+        title: string
+        content: string
+        createdAt: number (timestamp)
+        updatedAt: number (timestamp)
+        deletedAt: number (timestamp)
 ```
+
+---
+
+## Định dạng Import / Export
+
+File export có dạng:
+
+```json
+{
+  "version": 1,
+  "exportedAt": 1710000000000,
+  "notes": [
+    {
+      "title": "Ghi chú của tôi",
+      "content": "Nội dung ghi chú",
+      "createdAt": 1710000000000,
+      "updatedAt": 1710000000000
+    }
+  ]
+}
+```
+
+Import cũng hỗ trợ:
+
+- Mảng thuần: `[{ "title": "...", "content": "..." }]`
+- Một object ghi chú đơn có `title` và `content`
+
+Ghi chú import sẽ được tạo mới trên Firebase (ID mới).
 
 ---
 
@@ -276,11 +335,15 @@ src/
   lib/
     firebase.ts          # Khởi tạo Firebase từ biến môi trường
     auth.svelte.ts       # Đăng nhập, đăng ký, Google auth
-    notes.ts             # CRUD ghi chú trên Realtime Database
-    components/          # UI: AuthPage, NotesApp, ...
-database.rules.json      # Security rules cho Realtime Database
+    notes.ts             # CRUD ghi chú, thùng rác, thao tác hàng loạt
+    note-io.ts           # Import/export JSON
+    pagination.ts        # Số lượng mỗi lần tải thêm
+    components/          # UI: AuthPage, NotesApp, NoteSidebar, TrashSidebar, ...
+database.rules.json      # Security rules cho notes và trash
 firebase.json            # Cấu hình Firebase Hosting + Database
 .env.example             # Mẫu biến môi trường
+public/
+  favicon.svg            # Icon app
 ```
 
 ---

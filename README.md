@@ -6,11 +6,35 @@ A personal notes app built with **Svelte 5 + Vite**, using **Firebase Authentica
 
 ## Features
 
+### Authentication
+
 - Sign up / sign in with Email + Password
 - Sign up / sign in with Google
-- Create, edit, and delete notes
+- Login required before using the app
+
+### Notes
+
+- Create, edit, and save notes
 - Realtime sync scoped by `userId`
-- Deploy to Firebase Hosting
+- Paginated note list with **Load more** (20 items per page)
+- Soft delete via **Trash** — restore or permanently delete later
+
+### Bulk actions
+
+- Checkbox selection per note and **Select all** (visible items)
+- Bulk move to trash
+- Bulk export selected notes as JSON
+- Bulk restore or permanently delete in Trash
+
+### Import / Export
+
+- **Export** selected notes to a `.json` file
+- **Import** notes from JSON (array, `{ notes: [...] }`, or NoteData export format)
+
+### Deployment
+
+- Build and deploy to Firebase Hosting
+- Deploy Realtime Database security rules per user
 
 ## Requirements
 
@@ -209,7 +233,42 @@ users/
         content: string
         createdAt: number (timestamp)
         updatedAt: number (timestamp)
+    trash/
+      {noteId}/
+        title: string
+        content: string
+        createdAt: number (timestamp)
+        updatedAt: number (timestamp)
+        deletedAt: number (timestamp)
 ```
+
+---
+
+## Import / Export format
+
+Export produces a JSON file like:
+
+```json
+{
+  "version": 1,
+  "exportedAt": 1710000000000,
+  "notes": [
+    {
+      "title": "My note",
+      "content": "Note content",
+      "createdAt": 1710000000000,
+      "updatedAt": 1710000000000
+    }
+  ]
+}
+```
+
+Import also accepts:
+
+- A plain array: `[{ "title": "...", "content": "..." }]`
+- A single note object with `title` and `content`
+
+Imported notes are created as new entries in Firebase (new IDs).
 
 ---
 
@@ -276,11 +335,15 @@ src/
   lib/
     firebase.ts          # Initialize Firebase from env variables
     auth.svelte.ts       # Login, register, Google auth
-    notes.ts             # Note CRUD on Realtime Database
-    components/          # UI: AuthPage, NotesApp, ...
-database.rules.json      # Security rules for Realtime Database
+    notes.ts             # Note CRUD, trash, bulk operations
+    note-io.ts           # JSON import/export helpers
+    pagination.ts        # Page size for load-more lists
+    components/          # UI: AuthPage, NotesApp, NoteSidebar, TrashSidebar, ...
+database.rules.json      # Security rules for notes and trash
 firebase.json            # Firebase Hosting + Database config
 .env.example             # Environment variable template
+public/
+  favicon.svg            # App icon
 ```
 
 ---
