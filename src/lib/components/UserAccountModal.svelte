@@ -17,6 +17,7 @@
     userShowsEmailVerificationStatus,
   } from '../auth.svelte'
   import { t } from '../i18n.svelte'
+  import { toastError, toastSuccess, toastWarning } from '../toast.svelte'
   import PasswordInput from './PasswordInput.svelte'
 
   interface Props {
@@ -32,18 +33,10 @@
   let currentPassword = $state('')
   let newPassword = $state('')
   let confirmPassword = $state('')
-  let profileError = $state<string | null>(null)
-  let profileSuccess = $state<string | null>(null)
-  let passwordError = $state<string | null>(null)
-  let passwordSuccess = $state<string | null>(null)
-  let emailError = $state<string | null>(null)
-  let emailSuccess = $state<string | null>(null)
   let savingProfile = $state(false)
   let savingEmail = $state(false)
   let savingPassword = $state(false)
   let resendingVerification = $state(false)
-  let verificationMessage = $state<string | null>(null)
-  let verificationError = $state<string | null>(null)
 
   const user = $derived(authState.user)
   const hasPassword = $derived(user ? userHasPasswordProvider(user) : false)
@@ -66,14 +59,6 @@
       currentPassword = ''
       newPassword = ''
       confirmPassword = ''
-      profileError = null
-      profileSuccess = null
-      emailError = null
-      emailSuccess = null
-      verificationMessage = null
-      verificationError = null
-      passwordError = null
-      passwordSuccess = null
     })
   })
 
@@ -87,65 +72,56 @@
   }
 
   async function handleSaveDisplayName() {
-    profileError = null
-    profileSuccess = null
     savingProfile = true
 
     try {
       await saveDisplayName(displayName)
-      profileSuccess = t('displayNameSaved')
+      toastSuccess(t('displayNameSaved'))
     } catch {
-      profileError = authState.error ?? t('authErrorGeneric')
+      toastError(authState.error ?? t('authErrorGeneric'))
     } finally {
       savingProfile = false
     }
   }
 
   async function handleResendVerification() {
-    verificationError = null
-    verificationMessage = null
     resendingVerification = true
 
     try {
       await resendEmailVerification()
-      verificationMessage = t('emailVerificationResent')
+      toastSuccess(t('emailVerificationResent'))
     } catch {
-      verificationError = authState.error ?? t('authErrorGeneric')
+      toastError(authState.error ?? t('authErrorGeneric'))
     } finally {
       resendingVerification = false
     }
   }
 
   async function handleRefreshVerification() {
-    verificationError = null
-    verificationMessage = null
     resendingVerification = true
 
     try {
       const verified = await refreshEmailVerificationStatus()
       if (verified) {
-        verificationMessage = t('emailVerified')
+        toastSuccess(t('emailVerified'))
       } else {
-        verificationError = t('emailVerificationStillPending')
+        toastWarning(t('emailVerificationStillPending'))
       }
     } catch {
-      verificationError = authState.error ?? t('authErrorGeneric')
+      toastError(authState.error ?? t('authErrorGeneric'))
     } finally {
       resendingVerification = false
     }
   }
 
   async function handleRequestEmailChange() {
-    emailError = null
-    emailSuccess = null
-
     if (!newEmail.trim()) {
-      emailError = t('authInvalidEmail')
+      toastError(t('authInvalidEmail'))
       return
     }
 
     if (hasPassword && !emailCurrentPassword) {
-      emailError = t('authWrongCredentials')
+      toastError(t('authWrongCredentials'))
       return
     }
 
@@ -156,27 +132,24 @@
         newEmail,
         hasPassword ? emailCurrentPassword : undefined,
       )
-      emailSuccess = t('emailChangeSent')
+      toastSuccess(t('emailChangeSent'))
       newEmail = ''
       emailCurrentPassword = ''
     } catch {
-      emailError = authState.error ?? t('authErrorGeneric')
+      toastError(authState.error ?? t('authErrorGeneric'))
     } finally {
       savingEmail = false
     }
   }
 
   async function handleSavePassword() {
-    passwordError = null
-    passwordSuccess = null
-
     if (newPassword.length < 6) {
-      passwordError = t('authWeakPassword')
+      toastError(t('authWeakPassword'))
       return
     }
 
     if (newPassword !== confirmPassword) {
-      passwordError = t('passwordMismatch')
+      toastError(t('passwordMismatch'))
       return
     }
 
@@ -185,16 +158,16 @@
     try {
       if (hasPassword) {
         await changeAccountPassword(currentPassword, newPassword)
-        passwordSuccess = t('passwordChanged')
+        toastSuccess(t('passwordChanged'))
       } else {
         await addAccountPassword(newPassword)
-        passwordSuccess = t('passwordAdded')
+        toastSuccess(t('passwordAdded'))
       }
       currentPassword = ''
       newPassword = ''
       confirmPassword = ''
     } catch {
-      passwordError = authState.error ?? t('authErrorGeneric')
+      toastError(authState.error ?? t('authErrorGeneric'))
     } finally {
       savingPassword = false
     }
@@ -249,12 +222,6 @@
     {#if needsVerification}
       <section class="verification-banner">
         <p>{t('emailVerificationHint', { email: user.email ?? '' })}</p>
-        {#if verificationMessage}
-          <p class="success">{verificationMessage}</p>
-        {/if}
-        {#if verificationError}
-          <p class="error">{verificationError}</p>
-        {/if}
         <div class="verification-actions">
           <button
             type="button"
@@ -300,12 +267,6 @@
           autocomplete="name"
         />
       </label>
-      {#if profileError}
-        <p class="error">{profileError}</p>
-      {/if}
-      {#if profileSuccess}
-        <p class="success">{profileSuccess}</p>
-      {/if}
       <button
         type="button"
         class="primary-btn"
@@ -345,13 +306,6 @@
           <p class="hint reauth-hint">{t('changeEmailGoogleReauthHint')}</p>
         {/if}
 
-        {#if emailError}
-          <p class="error">{emailError}</p>
-        {/if}
-        {#if emailSuccess}
-          <p class="success">{emailSuccess}</p>
-        {/if}
-
         <button
           type="button"
           class="primary-btn"
@@ -384,13 +338,6 @@
           <span>{t('confirmNewPassword')}</span>
           <PasswordInput bind:value={confirmPassword} autocomplete="new-password" />
         </label>
-
-        {#if passwordError}
-          <p class="error">{passwordError}</p>
-        {/if}
-        {#if passwordSuccess}
-          <p class="success">{passwordSuccess}</p>
-        {/if}
 
         <button
           type="button"
@@ -711,18 +658,6 @@
   .primary-btn:disabled {
     opacity: 0.65;
     cursor: not-allowed;
-  }
-
-  .error {
-    margin: 0 0 0.75rem;
-    color: var(--danger);
-    font-size: 0.88rem;
-  }
-
-  .success {
-    margin: 0 0 0.75rem;
-    color: var(--success);
-    font-size: 0.88rem;
   }
 
   .logout-section {

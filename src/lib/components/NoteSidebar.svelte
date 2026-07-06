@@ -513,11 +513,24 @@
     font-size: 0.8rem;
     font-weight: 600;
     cursor: pointer;
+    transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.15s ease;
+  }
+
+  .bulk-btn:hover {
+    background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+    border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+    color: var(--accent);
   }
 
   .bulk-btn.danger {
     border-color: rgba(239, 68, 68, 0.25);
     background: rgba(239, 68, 68, 0.08);
+    color: var(--danger);
+  }
+
+  .bulk-btn.danger:hover {
+    background: rgba(239, 68, 68, 0.16);
+    border-color: rgba(239, 68, 68, 0.45);
     color: var(--danger);
   }
 
@@ -531,6 +544,10 @@
     background: var(--bg);
     color: var(--text);
     border-color: var(--text-muted);
+  }
+
+  .bulk-btn:active {
+    transform: scale(0.98);
   }
 
   .note-list {
