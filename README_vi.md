@@ -31,6 +31,21 @@
 - **Export** ghi chú đã chọn thành file `.json`
 - **Import** ghi chú từ JSON (mảng, `{ notes: [...] }`, hoặc định dạng export của NoteData)
 
+### Dark mode
+
+- **Mặc định dark mode** khi truy cập lần đầu
+- Nút switch ở header (giữa email và Đăng xuất) và màn hình đăng nhập
+- Lưu preference trong `localStorage` với key `notedata-theme` (`dark` hoặc `light`)
+- Màu sắc dùng CSS variables trong `src/app.css` qua `data-theme` trên `<html>`
+
+### Đa ngôn ngữ (i18n)
+
+- **Mặc định tiếng Anh**, hỗ trợ thêm **tiếng Việt**
+- Nút **EN / VI** ở header và màn hình đăng nhập
+- Lưu preference trong `localStorage` với key `notedata-locale` (`en` hoặc `vi`)
+- Dịch toàn bộ UI, hộp thoại xác nhận, lỗi auth và thông báo import
+- File dịch nằm tại `src/lib/i18n/translations.ts`
+
 ### Triển khai
 
 - Build và deploy lên Firebase Hosting
@@ -272,6 +287,48 @@ Ghi chú import sẽ được tạo mới trên Firebase (ID mới).
 
 ---
 
+## Dark mode & i18n
+
+### Cách hoạt động
+
+| Cài đặt | Mặc định | Key lưu trữ | Giá trị |
+|---------|----------|-------------|---------|
+| Theme | `dark` | `notedata-theme` | `dark`, `light` |
+| Ngôn ngữ | `en` | `notedata-locale` | `en`, `vi` |
+
+Khởi tạo chạy trong `src/main.ts` qua `initTheme()` và `initLocale()` trước khi app mount.
+
+### Đổi mặc định
+
+- Theme mặc định: sửa `initTheme()` trong `src/lib/theme.svelte.ts`
+- Ngôn ngữ mặc định: sửa `initLocale()` trong `src/lib/i18n.svelte.ts`
+- HTML fallback: `data-theme="dark"` và `lang="en"` trong `index.html`
+
+### Thêm hoặc sửa bản dịch
+
+1. Mở `src/lib/i18n/translations.ts`
+2. Thêm cùng key vào cả object `en` và `vi`
+3. Dùng trong component với `t('yourKey')` từ `src/lib/i18n.svelte.ts`
+4. Với text động, dùng placeholder: `t('selectedCount', { count: 3 })`
+
+Ví dụ:
+
+```ts
+import { t } from '../i18n.svelte'
+
+t('loadMore')
+t('importSuccess', { count: 5 })
+```
+
+### Thêm ngôn ngữ mới
+
+1. Thêm object locale mới trong `src/lib/i18n/translations.ts` (copy các key từ `en`)
+2. Mở rộng type `Locale` và export `translations`
+3. Thêm nút trong `src/lib/components/LocaleThemeControls.svelte`
+4. Cập nhật `setLocale()` / `initLocale()` để nhận mã locale mới
+
+---
+
 ## Scripts npm
 
 | Lệnh | Mô tả |
@@ -335,10 +392,16 @@ src/
   lib/
     firebase.ts          # Khởi tạo Firebase từ biến môi trường
     auth.svelte.ts       # Đăng nhập, đăng ký, Google auth
+    theme.svelte.ts      # Trạng thái dark/light và lưu preference
+    i18n.svelte.ts       # Locale, hàm t(), format ngày
+    i18n/
+      translations.ts    # Chuỗi tiếng Anh và tiếng Việt
     notes.ts             # CRUD ghi chú, thùng rác, thao tác hàng loạt
     note-io.ts           # Import/export JSON
     pagination.ts        # Số lượng mỗi lần tải thêm
-    components/          # UI: AuthPage, NotesApp, NoteSidebar, TrashSidebar, ...
+    components/
+      LocaleThemeControls.svelte  # Nút EN/VI và switch dark mode
+      ...                # AuthPage, NotesApp, NoteSidebar, TrashSidebar, ...
 database.rules.json      # Security rules cho notes và trash
 firebase.json            # Cấu hình Firebase Hosting + Database
 .env.example             # Mẫu biến môi trường

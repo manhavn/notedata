@@ -31,6 +31,21 @@ A personal notes app built with **Svelte 5 + Vite**, using **Firebase Authentica
 - **Export** selected notes to a `.json` file
 - **Import** notes from JSON (array, `{ notes: [...] }`, or NoteData export format)
 
+### Dark mode
+
+- **Dark mode by default** on first visit
+- Toggle switch in the header (between email and Sign out) and on the auth screen
+- Preference saved in `localStorage` under `notedata-theme` (`dark` or `light`)
+- Theme colors are driven by CSS variables in `src/app.css` via `data-theme` on `<html>`
+
+### Internationalization (i18n)
+
+- **English by default**, with **Vietnamese** available
+- **EN / VI** toggle in the header and on the auth screen
+- Preference saved in `localStorage` under `notedata-locale` (`en` or `vi`)
+- UI strings, confirmations, auth errors, and import messages are translated
+- Translation files live in `src/lib/i18n/translations.ts`
+
 ### Deployment
 
 - Build and deploy to Firebase Hosting
@@ -272,6 +287,48 @@ Imported notes are created as new entries in Firebase (new IDs).
 
 ---
 
+## Dark mode & i18n
+
+### How it works
+
+| Setting | Default | Storage key | Values |
+|---------|---------|-------------|--------|
+| Theme | `dark` | `notedata-theme` | `dark`, `light` |
+| Language | `en` | `notedata-locale` | `en`, `vi` |
+
+Initialization runs in `src/main.ts` via `initTheme()` and `initLocale()` before the app mounts.
+
+### Change defaults
+
+- Default theme: edit `initTheme()` in `src/lib/theme.svelte.ts`
+- Default language: edit `initLocale()` in `src/lib/i18n.svelte.ts`
+- HTML fallback: `data-theme="dark"` and `lang="en"` in `index.html`
+
+### Add or edit translations
+
+1. Open `src/lib/i18n/translations.ts`
+2. Add the same key to both `en` and `vi` objects
+3. Use it in components with `t('yourKey')` from `src/lib/i18n.svelte.ts`
+4. For dynamic text, use placeholders: `t('selectedCount', { count: 3 })`
+
+Example:
+
+```ts
+import { t } from '../i18n.svelte'
+
+t('loadMore')
+t('importSuccess', { count: 5 })
+```
+
+### Add a new language
+
+1. Add a new locale object in `src/lib/i18n/translations.ts` (copy the `en` keys)
+2. Extend the `Locale` type and `translations` export
+3. Add a button in `src/lib/components/LocaleThemeControls.svelte`
+4. Update `setLocale()` / `initLocale()` to accept the new locale code
+
+---
+
 ## npm scripts
 
 | Command | Description |
@@ -335,10 +392,16 @@ src/
   lib/
     firebase.ts          # Initialize Firebase from env variables
     auth.svelte.ts       # Login, register, Google auth
+    theme.svelte.ts      # Dark/light theme state and persistence
+    i18n.svelte.ts       # Locale state, t(), date formatting
+    i18n/
+      translations.ts    # English and Vietnamese strings
     notes.ts             # Note CRUD, trash, bulk operations
     note-io.ts           # JSON import/export helpers
     pagination.ts        # Page size for load-more lists
-    components/          # UI: AuthPage, NotesApp, NoteSidebar, TrashSidebar, ...
+    components/
+      LocaleThemeControls.svelte  # EN/VI toggle and dark mode switch
+      ...                # AuthPage, NotesApp, NoteSidebar, TrashSidebar, ...
 database.rules.json      # Security rules for notes and trash
 firebase.json            # Firebase Hosting + Database config
 .env.example             # Environment variable template
