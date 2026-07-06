@@ -5,7 +5,10 @@ import {
   linkWithCredential,
   onAuthStateChanged,
   reauthenticateWithCredential,
+  reauthenticateWithPopup,
+  sendEmailVerification,
   sendPasswordResetEmail,
+  verifyBeforeUpdateEmail,
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
@@ -45,6 +48,16 @@ export function userHasGoogleProvider(user: User): boolean {
   return user.providerData.some((provider) => provider.providerId === 'google.com')
 }
 
+/** Email/password-only sign-ups must verify. Google sign-in is trusted by Firebase. */
+export function userNeedsEmailVerification(user: User): boolean {
+  if (userHasGoogleProvider(user)) return false
+  return userHasPasswordProvider(user) && !user.emailVerified
+}
+
+export function userShowsEmailVerificationStatus(user: User): boolean {
+  return userHasPasswordProvider(user) && !userHasGoogleProvider(user)
+}
+
 async function refreshAuthUser() {
   const user = auth.currentUser
   if (user) {
@@ -76,11 +89,32 @@ export async function login(email: string, password: string) {
 export async function register(email: string, password: string) {
   setError(null)
   try {
-    await createUserWithEmailAndPassword(auth, email, password)
+    const credential = await createUserWithEmailAndPassword(auth, email, password)
+    await sendEmailVerification(credential.user)
+    await refreshAuthUser()
   } catch (err) {
     setError(getAuthErrorMessage(err))
     throw err
   }
+}
+
+export async function resendEmailVerification() {
+  const user = auth.currentUser
+  if (!user) throw new Error('Not signed in')
+
+  setError(null)
+  try {
+    await sendEmailVerification(user)
+  } catch (err) {
+    const message = getAuthErrorMessage(err)
+    setError(message)
+    throw err
+  }
+}
+
+export async function refreshEmailVerificationStatus(): Promise<boolean> {
+  await refreshAuthUser()
+  return auth.currentUser?.emailVerified ?? false
 }
 
 export async function requestPasswordReset(email: string) {
@@ -143,6 +177,50 @@ export async function addAccountPassword(newPassword: string) {
   }
 }
 
+async function reauthenticateForSensitiveAction(currentPassword?: string) {
+  const user = auth.currentUser
+  if (!user) throw new Error('Not signed in')
+
+  if (userHasPasswordProvider(user)) {
+    if (!user.email || !currentPassword) {
+      throw { code: 'auth/invalid-credential' }
+    }
+    const credential = EmailAuthProvider.credential(user.email, currentPassword)
+    await reauthenticateWithCredential(user, credential)
+    return
+  }
+
+  if (userHasGoogleProvider(user)) {
+    await reauthenticateWithPopup(user, googleProvider)
+    return
+  }
+
+  throw { code: 'auth/invalid-credential' }
+}
+
+export async function requestEmailChange(newEmail: string, currentPassword?: string) {
+  const user = auth.currentUser
+  if (!user) throw new Error('Not signed in')
+
+  const trimmed = newEmail.trim()
+  if (!trimmed) {
+    throw { code: 'auth/invalid-email' }
+  }
+  if (trimmed.toLowerCase() === user.email?.toLowerCase()) {
+    throw { code: 'auth/email-same-as-current' }
+  }
+
+  setError(null)
+  try {
+    await reauthenticateForSensitiveAction(currentPassword)
+    await verifyBeforeUpdateEmail(user, trimmed)
+  } catch (err) {
+    const message = getAuthErrorMessage(err)
+    setError(message)
+    throw err
+  }
+}
+
 export async function changeAccountPassword(currentPassword: string, newPassword: string) {
   const user = auth.currentUser
   if (!user?.email) throw new Error('No email')
@@ -179,6 +257,8 @@ const authErrorMap: Record<string, TranslationKey> = {
   'auth/requires-recent-login': 'authRequiresRecentLogin',
   'auth/provider-already-linked': 'authProviderAlreadyLinked',
   'auth/credential-already-in-use': 'authCredentialAlreadyInUse',
+  'auth/email-same-as-current': 'authEmailSameAsCurrent',
+  'auth/operation-not-allowed': 'authOperationNotAllowed',
 }
 
 function getAuthErrorMessage(err: unknown): string {

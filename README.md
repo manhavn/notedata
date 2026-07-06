@@ -11,7 +11,8 @@ A personal notes app built with **Svelte 5 + Vite**, using **Firebase Authentica
 - Sign up / sign in with Email + Password
 - Sign up / sign in with Google
 - **Forgot password** — Firebase sends a reset link by email (`sendPasswordResetEmail`)
-- **Account settings** — display name (shown in the top bar), change password, or add a password for Google-only accounts
+- **Email verification** — after email/password sign-up, Firebase sends a verification link (`sendEmailVerification`); the app unlocks after the user verifies
+- **Account settings** — display name (shown in the top bar), change email (`verifyBeforeUpdateEmail`), change/add password, resend verification
 - Login required before using the app
 
 ### Notes
@@ -135,19 +136,60 @@ Configure the email in Firebase Console:
 
 By default, the link opens a **Firebase-hosted** page where the user sets a new password, then returns to sign in on your app. You do not need a custom backend for this flow.
 
-> **Google-only accounts:** If the user signed up with Google and never added a password, the reset email may not help them sign in with email/password. They should use **Sign in with Google**, or open **Account settings** in the app (user icon in the notes sidebar) and use **Add password**.
+> **Google-only accounts:** If the user signed up with Google and never added a password, the reset email may not help them sign in with email/password. They should use **Sign in with Google**, or open **Account settings** (user icon in the top bar) and use **Add password**.
+
+#### Email verification (email/password sign-up)
+
+The app uses Firebase **`sendEmailVerification`** immediately after `createUserWithEmailAndPassword`. Until `emailVerified` is true, the user sees a dedicated verification screen (not the notes UI).
+
+Configure the email in Firebase Console:
+
+1. Go to **Build → Authentication → Templates**
+2. Open **Email address verification**
+3. Customize (recommended):
+   - **Sender name** — e.g. `NoteData`
+   - **Subject** and **body** — keep the `%LINK%` placeholder
+4. Save
+
+Flow:
+
+1. User registers with email/password
+2. Firebase emails a verification link
+3. User opens the link (Firebase-hosted page by default)
+4. User returns to the app and taps **Check verification status** (reloads the auth profile)
+5. After verification, the main app opens
+
+Google sign-in accounts **never** enter this gate — Firebase treats their email as already verified. If a Google user changes email later, `verifyBeforeUpdateEmail` still requires opening the **new** inbox (handled in Account settings).
+
+#### Email address change (Account settings)
+
+The app uses Firebase **`verifyBeforeUpdateEmail`** (not a direct `updateEmail` swap). The new address receives a verification link; the account email changes only after the user opens that link.
+
+Before sending the link, the app **re-authenticates** the user:
+
+- Email/password account → current password
+- Google-only account → Google popup (`reauthenticateWithPopup`)
+
+Configure the template:
+
+1. Go to **Authentication → Templates**
+2. Open **Email address change**
+3. Keep the `%LINK%` placeholder in the body
+4. Save
 
 #### Account settings (in-app)
 
-After sign-in, open the **user icon** in the notes sidebar header (before the sort button):
+After sign-in, open the **user icon** in the top bar (right side):
 
 | Feature | Firebase API | Notes |
 |---------|--------------|-------|
 | Display name | `updateProfile` | Shown in the top bar; falls back to email if empty |
+| Change email | `reauthenticate` + `verifyBeforeUpdateEmail` | Verification link sent to the new inbox |
 | Change password | `reauthenticateWithCredential` + `updatePassword` | Email/password accounts only |
 | Add password | `linkWithCredential` | Google-only accounts can link email/password sign-in |
+| Resend verification | `sendEmailVerification` | Email/password accounts only, when not yet verified |
 
-No extra Firebase Console setup is required beyond enabling **Email/Password** and **Google**.
+Beyond enabling **Email/Password** and **Google**, customize the three templates above: **Password reset**, **Email address verification**, and **Email address change**.
 
 ### Step 4: Create a Web App and get the config
 
@@ -171,7 +213,7 @@ const firebaseConfig = {
 
 ### Step 5: Configure authorized domains
 
-Required for **Google sign-in**, **password reset links**, and other auth redirects.
+Required for **Google sign-in**, **password reset**, **email verification**, **email change** links, and other auth redirects.
 
 1. Go to **Authentication → Settings → Authorized domains**
 2. Make sure these are listed:
@@ -258,11 +300,12 @@ Open the URL shown in the terminal (usually `http://localhost:5173`).
 
 Try:
 
-1. Register with email/password
-2. Or sign in with Google
-3. Try **Forgot password?** on the login screen (check inbox/spam for the Firebase email)
-4. Create and save a note
-5. Open **Account settings** from the sidebar user icon to set a display name
+1. Register with email/password — check inbox for the **verification** email and open the link
+2. Tap **Check verification status** on the verification screen to enter the app
+3. Or sign in with Google (skips email verification)
+4. Try **Forgot password?** on the login screen
+5. Create and save a note
+6. Open **Account settings** from the top-bar user icon to set a display name or change email
 
 ### Step 11: Deploy to Firebase Hosting
 
@@ -400,7 +443,7 @@ To use a new Firebase project:
 1. Create a new project in Firebase Console
 2. Enable **Realtime Database** and copy `databaseURL`
 3. Enable **Authentication**: Email/Password + Google
-4. Customize **Authentication → Templates → Password reset** (optional but recommended)
+4. Customize **Authentication → Templates**: Password reset, Email address verification, Email address change
 5. Create a **Web app** and copy `firebaseConfig`
 6. Update `.env` with the new config
 7. Run `firebase use --add` or edit `.firebaserc`
@@ -438,6 +481,18 @@ To use a new Firebase project:
 - Add both `your-project.web.app` and `your-project.firebaseapp.com` to **Authorized domains**
 - Do not remove `%LINK%` from the Password reset email template
 
+### Email verification: stuck on the verification screen
+
+- Open the verification link from the registration email (check spam)
+- Tap **Check verification status** after opening the link — the app reloads the Firebase user profile
+- Customize **Authentication → Templates → Email address verification**
+- Use **Resend verification email** if the first message expired or was lost
+
+### Email change: verification sent but address unchanged
+
+- This is expected until the user opens the link in the **new** inbox
+- Check **Email address change** template and **Authorized domains**
+
 ### `Permission denied` when reading/writing notes
 
 - Database rules not deployed yet: run `npm run firebase:deploy:database`
@@ -464,7 +519,7 @@ To use a new Firebase project:
 src/
   lib/
     firebase.ts          # Initialize Firebase from env variables
-    auth.svelte.ts       # Login, register, Google auth, password reset, profile
+    auth.svelte.ts       # Login, register, verification, password/email changes, profile
     theme.svelte.ts      # Dark/light theme state and persistence
     i18n.svelte.ts       # Locale state, t(), date formatting
     i18n/
@@ -480,7 +535,8 @@ src/
       KeyManagerModal.svelte      # Create/delete encryption keys
       KeySelectModal.svelte       # Pick key or passcode when save/unlock
       PasscodePad.svelte          # iPhone-style 6-digit pad
-      UserAccountModal.svelte   # Display name and password management
+      UserAccountModal.svelte   # Display name, email, and password management
+      EmailVerificationScreen.svelte  # Post-sign-up email verification gate
       ...                # AuthPage, NotesApp, NoteSidebar, TrashSidebar, ...
 scripts/
   run-manual-lint.sh     # oxlint + svelte-check manual lint script

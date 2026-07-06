@@ -140,6 +140,26 @@ export const translations = {
     displayNameHint: 'Shown in the top bar. Leave empty to use your email.',
     displayNamePlaceholder: 'Your display name',
     displayNameSaved: 'Display name updated.',
+    changeEmail: 'Change email',
+    changeEmailHint:
+      'Firebase will send a verification link to the new address. Your email updates only after you open that link.',
+    currentEmail: 'Current email',
+    newEmail: 'New email',
+    newEmailPlaceholder: 'you@example.com',
+    changeEmailGoogleReauthHint:
+      'A Google sign-in popup will open to confirm your identity before the verification email is sent.',
+    emailChangeSent:
+      'Verification email sent. Open the link in the new inbox to finish changing your email.',
+    emailVerificationTitle: 'Verify your email',
+    emailVerificationHint:
+      'We sent a verification link to {email}. Open it to activate your account, then return here and tap Check status.',
+    emailVerificationResent: 'Verification email sent again. Check your inbox and spam folder.',
+    emailVerificationStillPending:
+      'Email is not verified yet. Open the link in your inbox, then try again.',
+    resendVerificationEmail: 'Resend verification email',
+    checkVerificationStatus: 'Check verification status',
+    emailVerified: 'Verified',
+    emailNotVerified: 'Not verified',
     signInMethods: 'Sign-in methods',
     signInGoogleMethod: 'Google',
     signInPasswordMethod: 'Email & password',
@@ -156,6 +176,8 @@ export const translations = {
     authRequiresRecentLogin: 'Please sign out and sign in again, then retry.',
     authProviderAlreadyLinked: 'This account already has a password.',
     authCredentialAlreadyInUse: 'This email is already linked to another sign-in method.',
+    authEmailSameAsCurrent: 'The new email is the same as your current email.',
+    authOperationNotAllowed: 'This operation is not allowed. Check Firebase Authentication settings.',
   },
   vi: {
     appName: 'NoteData',
@@ -298,6 +320,26 @@ export const translations = {
     displayNameHint: 'Hiển thị trên thanh trên cùng. Để trống sẽ dùng email.',
     displayNamePlaceholder: 'Tên hiển thị của bạn',
     displayNameSaved: 'Đã cập nhật tên hiển thị.',
+    changeEmail: 'Đổi email',
+    changeEmailHint:
+      'Firebase sẽ gửi link xác minh tới email mới. Email chỉ đổi sau khi bạn mở link đó.',
+    currentEmail: 'Email hiện tại',
+    newEmail: 'Email mới',
+    newEmailPlaceholder: 'ban@example.com',
+    changeEmailGoogleReauthHint:
+      'Cửa sổ đăng nhập Google sẽ mở để xác nhận danh tính trước khi gửi email xác minh.',
+    emailChangeSent:
+      'Đã gửi email xác minh. Mở link trong hộp thư email mới để hoàn tất đổi email.',
+    emailVerificationTitle: 'Xác minh email của bạn',
+    emailVerificationHint:
+      'Chúng tôi đã gửi link xác minh tới {email}. Mở link để kích hoạt tài khoản, sau đó quay lại đây và bấm Kiểm tra trạng thái.',
+    emailVerificationResent: 'Đã gửi lại email xác minh. Kiểm tra hộp thư và thư rác.',
+    emailVerificationStillPending:
+      'Email chưa được xác minh. Mở link trong hộp thư rồi thử lại.',
+    resendVerificationEmail: 'Gửi lại email xác minh',
+    checkVerificationStatus: 'Kiểm tra trạng thái',
+    emailVerified: 'Đã xác minh',
+    emailNotVerified: 'Chưa xác minh',
     signInMethods: 'Phương thức đăng nhập',
     signInGoogleMethod: 'Google',
     signInPasswordMethod: 'Email & mật khẩu',
@@ -314,6 +356,8 @@ export const translations = {
     authRequiresRecentLogin: 'Vui lòng đăng xuất, đăng nhập lại rồi thử lại.',
     authProviderAlreadyLinked: 'Tài khoản này đã có mật khẩu.',
     authCredentialAlreadyInUse: 'Email này đã được liên kết với phương thức đăng nhập khác.',
+    authEmailSameAsCurrent: 'Email mới trùng với email hiện tại.',
+    authOperationNotAllowed: 'Thao tác không được phép. Kiểm tra cài đặt Firebase Authentication.',
   },
 } as const
 

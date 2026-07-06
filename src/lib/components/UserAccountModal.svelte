@@ -6,9 +6,14 @@
     changeAccountPassword,
     getUserDisplayLabel,
     logout,
+    refreshEmailVerificationStatus,
+    requestEmailChange,
+    resendEmailVerification,
     saveDisplayName,
     userHasGoogleProvider,
     userHasPasswordProvider,
+    userNeedsEmailVerification,
+    userShowsEmailVerificationStatus,
   } from '../auth.svelte'
   import { t } from '../i18n.svelte'
 
@@ -20,6 +25,8 @@
   let { open, onClose }: Props = $props()
 
   let displayName = $state('')
+  let newEmail = $state('')
+  let emailCurrentPassword = $state('')
   let currentPassword = $state('')
   let newPassword = $state('')
   let confirmPassword = $state('')
@@ -27,23 +34,39 @@
   let profileSuccess = $state<string | null>(null)
   let passwordError = $state<string | null>(null)
   let passwordSuccess = $state<string | null>(null)
+  let emailError = $state<string | null>(null)
+  let emailSuccess = $state<string | null>(null)
   let savingProfile = $state(false)
+  let savingEmail = $state(false)
   let savingPassword = $state(false)
+  let resendingVerification = $state(false)
+  let verificationMessage = $state<string | null>(null)
+  let verificationError = $state<string | null>(null)
 
   const user = $derived(authState.user)
   const hasPassword = $derived(user ? userHasPasswordProvider(user) : false)
   const hasGoogle = $derived(user ? userHasGoogleProvider(user) : false)
+  const needsVerification = $derived(user ? userNeedsEmailVerification(user) : false)
+  const showsVerificationStatus = $derived(
+    user ? userShowsEmailVerificationStatus(user) : false,
+  )
   const topbarPreview = $derived(getUserDisplayLabel(user, authState.profileTick))
 
   $effect(() => {
     if (!open) return
     untrack(() => {
       displayName = user?.displayName?.trim() ?? ''
+      newEmail = ''
+      emailCurrentPassword = ''
       currentPassword = ''
       newPassword = ''
       confirmPassword = ''
       profileError = null
       profileSuccess = null
+      emailError = null
+      emailSuccess = null
+      verificationMessage = null
+      verificationError = null
       passwordError = null
       passwordSuccess = null
     })
@@ -70,6 +93,71 @@
       profileError = authState.error ?? t('authErrorGeneric')
     } finally {
       savingProfile = false
+    }
+  }
+
+  async function handleResendVerification() {
+    verificationError = null
+    verificationMessage = null
+    resendingVerification = true
+
+    try {
+      await resendEmailVerification()
+      verificationMessage = t('emailVerificationResent')
+    } catch {
+      verificationError = authState.error ?? t('authErrorGeneric')
+    } finally {
+      resendingVerification = false
+    }
+  }
+
+  async function handleRefreshVerification() {
+    verificationError = null
+    verificationMessage = null
+    resendingVerification = true
+
+    try {
+      const verified = await refreshEmailVerificationStatus()
+      if (verified) {
+        verificationMessage = t('emailVerified')
+      } else {
+        verificationError = t('emailVerificationStillPending')
+      }
+    } catch {
+      verificationError = authState.error ?? t('authErrorGeneric')
+    } finally {
+      resendingVerification = false
+    }
+  }
+
+  async function handleRequestEmailChange() {
+    emailError = null
+    emailSuccess = null
+
+    if (!newEmail.trim()) {
+      emailError = t('authInvalidEmail')
+      return
+    }
+
+    if (hasPassword && !emailCurrentPassword) {
+      emailError = t('authWrongCredentials')
+      return
+    }
+
+    savingEmail = true
+
+    try {
+      await requestEmailChange(
+        newEmail,
+        hasPassword ? emailCurrentPassword : undefined,
+      )
+      emailSuccess = t('emailChangeSent')
+      newEmail = ''
+      emailCurrentPassword = ''
+    } catch {
+      emailError = authState.error ?? t('authErrorGeneric')
+    } finally {
+      savingEmail = false
     }
   }
 
@@ -145,8 +233,43 @@
       <div class="profile-meta">
         <strong class="profile-name">{topbarPreview}</strong>
         <span class="profile-email">{user.email}</span>
+        {#if showsVerificationStatus}
+          <span class="verification-badge" class:verified={user.emailVerified}>
+            {user.emailVerified ? t('emailVerified') : t('emailNotVerified')}
+          </span>
+        {/if}
       </div>
     </section>
+
+    {#if needsVerification}
+      <section class="verification-banner">
+        <p>{t('emailVerificationHint', { email: user.email ?? '' })}</p>
+        {#if verificationMessage}
+          <p class="success">{verificationMessage}</p>
+        {/if}
+        {#if verificationError}
+          <p class="error">{verificationError}</p>
+        {/if}
+        <div class="verification-actions">
+          <button
+            type="button"
+            class="secondary-btn"
+            onclick={handleResendVerification}
+            disabled={resendingVerification}
+          >
+            {resendingVerification ? t('processing') : t('resendVerificationEmail')}
+          </button>
+          <button
+            type="button"
+            class="secondary-btn"
+            onclick={handleRefreshVerification}
+            disabled={resendingVerification}
+          >
+            {resendingVerification ? t('processing') : t('checkVerificationStatus')}
+          </button>
+        </div>
+      </section>
+    {/if}
 
     <section class="section">
       <h3>{t('signInMethods')}</h3>
@@ -185,6 +308,55 @@
         disabled={savingProfile}
       >
         {savingProfile ? t('saving') : t('save')}
+      </button>
+    </section>
+
+    <section class="section">
+      <h3>{t('changeEmail')}</h3>
+      <p class="hint">{t('changeEmailHint')}</p>
+
+      <label class="field">
+        <span>{t('currentEmail')}</span>
+        <input type="email" value={user.email ?? ''} readonly />
+      </label>
+
+      <label class="field">
+        <span>{t('newEmail')}</span>
+        <input
+          type="email"
+          bind:value={newEmail}
+          placeholder={t('newEmailPlaceholder')}
+          autocomplete="email"
+        />
+      </label>
+
+      {#if hasPassword}
+        <label class="field">
+          <span>{t('currentPassword')}</span>
+          <input
+            type="password"
+            bind:value={emailCurrentPassword}
+            autocomplete="current-password"
+          />
+        </label>
+      {:else if hasGoogle}
+        <p class="hint reauth-hint">{t('changeEmailGoogleReauthHint')}</p>
+      {/if}
+
+      {#if emailError}
+        <p class="error">{emailError}</p>
+      {/if}
+      {#if emailSuccess}
+        <p class="success">{emailSuccess}</p>
+      {/if}
+
+      <button
+        type="button"
+        class="primary-btn"
+        onclick={handleRequestEmailChange}
+        disabled={savingEmail}
+      >
+        {savingEmail ? t('processing') : t('changeEmail')}
       </button>
     </section>
 
@@ -369,6 +541,71 @@
     text-overflow: ellipsis;
   }
 
+  .verification-badge {
+    display: inline-flex;
+    width: fit-content;
+    margin-top: 0.15rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    background: rgba(239, 68, 68, 0.12);
+    color: var(--danger);
+    font-size: 0.72rem;
+    font-weight: 700;
+  }
+
+  .verification-badge.verified {
+    background: var(--success-bg);
+    color: var(--success);
+  }
+
+  .verification-banner {
+    margin-bottom: 1.25rem;
+    padding: 1rem 1.1rem;
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    border-radius: 14px;
+    background: rgba(59, 130, 246, 0.06);
+  }
+
+  .verification-banner p {
+    margin: 0 0 0.75rem;
+    color: var(--text-muted);
+    font-size: 0.88rem;
+    line-height: 1.5;
+  }
+
+  .verification-banner p:last-child {
+    margin-bottom: 0;
+  }
+
+  .verification-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .secondary-btn {
+    flex: 1;
+    min-width: 10rem;
+    padding: 0.65rem 0.85rem;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--text);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .secondary-btn:hover:not(:disabled) {
+    background: var(--bg);
+  }
+
+  .secondary-btn:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+  }
+
   .section {
     padding-top: 1.1rem;
     margin-top: 1.1rem;
@@ -437,6 +674,16 @@
     outline: none;
     border-color: var(--accent);
     box-shadow: 0 0 0 3px var(--input-focus-ring);
+  }
+
+  .field input:read-only {
+    cursor: default;
+    color: var(--text-muted);
+    background: var(--surface);
+  }
+
+  .reauth-hint {
+    margin-top: -0.35rem;
   }
 
   .primary-btn {

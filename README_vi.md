@@ -11,7 +11,8 @@
 - Đăng ký / đăng nhập bằng Email + Password
 - Đăng ký / đăng nhập bằng Google
 - **Quên mật khẩu** — Firebase gửi link đặt lại qua email (`sendPasswordResetEmail`)
-- **Cài đặt tài khoản** — tên hiển thị (trên topbar), đổi mật khẩu, hoặc thêm mật khẩu cho tài khoản chỉ đăng nhập Google
+- **Xác minh email** — sau đăng ký email/mật khẩu, Firebase gửi link xác minh (`sendEmailVerification`); app mở sau khi xác minh
+- **Cài đặt tài khoản** — tên hiển thị (topbar), đổi email (`verifyBeforeUpdateEmail`), đổi/thêm mật khẩu, gửi lại xác minh
 - Bắt buộc đăng nhập trước khi sử dụng app
 
 ### Ghi chú
@@ -135,19 +136,60 @@ Cấu hình email trên Firebase Console:
 
 Mặc định, link mở **trang do Firebase host** để người dùng nhập mật khẩu mới, sau đó quay lại app để đăng nhập. Không cần backend riêng cho luồng này.
 
-> **Tài khoản chỉ Google:** Nếu người dùng đăng ký bằng Google và chưa thêm mật khẩu, email đặt lại có thể không giúp đăng nhập bằng email/mật khẩu. Họ nên dùng **Đăng nhập với Google**, hoặc mở **Cài đặt tài khoản** trong app (icon user trên sidebar ghi chú) và chọn **Thêm mật khẩu**.
+> **Tài khoản chỉ Google:** Nếu người dùng đăng ký bằng Google và chưa thêm mật khẩu, email đặt lại có thể không giúp đăng nhập bằng email/mật khẩu. Họ nên dùng **Đăng nhập với Google**, hoặc mở **Cài đặt tài khoản** (icon user trên topbar) và chọn **Thêm mật khẩu**.
+
+#### Xác minh email (đăng ký email/mật khẩu)
+
+App dùng Firebase **`sendEmailVerification`** ngay sau `createUserWithEmailAndPassword`. Cho đến khi `emailVerified` là `true`, người dùng thấy màn xác minh riêng (chưa vào giao diện ghi chú).
+
+Cấu hình email trên Firebase Console:
+
+1. Vào **Build → Authentication → Templates**
+2. Mở **Email address verification** (Xác minh địa chỉ email)
+3. Tùy chỉnh (nên làm):
+   - **Sender name** — ví dụ: `NoteData`
+   - **Subject** và **body** — giữ placeholder `%LINK%`
+4. Lưu lại
+
+Luồng:
+
+1. Người dùng đăng ký email/mật khẩu
+2. Firebase gửi link xác minh
+3. Người dùng mở link (trang Firebase mặc định)
+4. Quay lại app, bấm **Kiểm tra trạng thái** (reload profile auth)
+5. Sau khi xác minh, vào app chính
+
+Tài khoản đăng nhập Google **không** vào màn này — Firebase coi email đã xác minh. Nếu sau đó đổi email, `verifyBeforeUpdateEmail` vẫn bắt mở **inbox mới** (trong Cài đặt tài khoản).
+
+#### Đổi email (Cài đặt tài khoản)
+
+App dùng Firebase **`verifyBeforeUpdateEmail`** (không đổi email trực tiếp). Email mới nhận link xác minh; email tài khoản chỉ đổi sau khi mở link.
+
+Trước khi gửi link, app **xác thực lại** người dùng:
+
+- Tài khoản email/mật khẩu → mật khẩu hiện tại
+- Chỉ Google → popup Google (`reauthenticateWithPopup`)
+
+Cấu hình template:
+
+1. Vào **Authentication → Templates**
+2. Mở **Email address change** (Đổi địa chỉ email)
+3. Giữ placeholder `%LINK%` trong nội dung
+4. Lưu lại
 
 #### Cài đặt tài khoản (trong app)
 
-Sau khi đăng nhập, bấm **icon user** trên header sidebar ghi chú (trước nút sắp xếp):
+Sau khi đăng nhập, bấm **icon user** trên topbar (bên phải):
 
 | Tính năng | Firebase API | Ghi chú |
 |-----------|--------------|---------|
 | Tên hiển thị | `updateProfile` | Hiện trên topbar; trống thì dùng email |
+| Đổi email | `reauthenticate` + `verifyBeforeUpdateEmail` | Gửi link xác minh tới inbox mới |
 | Đổi mật khẩu | `reauthenticateWithCredential` + `updatePassword` | Tài khoản email/mật khẩu |
-| Thêm mật khẩu | `linkWithCredential` | Tài khoản chỉ Google có thể liên kết đăng nhập email/mật khẩu |
+| Thêm mật khẩu | `linkWithCredential` | Tài khoản chỉ Google có thể liên kết email/mật khẩu |
+| Gửi lại xác minh | `sendEmailVerification` | Tài khoản email/mật khẩu chưa xác minh |
 
-Không cần cấu hình thêm trên Firebase Console ngoài việc bật **Email/Password** và **Google**.
+Ngoài bật **Email/Password** và **Google**, nên tùy chỉnh ba template: **Password reset**, **Email address verification**, **Email address change**.
 
 ### Bước 4: Tạo Web App và lấy cấu hình
 
@@ -171,7 +213,7 @@ const firebaseConfig = {
 
 ### Bước 5: Cấu hình Authorized domains
 
-Bắt buộc cho **đăng nhập Google**, **link đặt lại mật khẩu**, và các redirect auth khác.
+Bắt buộc cho **đăng nhập Google**, **đặt lại mật khẩu**, **xác minh email**, **đổi email**, và các redirect auth khác.
 
 1. Vào **Authentication → Settings → Authorized domains**
 2. Đảm bảo có:
@@ -258,11 +300,12 @@ Mở URL hiển thị trong terminal (thường là `http://localhost:5173`).
 
 Thử:
 
-1. Đăng ký tài khoản email/password
-2. Hoặc đăng nhập bằng Google
-3. Thử **Quên mật khẩu?** trên màn đăng nhập (kiểm tra hộp thư và thư rác)
-4. Tạo và lưu ghi chú
-5. Mở **Cài đặt tài khoản** từ icon user trên sidebar để đặt tên hiển thị
+1. Đăng ký email/mật khẩu — kiểm tra email **xác minh** và mở link
+2. Bấm **Kiểm tra trạng thái** trên màn xác minh để vào app
+3. Hoặc đăng nhập Google (bỏ qua xác minh email)
+4. Thử **Quên mật khẩu?** trên màn đăng nhập
+5. Tạo và lưu ghi chú
+6. Mở **Cài đặt tài khoản** từ icon user trên topbar
 
 ### Bước 11: Deploy lên Firebase Hosting
 
@@ -400,7 +443,7 @@ Khi muốn dùng project Firebase mới, làm lần lượt:
 1. Tạo project mới trên Firebase Console
 2. Bật **Realtime Database** và copy `databaseURL`
 3. Bật **Authentication**: Email/Password + Google
-4. Tùy chỉnh **Authentication → Templates → Password reset** (tuỳ chọn nhưng nên làm)
+4. Tùy chỉnh **Authentication → Templates**: Password reset, Email address verification, Email address change
 5. Tạo **Web app** và copy `firebaseConfig`
 6. Cập nhật file `.env` với config mới
 7. Chạy `firebase use --add` hoặc sửa `.firebaserc`
@@ -438,6 +481,18 @@ Khi muốn dùng project Firebase mới, làm lần lượt:
 - Thêm cả `your-project.web.app` và `your-project.firebaseapp.com` vào **Authorized domains**
 - Không xóa `%LINK%` khỏi template email Password reset
 
+### Xác minh email: kẹt ở màn xác minh
+
+- Mở link xác minh trong email đăng ký (kiểm tra thư rác)
+- Sau khi mở link, bấm **Kiểm tra trạng thái** — app reload profile Firebase
+- Tùy chỉnh **Authentication → Templates → Email address verification**
+- Dùng **Gửi lại email xác minh** nếu email hết hạn hoặc thất lạc
+
+### Đổi email: đã gửi xác minh nhưng email chưa đổi
+
+- Đúng quy trình — email chỉ đổi sau khi mở link trong **inbox mới**
+- Kiểm tra template **Email address change** và **Authorized domains**
+
 ### `Permission denied` khi đọc/ghi ghi chú
 
 - Chưa deploy database rules: chạy `npm run firebase:deploy:database`
@@ -464,7 +519,7 @@ Khi muốn dùng project Firebase mới, làm lần lượt:
 src/
   lib/
     firebase.ts          # Khởi tạo Firebase từ biến môi trường
-    auth.svelte.ts       # Đăng nhập, đăng ký, Google auth, quên mật khẩu, profile
+    auth.svelte.ts       # Đăng nhập, đăng ký, xác minh, đổi mật khẩu/email, profile
     theme.svelte.ts      # Trạng thái dark/light và lưu preference
     i18n.svelte.ts       # Locale, hàm t(), format ngày
     i18n/
@@ -480,7 +535,8 @@ src/
       KeyManagerModal.svelte      # Tạo/xóa mã khóa
       KeySelectModal.svelte       # Chọn mã khi lưu/mở khóa
       PasscodePad.svelte          # Bàn phím 6 số kiểu iPhone
-      UserAccountModal.svelte   # Tên hiển thị và quản lý mật khẩu
+      UserAccountModal.svelte   # Tên hiển thị, email và mật khẩu
+      EmailVerificationScreen.svelte  # Màn chờ xác minh email sau đăng ký
       ...                # AuthPage, NotesApp, NoteSidebar, TrashSidebar, ...
 scripts/
   run-manual-lint.sh     # Script oxlint + svelte-check

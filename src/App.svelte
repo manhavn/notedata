@@ -1,8 +1,13 @@
 <script lang="ts">
-  import { authState } from './lib/auth.svelte'
+  import { authState, userNeedsEmailVerification } from './lib/auth.svelte'
   import { t } from './lib/i18n.svelte'
   import AuthPage from './lib/components/AuthPage.svelte'
+  import EmailVerificationScreen from './lib/components/EmailVerificationScreen.svelte'
   import NotesApp from './lib/components/NotesApp.svelte'
+
+  const pendingEmailVerification = $derived(
+    authState.user ? userNeedsEmailVerification(authState.user) : false,
+  )
 </script>
 
 {#if authState.loading}
@@ -11,7 +16,11 @@
     <p>{t('loading')}</p>
   </div>
 {:else if authState.user}
-  <NotesApp />
+  {#if pendingEmailVerification}
+    <EmailVerificationScreen />
+  {:else}
+    <NotesApp />
+  {/if}
 {:else}
   <AuthPage />
 {/if}
