@@ -3,12 +3,14 @@
   import { formatAppDate, t } from '../i18n.svelte'
   import { renderMarkdown } from '../markdown'
   import { portal } from '../portal'
+  import { normalizeTags } from '../notes'
   import type { Note } from '../types'
   import KeySelectModal, { type PasscodeSubmit } from './KeySelectModal.svelte'
 
   interface SavePayload {
     title: string
     content: string
+    tags: string[]
     encrypted: boolean
     keyId?: string
   }
@@ -16,6 +18,7 @@
   interface Props {
     note: Note | null
     onSave: (payload: SavePayload) => void | Promise<void>
+    onSaveTags?: (tags: string[]) => void | Promise<void>
     saving: boolean
     readonly?: boolean
     deletedAt?: number
@@ -29,6 +32,7 @@
   let {
     note,
     onSave,
+    onSaveTags,
     saving,
     readonly = false,
     deletedAt,
@@ -40,6 +44,8 @@
   }: Props = $props()
 
   let title = $state('')
+  let tags = $state<string[]>([])
+  let tagInput = $state('')
   let plainContent = $state('')
   let lastLoadedId = $state<string | null>(null)
   let isUnlocked = $state(false)
@@ -57,6 +63,8 @@
   $effect(() => {
     if (!note) {
       title = ''
+      tags = []
+      tagInput = ''
       plainContent = ''
       lastLoadedId = null
       isUnlocked = false
@@ -68,6 +76,8 @@
 
     if (note.id !== lastLoadedId) {
       title = note.title
+      tags = note.tags ? [...note.tags] : []
+      tagInput = ''
       plainContent = ''
       lastLoadedId = note.id
       isUnlocked = !isNoteEncrypted(note)
@@ -138,6 +148,7 @@
     await onSave({
       title,
       content: options.content ?? plainContent,
+      tags,
       encrypted: options.encrypted,
       keyId: options.keyId,
     })
@@ -151,6 +162,44 @@
     keyModalOpen = false
     await persistNote({ encrypted: false, keyId: undefined })
   }
+
+  function tagsEqual(left: string[], right: string[]) {
+    return left.length === right.length && left.every((tag, index) => tag === right[index])
+  }
+
+  async function saveTags() {
+    if (!note || readonly || !onSaveTags) return
+    await onSaveTags([...tags])
+  }
+
+  async function addTagsFromInput() {
+    if (!tagInput.trim()) return
+
+    const nextTags = normalizeTags([...tags, ...tagInput.split(',')])
+    const changed = !tagsEqual(nextTags, tags)
+
+    tags = nextTags
+    tagInput = ''
+
+    if (changed) {
+      await saveTags()
+    }
+  }
+
+  function handleTagInputKeydown(event: KeyboardEvent) {
+    if (event.key === 'Enter' || event.key === ',') {
+      event.preventDefault()
+      void addTagsFromInput()
+    }
+  }
+
+  async function removeTag(tag: string) {
+    const nextTags = tags.filter((item) => item !== tag)
+    if (tagsEqual(nextTags, tags)) return
+
+    tags = nextTags
+    await saveTags()
+  }
 </script>
 
 <section class="editor">
@@ -163,6 +212,39 @@
         placeholder={t('noteTitle')}
         readonly={readonly}
       />
+      <div class="tags-row">
+        {#if tags.length > 0}
+          <div class="tag-list">
+            {#each tags as tag (tag)}
+              <span class="tag-chip">
+                {tag}
+                {#if !readonly}
+                  <button
+                    type="button"
+                    class="tag-remove"
+                    onclick={() => removeTag(tag)}
+                    aria-label={t('removeTag', { tag })}
+                  >
+                    ×
+                  </button>
+                {/if}
+              </span>
+            {/each}
+          </div>
+        {/if}
+        {#if !readonly}
+          <input
+            type="text"
+            class="tag-input"
+            bind:value={tagInput}
+            placeholder={t('noteTagsPlaceholder')}
+            onkeydown={handleTagInputKeydown}
+            onblur={() => void addTagsFromInput()}
+          />
+        {:else if tags.length === 0}
+          <span class="no-tags">{t('noTags')}</span>
+        {/if}
+      </div>
       <div class="meta">
         <div class="meta-info">
           <span>{t('updatedAt', { date: formatAppDate(note.updatedAt) })}</span>
@@ -305,6 +387,73 @@
   .title-input::placeholder {
     color: var(--text-muted);
     opacity: 0.5;
+  }
+
+  .tags-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .tag-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  .tag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    background: rgba(245, 158, 11, 0.12);
+    color: var(--accent);
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+
+  .tag-remove {
+    border: none;
+    background: transparent;
+    color: inherit;
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+    opacity: 0.7;
+  }
+
+  .tag-remove:hover {
+    opacity: 1;
+  }
+
+  .tag-input {
+    flex: 1;
+    min-width: 180px;
+    padding: 0.35rem 0.65rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 0.85rem;
+  }
+
+  .tag-input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .tag-input::placeholder {
+    color: var(--text-muted);
+    opacity: 0.6;
+  }
+
+  .no-tags {
+    font-size: 0.85rem;
+    color: var(--text-muted);
   }
 
   .meta {

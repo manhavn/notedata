@@ -1,4 +1,5 @@
 import {
+  get,
   onValue,
   push,
   ref,
@@ -19,10 +20,59 @@ function trashPath(userId: string) {
   return `users/${userId}/trash`
 }
 
-function parseNotes(data: Record<string, Omit<Note, 'id'>>): Note[] {
+export function normalizeTags(tags?: string[] | string): string[] {
+  const items = Array.isArray(tags)
+    ? tags
+    : typeof tags === 'string'
+      ? tags.split(',')
+      : []
+
+  return [...new Set(items.map((tag) => tag.trim()).filter(Boolean))]
+}
+
+function parseTags(value: unknown): string[] | undefined {
+  if (typeof value === 'string') {
+    const tags = normalizeTags(value)
+    return tags.length > 0 ? tags : undefined
+  }
+
+  if (typeof value === 'object' && value !== null) {
+    const tags = normalizeTags(
+      Object.values(value).filter((item): item is string => typeof item === 'string'),
+    )
+    return tags.length > 0 ? tags : undefined
+  }
+
+  return undefined
+}
+
+function serializeTags(tags?: string[]): string | null {
+  const normalized = normalizeTags(tags)
+  return normalized.length > 0 ? normalized.join(',') : null
+}
+
+function parseNoteRecord(id: string, note: Omit<Note, 'id'> & { tags?: unknown }): Note {
+  const { tags: rawTags, ...rest } = note
+  const tags = parseTags(rawTags)
+
+  return tags ? { id, ...rest, tags } : { id, ...rest }
+}
+
+function parseNotes(data: Record<string, Omit<Note, 'id'> & { tags?: unknown }>): Note[] {
   return Object.entries(data)
-    .map(([id, note]) => ({ id, ...note }))
+    .map(([id, note]) => parseNoteRecord(id, note))
     .sort((a, b) => b.updatedAt - a.updatedAt)
+}
+
+function noteMatchesSearch(note: Note, query: string): boolean {
+  const term = query.trim().toLowerCase()
+  if (!term) return true
+
+  if (note.title.toLowerCase().includes(term)) {
+    return true
+  }
+
+  return (note.tags ?? []).some((tag) => tag.toLowerCase().includes(term))
 }
 
 function parseTrashedNotes(data: Record<string, Omit<TrashedNote, 'id'>>): TrashedNote[] {
@@ -44,6 +94,11 @@ function buildNotePayload(input: NoteInput, now: number) {
   }
   if (input.keyId) {
     payload.keyId = input.keyId
+  }
+
+  const tags = serializeTags(input.tags)
+  if (tags) {
+    payload.tags = tags
   }
 
   return payload
@@ -69,8 +124,22 @@ function buildNoteUpdates(input: Partial<NoteInput>) {
   if (input.keyId) {
     updates.keyId = input.keyId
   }
+  if (input.tags !== undefined) {
+    const tags = serializeTags(input.tags)
+    updates.tags = tags ?? null
+  }
 
   return updates
+}
+
+export async function searchNotes(userId: string, searchQuery: string): Promise<Note[]> {
+  const term = searchQuery.trim()
+  if (!term) return []
+
+  const snapshot = await get(ref(db, notesPath(userId)))
+  const allNotes = parseNotes(snapshot.val() ?? {})
+
+  return allNotes.filter((note) => noteMatchesSearch(note, term))
 }
 
 export function subscribeToNotes(
@@ -126,6 +195,9 @@ export async function moveNoteToTrash(userId: string, note: Note): Promise<void>
   if (note.encrypted) payload.encrypted = true
   if (note.keyId) payload.keyId = note.keyId
 
+  const tags = serializeTags(note.tags)
+  if (tags) payload.tags = tags
+
   await set(ref(db, `${trashPath(userId)}/${note.id}`), payload)
   await remove(ref(db, `${notesPath(userId)}/${note.id}`))
 }
@@ -141,6 +213,9 @@ export async function restoreNoteFromTrash(userId: string, note: TrashedNote): P
 
   if (note.encrypted) payload.encrypted = true
   if (note.keyId) payload.keyId = note.keyId
+
+  const tags = serializeTags(note.tags)
+  if (tags) payload.tags = tags
 
   await set(ref(db, `${notesPath(userId)}/${note.id}`), payload)
   await remove(ref(db, `${trashPath(userId)}/${note.id}`))

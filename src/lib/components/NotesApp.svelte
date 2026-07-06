@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
+  import { onMount, tick } from 'svelte'
   import { authState, logout } from '../auth.svelte'
   import { downloadNotesJson, readNotesFromFile } from '../note-io'
   import {
@@ -12,6 +12,7 @@
     permanentlyDeleteNotes,
     restoreNoteFromTrash,
     restoreNotesFromTrash,
+    searchNotes,
     subscribeToNotes,
     subscribeToTrash,
     updateNote,
@@ -35,6 +36,21 @@
   let sidebarOpen = $state(false)
   let keyManagerOpen = $state(false)
   let importInput = $state<HTMLInputElement | undefined>(undefined)
+  let searchInput = $state('')
+  let debouncedSearch = $state('')
+  let searchResults = $state<Note[] | null>(null)
+  let searching = $state(false)
+  let searchExpanded = $state(false)
+  let searchInputEl = $state<HTMLInputElement | undefined>(undefined)
+
+  let searchDebounceTimer: ReturnType<typeof setTimeout> | undefined
+  let searchRequestId = 0
+
+  const isSearchActive = $derived(view === 'notes' && debouncedSearch.trim().length > 0)
+
+  const displayedNotes = $derived(
+    isSearchActive && searchResults !== null ? searchResults : notes,
+  )
 
   const selectedNote = $derived(
     notes.find((n) => n.id === selectedId) ?? null,
@@ -43,6 +59,63 @@
   const selectedTrashedNote = $derived(
     trashedNotes.find((n) => n.id === selectedId) ?? null,
   )
+
+  function resetSearchState() {
+    searchInput = ''
+    debouncedSearch = ''
+    searchResults = null
+    searching = false
+    searchRequestId += 1
+    if (searchDebounceTimer) {
+      clearTimeout(searchDebounceTimer)
+      searchDebounceTimer = undefined
+    }
+  }
+
+  async function runSearch(query: string) {
+    const userId = authState.user?.uid
+    if (!userId || view !== 'notes') return
+
+    debouncedSearch = query
+    const requestId = ++searchRequestId
+    searching = true
+
+    try {
+      const results = await searchNotes(userId, query)
+      if (requestId !== searchRequestId) return
+      searchResults = results
+    } catch {
+      if (requestId !== searchRequestId) return
+      searchResults = []
+    } finally {
+      if (requestId === searchRequestId) {
+        searching = false
+      }
+    }
+  }
+
+  function handleSearchInput(value: string) {
+    searchInput = value
+    const query = value.trim()
+
+    if (searchDebounceTimer) {
+      clearTimeout(searchDebounceTimer)
+      searchDebounceTimer = undefined
+    }
+
+    if (!query) {
+      debouncedSearch = ''
+      searchResults = null
+      searching = false
+      searchRequestId += 1
+      return
+    }
+
+    searchDebounceTimer = setTimeout(() => {
+      searchDebounceTimer = undefined
+      void runSearch(query)
+    }, 1000)
+  }
 
   onMount(() => {
     const userId = authState.user?.uid
@@ -133,6 +206,13 @@
     } finally {
       saving = false
     }
+  }
+
+  async function handleSaveTags(tags: string[]) {
+    const userId = authState.user?.uid
+    if (!userId || !selectedId || view !== 'notes') return
+
+    await updateNote(userId, selectedId, { tags })
   }
 
   function openKeyManager() {
@@ -276,9 +356,21 @@
     sidebarOpen = false
   }
 
+  function clearSearch() {
+    resetSearchState()
+    searchExpanded = false
+  }
+
+  async function openMobileSearch() {
+    searchExpanded = true
+    await tick()
+    searchInputEl?.focus()
+  }
+
   function openTrash() {
     view = 'trash'
     clearSelection()
+    clearSearch()
     selectedId = trashedNotes[0]?.id ?? null
     sidebarOpen = false
   }
@@ -300,7 +392,7 @@
 />
 
 <div class="app">
-  <header class="topbar">
+  <header class="topbar" class:search-expanded={searchExpanded}>
     <button
       type="button"
       class="menu-btn"
@@ -309,8 +401,56 @@
     >
       ☰
     </button>
-    <span class="app-name">{t('appName')}</span>
-    <div class="user-area">
+    <span class="app-name topbar-main">{t('appName')}</span>
+
+    {#if view === 'notes'}
+      <div class="search-wrap">
+        <input
+          bind:this={searchInputEl}
+          type="text"
+          class="search-input"
+          value={searchInput}
+          placeholder={t('searchNotesPlaceholder')}
+          aria-label={t('searchNotes')}
+          oninput={(event) => handleSearchInput(event.currentTarget.value)}
+        />
+        {#if searching}
+          <span class="search-status" aria-live="polite">{t('searching')}</span>
+        {/if}
+        {#if searchInput || searchExpanded}
+          <button
+            type="button"
+            class="search-clear"
+            onclick={clearSearch}
+            aria-label={t('clearSearch')}
+          >
+            ×
+          </button>
+        {/if}
+      </div>
+    {/if}
+
+    <div class="user-area topbar-main">
+      {#if view === 'notes'}
+        <button
+          type="button"
+          class="search-toggle-btn"
+          onclick={openMobileSearch}
+          aria-label={t('searchNotes')}
+          title={t('searchNotes')}
+        >
+          <svg class="search-toggle-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2" />
+            <path
+              d="M20 20l-3.5-3.5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            />
+          </svg>
+        </button>
+      {/if}
       <span class="email">{authState.user?.email}</span>
       <LocaleThemeControls />
       <button
@@ -351,10 +491,12 @@
     <div class="sidebar-wrap" class:open={sidebarOpen}>
       {#if view === 'notes'}
         <NoteSidebar
-          {notes}
+          notes={displayedNotes}
           trashCount={trashedNotes.length}
           selectedId={selectedId}
           {checkedIds}
+          isSearchActive={isSearchActive}
+          {searching}
           onSelect={handleSelect}
           onCreate={handleCreate}
           onDelete={handleMoveToTrash}
@@ -401,6 +543,7 @@
         <NoteEditor
           note={selectedNote}
           onSave={handleSave}
+          onSaveTags={handleSaveTags}
           {saving}
           onManageKeys={openKeyManager}
         />
@@ -461,6 +604,70 @@
     font-weight: 700;
     font-size: 1.1rem;
     color: var(--text);
+    flex-shrink: 0;
+  }
+
+  .search-wrap {
+    flex: 1;
+    min-width: 0;
+    max-width: 420px;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    position: relative;
+  }
+
+  .search-input {
+    width: 100%;
+    padding: 0.55rem 2.25rem 0.55rem 0.9rem;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 0.9rem;
+  }
+
+  .search-input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .search-input::placeholder {
+    color: var(--text-muted);
+    opacity: 0.7;
+  }
+
+  .search-status {
+    position: absolute;
+    right: 2.5rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    pointer-events: none;
+  }
+
+  .search-clear {
+    position: absolute;
+    right: 0.35rem;
+    z-index: 2;
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 1.2rem;
+    line-height: 1;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .search-clear:hover {
+    background: var(--surface);
+    color: var(--text);
+  }
+
+  .search-toggle-btn {
+    display: none;
   }
 
   .user-area {
@@ -575,6 +782,61 @@
     }
 
     .app-name {
+      display: none;
+    }
+
+    .search-toggle-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      padding: 0;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--bg);
+      color: var(--text);
+      cursor: pointer;
+      transition: background 0.2s;
+      flex-shrink: 0;
+    }
+
+    .search-toggle-btn:hover {
+      background: var(--surface);
+    }
+
+    .search-toggle-icon {
+      width: 18px;
+      height: 18px;
+    }
+
+    .topbar:not(.search-expanded) .search-wrap {
+      display: none;
+    }
+
+    .topbar.search-expanded {
+      gap: 0.5rem;
+    }
+
+    .topbar.search-expanded .topbar-main,
+    .topbar.search-expanded .search-toggle-btn {
+      display: none;
+    }
+
+    .topbar.search-expanded .menu-btn {
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+    }
+
+    .topbar.search-expanded .search-wrap {
+      display: flex;
+      flex: 1;
+      min-width: 0;
+      max-width: none;
+    }
+
+    .search-status {
       display: none;
     }
 

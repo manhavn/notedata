@@ -9,6 +9,8 @@
     trashCount: number
     selectedId: string | null
     checkedIds: Set<string>
+    isSearchActive?: boolean
+    searching?: boolean
     onSelect: (id: string) => void
     onCreate: () => void
     onDelete: (id: string) => void
@@ -27,6 +29,8 @@
     trashCount,
     selectedId,
     checkedIds,
+    isSearchActive = false,
+    searching = false,
     onSelect,
     onCreate,
     onDelete,
@@ -81,8 +85,22 @@
       <button type="button" class="icon-btn" onclick={onImport} title={t('importJson')}>
         ↓
       </button>
-      <button type="button" class="new-btn" onclick={onCreate} title={t('newNote')}>
-        +
+      <button
+        type="button"
+        class="new-btn"
+        onclick={onCreate}
+        title={t('newNote')}
+        aria-label={t('newNote')}
+      >
+        <svg class="new-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M12 5v14M5 12h14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+          />
+        </svg>
       </button>
     </div>
   </div>
@@ -105,8 +123,12 @@
   {/if}
 
   <div class="note-list">
+    {#if searching && isSearchActive}
+      <p class="searching-hint">{t('searching')}</p>
+    {/if}
+
     {#if notes.length === 0}
-      <p class="empty">{t('notesEmpty')}</p>
+      <p class="empty">{isSearchActive && !searching ? t('searchNoResults') : t('notesEmpty')}</p>
     {:else}
       <label class="select-all">
         <input
@@ -135,6 +157,13 @@
           </div>
           <button type="button" class="note-btn" onclick={() => onSelect(note.id)}>
             <span class="title">{note.title}</span>
+            {#if note.tags && note.tags.length > 0}
+              <span class="tags">
+                {#each note.tags as tag (tag)}
+                  <span class="tag">{tag}</span>
+                {/each}
+              </span>
+            {/if}
             <span class="preview">{preview(note)}</span>
             <span class="date">{formatAppDate(note.updatedAt)}</span>
           </button>
@@ -219,20 +248,27 @@
   }
 
   .new-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     width: 36px;
     height: 36px;
-    border: none;
+    padding: 0;
+    border: 1px solid var(--border);
     border-radius: 10px;
-    background: linear-gradient(135deg, var(--accent), #f97316);
-    color: white;
-    font-size: 1.5rem;
-    line-height: 1;
+    background: #1c1917;
+    color: #ffffff;
     cursor: pointer;
-    transition: transform 0.2s;
+    transition: background 0.2s;
   }
 
   .new-btn:hover {
-    transform: scale(1.05);
+    background: #292524;
+  }
+
+  .new-icon {
+    width: 20px;
+    height: 20px;
   }
 
   .bulk-bar {
@@ -291,6 +327,13 @@
     font-weight: 600;
     color: var(--text-muted);
     cursor: pointer;
+  }
+
+  .searching-hint {
+    margin: 0 1rem 0.75rem;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.8rem;
   }
 
   .empty {
@@ -362,6 +405,23 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    width: 100%;
+  }
+
+  .tag {
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    background: rgba(245, 158, 11, 0.12);
+    color: var(--accent);
+    font-size: 0.7rem;
+    font-weight: 600;
+    line-height: 1.4;
   }
 
   .preview {

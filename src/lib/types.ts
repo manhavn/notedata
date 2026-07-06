@@ -2,6 +2,7 @@ export interface Note {
   id: string
   title: string
   content: string
+  tags?: string[]
   createdAt: number
   updatedAt: number
   encrypted?: boolean
@@ -15,6 +16,7 @@ export interface TrashedNote extends Note {
 export interface NoteInput {
   title: string
   content: string
+  tags?: string[]
   encrypted?: boolean
   keyId?: string
 }

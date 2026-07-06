@@ -1,4 +1,5 @@
 import { t } from './i18n.svelte'
+import { normalizeTags } from './notes'
 import type { Note, NoteInput } from './types'
 
 export interface NoteExportPayload {
@@ -7,6 +8,7 @@ export interface NoteExportPayload {
   notes: Array<{
     title: string
     content: string
+    tags?: string[]
     createdAt: number
     updatedAt: number
   }>
@@ -21,10 +23,15 @@ function parseNoteInput(value: unknown): NoteInput | null {
 
   const title = typeof value.title === 'string' ? value.title : ''
   const content = typeof value.content === 'string' ? value.content : ''
+  const tags = Array.isArray(value.tags)
+    ? normalizeTags(value.tags.filter((tag): tag is string => typeof tag === 'string'))
+    : typeof value.tags === 'string'
+      ? normalizeTags(value.tags)
+      : undefined
 
   if (!title.trim() && !content.trim()) return null
 
-  return { title, content }
+  return tags && tags.length > 0 ? { title, content, tags } : { title, content }
 }
 
 export function parseImportedNotes(data: unknown): NoteInput[] {
@@ -53,9 +60,10 @@ export function buildExportPayload(notes: Note[]): NoteExportPayload {
   return {
     version: 1,
     exportedAt: Date.now(),
-    notes: notes.map(({ title, content, createdAt, updatedAt }) => ({
+    notes: notes.map(({ title, content, tags, createdAt, updatedAt }) => ({
       title,
       content,
+      ...(tags && tags.length > 0 ? { tags } : {}),
       createdAt,
       updatedAt,
     })),
