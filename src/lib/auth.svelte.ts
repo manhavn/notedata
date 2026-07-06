@@ -27,7 +27,11 @@ export const authState = $state({
   profileTick: 0,
 })
 
-export function getUserDisplayLabel(user: User | null | undefined): string {
+export function getUserDisplayLabel(
+  user: User | null | undefined,
+  profileRevision = 0,
+): string {
+  void profileRevision
   if (!user) return ''
   const name = user.displayName?.trim()
   return name || user.email || ''

@@ -5,6 +5,7 @@
     authState,
     changeAccountPassword,
     getUserDisplayLabel,
+    logout,
     saveDisplayName,
     userHasGoogleProvider,
     userHasPasswordProvider,
@@ -32,7 +33,7 @@
   const user = $derived(authState.user)
   const hasPassword = $derived(user ? userHasPasswordProvider(user) : false)
   const hasGoogle = $derived(user ? userHasGoogleProvider(user) : false)
-  const topbarPreview = $derived(getUserDisplayLabel(user))
+  const topbarPreview = $derived(getUserDisplayLabel(user, authState.profileTick))
 
   $effect(() => {
     if (!open) return
@@ -50,6 +51,11 @@
 
   function handleClose() {
     onClose()
+  }
+
+  async function handleLogout() {
+    handleClose()
+    await logout()
   }
 
   async function handleSaveDisplayName() {
@@ -221,6 +227,22 @@
         disabled={savingPassword}
       >
         {savingPassword ? t('processing') : hasPassword ? t('changePassword') : t('addPassword')}
+      </button>
+    </section>
+
+    <section class="section logout-section">
+      <button type="button" class="logout-btn" onclick={handleLogout}>
+        <svg class="logout-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+        {t('logout')}
       </button>
     </section>
   </div>
@@ -444,5 +466,35 @@
     margin: 0 0 0.75rem;
     color: var(--success);
     font-size: 0.88rem;
+  }
+
+  .logout-section {
+    padding-bottom: 0;
+  }
+
+  .logout-btn {
+    width: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    border-radius: 10px;
+    background: rgba(239, 68, 68, 0.08);
+    color: var(--danger);
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+  }
+
+  .logout-btn:hover {
+    background: rgba(239, 68, 68, 0.14);
+    border-color: rgba(239, 68, 68, 0.4);
+  }
+
+  .logout-icon {
+    width: 18px;
+    height: 18px;
   }
 </style>

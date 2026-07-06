@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte'
-  import { authState, getUserDisplayLabel, logout } from '../auth.svelte'
+  import { authState, getUserDisplayLabel } from '../auth.svelte'
   import { downloadNotesJson, readNotesFromFile } from '../note-io'
   import {
     createNote,
@@ -50,10 +50,9 @@
 
   const isSearchActive = $derived(view === 'notes' && debouncedSearch.trim().length > 0)
 
-  const topbarUserLabel = $derived.by(() => {
-    authState.profileTick
-    return getUserDisplayLabel(authState.user)
-  })
+  const topbarUserLabel = $derived(
+    getUserDisplayLabel(authState.user, authState.profileTick),
+  )
 
   const displayedNotes = $derived(
     isSearchActive && searchResults !== null ? searchResults : notes,
@@ -478,18 +477,22 @@
           />
         </svg>
       </button>
-      <button type="button" class="logout-btn" onclick={logout} aria-label={t('logout')}>
-        <svg class="logout-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <button
+        type="button"
+        class="account-btn"
+        onclick={() => (accountModalOpen = true)}
+        aria-label={t('userAccount')}
+        title={t('userAccount')}
+      >
+        <svg class="account-icon" viewBox="0 0 24 24" aria-hidden="true">
           <path
-            d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"
+            d="M20 21a8 8 0 0 0-16 0M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"
             fill="none"
             stroke="currentColor"
             stroke-width="2"
             stroke-linecap="round"
-            stroke-linejoin="round"
           />
         </svg>
-        <span class="logout-text">{t('logout')}</span>
       </button>
     </div>
   </header>
@@ -515,7 +518,6 @@
           onBulkDelete={handleBulkDelete}
           onBulkExport={handleBulkExport}
           onImport={triggerImport}
-          onOpenAccount={() => (accountModalOpen = true)}
         />
       {:else}
         <TrashSidebar
@@ -719,34 +721,30 @@
     height: 18px;
   }
 
-  .logout-btn {
+  .account-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 0.4rem;
-    padding: 0.45rem 0.9rem;
+    width: 40px;
+    height: 40px;
+    padding: 0;
     border: 1px solid var(--border);
     border-radius: 8px;
     background: var(--bg);
     color: var(--text);
-    font-size: 0.85rem;
-    font-weight: 600;
     cursor: pointer;
-    transition: background 0.2s;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
   }
 
-  .logout-btn:hover {
+  .account-btn:hover {
     background: var(--surface);
+    border-color: var(--accent);
+    color: var(--accent);
   }
 
-  .logout-icon {
-    display: none;
+  .account-icon {
     width: 18px;
     height: 18px;
-  }
-
-  .logout-text {
-    line-height: 1;
   }
 
   .layout {
@@ -870,25 +868,11 @@
     }
 
     .keys-btn,
-    .logout-btn {
+    .account-btn {
       flex-shrink: 0;
     }
 
     .email {
-      display: none;
-    }
-
-    .logout-btn {
-      width: 40px;
-      height: 40px;
-      padding: 0;
-    }
-
-    .logout-icon {
-      display: block;
-    }
-
-    .logout-text {
       display: none;
     }
 
