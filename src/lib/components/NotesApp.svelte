@@ -19,7 +19,9 @@
     updateNote,
   } from '../notes'
   import type { Note, NoteInput, TrashedNote } from '../types'
+  import { confirm } from '../dialog.svelte'
   import { t } from '../i18n.svelte'
+  import { toastError, toastSuccess } from '../toast.svelte'
   import KeyManagerModal from './KeyManagerModal.svelte'
   import UserAccountModal from './UserAccountModal.svelte'
   import LocaleThemeControls from './LocaleThemeControls.svelte'
@@ -192,6 +194,12 @@
     return trashedNotes.filter((note) => checkedIds.has(note.id))
   }
 
+  function notifyOperationFailed(err?: unknown) {
+    const message =
+      err instanceof Error && err.message ? err.message : t('toastOperationFailed')
+    toastError(message)
+  }
+
   async function handleCreate() {
     const userId = authState.user?.uid
     if (!userId) return
@@ -210,6 +218,9 @@
     saving = true
     try {
       await updateNote(userId, selectedId, payload)
+      toastSuccess(t('toastNoteSaved'))
+    } catch (err) {
+      notifyOperationFailed(err)
     } finally {
       saving = false
     }
@@ -233,14 +244,23 @@
     const note = notes.find((n) => n.id === id)
     if (!note) return
 
-    if (!confirm(t('confirmMoveToTrash'))) return
+    if (!(await confirm({
+      message: t('confirmMoveToTrash'),
+      variant: 'warning',
+      confirmLabel: t('moveToTrash'),
+    }))) return
 
-    await moveNoteToTrash(userId, note)
-    clearDraftContent(id)
-    checkedIds.delete(id)
-    checkedIds = new Set(checkedIds)
-    if (selectedId === id) {
-      selectedId = notes.find((n) => n.id !== id)?.id ?? null
+    try {
+      await moveNoteToTrash(userId, note)
+      clearDraftContent(id)
+      checkedIds.delete(id)
+      checkedIds = new Set(checkedIds)
+      if (selectedId === id) {
+        selectedId = notes.find((n) => n.id !== id)?.id ?? null
+      }
+      toastSuccess(t('toastMovedToTrash'))
+    } catch (err) {
+      notifyOperationFailed(err)
     }
   }
 
@@ -249,13 +269,22 @@
     const selectedNotes = getCheckedNotes()
     if (!userId || selectedNotes.length === 0) return
 
-    if (!confirm(t('confirmBulkMoveToTrash', { count: selectedNotes.length }))) return
+    if (!(await confirm({
+      message: t('confirmBulkMoveToTrash', { count: selectedNotes.length }),
+      variant: 'warning',
+      confirmLabel: t('moveToTrash'),
+    }))) return
 
-    await moveNotesToTrash(userId, selectedNotes)
-    clearDraftContents(selectedNotes.map((note) => note.id))
-    clearSelection()
-    if (selectedId && !notes.some((n) => n.id === selectedId)) {
-      selectedId = notes[0]?.id ?? null
+    try {
+      await moveNotesToTrash(userId, selectedNotes)
+      clearDraftContents(selectedNotes.map((note) => note.id))
+      clearSelection()
+      if (selectedId && !notes.some((n) => n.id === selectedId)) {
+        selectedId = notes[0]?.id ?? null
+      }
+      toastSuccess(t('toastBulkMovedToTrash', { count: selectedNotes.length }))
+    } catch (err) {
+      notifyOperationFailed(err)
     }
   }
 
@@ -263,7 +292,12 @@
     const selectedNotes = getCheckedNotes()
     if (selectedNotes.length === 0) return
 
-    downloadNotesJson(selectedNotes)
+    try {
+      downloadNotesJson(selectedNotes)
+      toastSuccess(t('toastExported', { count: selectedNotes.length }))
+    } catch (err) {
+      notifyOperationFailed(err)
+    }
   }
 
   function triggerImport() {
@@ -287,9 +321,9 @@
       view = 'notes'
       clearSelection()
       selectedId = ids[0] ?? selectedId
-      alert(t('importSuccess', { count: ids.length }))
+      toastSuccess(t('importSuccess', { count: ids.length }))
     } catch (err) {
-      alert(err instanceof Error ? err.message : t('importFailed'))
+      toastError(err instanceof Error ? err.message : t('importFailed'))
     }
   }
 
@@ -300,11 +334,16 @@
     const note = trashedNotes.find((n) => n.id === id)
     if (!note) return
 
-    await restoreNoteFromTrash(userId, note)
-    checkedIds.delete(id)
-    checkedIds = new Set(checkedIds)
-    if (selectedId === id) {
-      selectedId = trashedNotes.find((n) => n.id !== id)?.id ?? null
+    try {
+      await restoreNoteFromTrash(userId, note)
+      checkedIds.delete(id)
+      checkedIds = new Set(checkedIds)
+      if (selectedId === id) {
+        selectedId = trashedNotes.find((n) => n.id !== id)?.id ?? null
+      }
+      toastSuccess(t('toastRestored'))
+    } catch (err) {
+      notifyOperationFailed(err)
     }
   }
 
@@ -314,10 +353,16 @@
     if (!userId || selectedTrash.length === 0) return
 
     const restoredIds = new Set(selectedTrash.map((note) => note.id))
-    await restoreNotesFromTrash(userId, selectedTrash)
-    clearSelection()
-    if (selectedId && restoredIds.has(selectedId)) {
-      selectedId = trashedNotes.find((note) => !restoredIds.has(note.id))?.id ?? null
+
+    try {
+      await restoreNotesFromTrash(userId, selectedTrash)
+      clearSelection()
+      if (selectedId && restoredIds.has(selectedId)) {
+        selectedId = trashedNotes.find((note) => !restoredIds.has(note.id))?.id ?? null
+      }
+      toastSuccess(t('toastBulkRestored', { count: selectedTrash.length }))
+    } catch (err) {
+      notifyOperationFailed(err)
     }
   }
 
@@ -325,13 +370,22 @@
     const userId = authState.user?.uid
     if (!userId) return
 
-    if (!confirm(t('confirmPermanentDelete'))) return
+    if (!(await confirm({
+      message: t('confirmPermanentDelete'),
+      variant: 'danger',
+      confirmLabel: t('permanentDelete'),
+    }))) return
 
-    await permanentlyDeleteNote(userId, id)
-    checkedIds.delete(id)
-    checkedIds = new Set(checkedIds)
-    if (selectedId === id) {
-      selectedId = trashedNotes.find((n) => n.id !== id)?.id ?? null
+    try {
+      await permanentlyDeleteNote(userId, id)
+      checkedIds.delete(id)
+      checkedIds = new Set(checkedIds)
+      if (selectedId === id) {
+        selectedId = trashedNotes.find((n) => n.id !== id)?.id ?? null
+      }
+      toastSuccess(t('toastPermanentDeleted'))
+    } catch (err) {
+      notifyOperationFailed(err)
     }
   }
 
@@ -340,12 +394,21 @@
     const ids = [...checkedIds]
     if (!userId || ids.length === 0) return
 
-    if (!confirm(t('confirmBulkPermanentDelete', { count: ids.length }))) return
+    if (!(await confirm({
+      message: t('confirmBulkPermanentDelete', { count: ids.length }),
+      variant: 'danger',
+      confirmLabel: t('permanentDelete'),
+    }))) return
 
-    await permanentlyDeleteNotes(userId, ids)
-    clearSelection()
-    if (selectedId && !trashedNotes.some((n) => n.id === selectedId)) {
-      selectedId = trashedNotes[0]?.id ?? null
+    try {
+      await permanentlyDeleteNotes(userId, ids)
+      clearSelection()
+      if (selectedId && !trashedNotes.some((n) => n.id === selectedId)) {
+        selectedId = trashedNotes[0]?.id ?? null
+      }
+      toastSuccess(t('toastBulkPermanentDeleted', { count: ids.length }))
+    } catch (err) {
+      notifyOperationFailed(err)
     }
   }
 
@@ -353,11 +416,20 @@
     const userId = authState.user?.uid
     if (!userId || trashedNotes.length === 0) return
 
-    if (!confirm(t('confirmEmptyTrash', { count: trashedNotes.length }))) return
+    if (!(await confirm({
+      message: t('confirmEmptyTrash', { count: trashedNotes.length }),
+      variant: 'danger',
+      confirmLabel: t('emptyTrash'),
+    }))) return
 
-    await emptyTrash(userId)
-    clearSelection()
-    selectedId = null
+    try {
+      await emptyTrash(userId)
+      clearSelection()
+      selectedId = null
+      toastSuccess(t('toastTrashEmptied'))
+    } catch (err) {
+      notifyOperationFailed(err)
+    }
   }
 
   function handleSelect(id: string) {

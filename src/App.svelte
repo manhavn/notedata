@@ -2,6 +2,8 @@
   import { authState, userNeedsEmailVerification } from './lib/auth.svelte'
   import { t } from './lib/i18n.svelte'
   import AuthPage from './lib/components/AuthPage.svelte'
+  import DialogModal from './lib/components/DialogModal.svelte'
+  import ToastContainer from './lib/components/ToastContainer.svelte'
   import EmailVerificationScreen from './lib/components/EmailVerificationScreen.svelte'
   import NotesApp from './lib/components/NotesApp.svelte'
 
@@ -25,6 +27,9 @@
 {:else}
   <AuthPage />
 {/if}
+
+<DialogModal />
+<ToastContainer />
 
 <style>
   .loading {

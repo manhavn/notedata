@@ -6,7 +6,9 @@
     getEncryptionKeys,
     maskKeyCode,
   } from '../encryption-keys'
+  import { confirm } from '../dialog.svelte'
   import { t } from '../i18n.svelte'
+  import { toastError, toastSuccess } from '../toast.svelte'
   import { PAGE_SIZE } from '../pagination'
   import type { EncryptionKey } from '../types'
   import PasscodePad from './PasscodePad.svelte'
@@ -83,15 +85,29 @@
       return
     }
 
-    await createEncryptionKey(label, code)
-    refreshKeys()
-    resetCreateFlow()
+    try {
+      await createEncryptionKey(label, code)
+      refreshKeys()
+      resetCreateFlow()
+      toastSuccess(t('toastKeyCreated'))
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : t('toastOperationFailed'))
+    }
   }
 
-  function handleDelete(keyId: string) {
-    if (!confirm(t('confirmDeleteKey'))) return
-    deleteEncryptionKey(keyId)
-    refreshKeys()
+  async function handleDelete(keyId: string) {
+    if (!(await confirm({
+      message: t('confirmDeleteKey'),
+      variant: 'danger',
+      confirmLabel: t('delete'),
+    }))) return
+    try {
+      deleteEncryptionKey(keyId)
+      refreshKeys()
+      toastSuccess(t('toastKeyDeleted'))
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : t('toastOperationFailed'))
+    }
   }
 
   function handleClose() {
