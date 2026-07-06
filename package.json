@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json",
+    "lint": "bash scripts/run-manual-lint.sh",
     "firebase:deploy:database": "firebase deploy --only database",
     "firebase:deploy:hosting": "npm run build && firebase deploy --only hosting"
   },

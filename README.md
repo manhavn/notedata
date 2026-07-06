@@ -31,6 +31,16 @@ A personal notes app built with **Svelte 5 + Vite**, using **Firebase Authentica
 - **Export** selected notes to a `.json` file
 - **Import** notes from JSON (array, `{ notes: [...] }`, or NoteData export format)
 
+### Note encryption
+
+- Encrypt **note content** (title stays plain text for the sidebar list)
+- Multiple **6-digit passcodes** per browser, stored in `localStorage` (`notedata-encryption-keys`) — never sent to Firebase
+- **Manage keys** from the lock icon in the header (create, list, delete)
+- **Save flow:** pick a saved key or enter a one-time passcode (enter twice to confirm)
+- **Unlock flow:** default screen is manual passcode entry; switch to **Choose from saved keys** if needed
+- AES-GCM encryption via Web Crypto API; database stores `encrypted: true` and `keyId` only
+- Wrong passcode shows a generic error on the note — no hints in the modal (anti-enumeration)
+
 ### Dark mode
 
 - **Dark mode by default** on first visit
@@ -248,6 +258,8 @@ users/
         content: string
         createdAt: number (timestamp)
         updatedAt: number (timestamp)
+        encrypted?: boolean
+        keyId?: string
     trash/
       {noteId}/
         title: string
@@ -255,6 +267,8 @@ users/
         createdAt: number (timestamp)
         updatedAt: number (timestamp)
         deletedAt: number (timestamp)
+        encrypted?: boolean
+        keyId?: string
 ```
 
 ---
@@ -337,6 +351,7 @@ t('importSuccess', { count: 5 })
 | `npm run build` | Build production output to `dist/` |
 | `npm run preview` | Preview the production build |
 | `npm run check` | Run TypeScript + Svelte checks |
+| `npm run lint` | Run oxlint + `npm run check` (manual code quality script) |
 | `npm run firebase:deploy:database` | Deploy Realtime Database rules |
 | `npm run firebase:deploy:hosting` | Build + deploy Firebase Hosting |
 
@@ -377,6 +392,12 @@ To use a new Firebase project:
 - User is not signed in
 - Rules do not match the `users/{uid}/notes` structure
 
+### Cannot decrypt a note after changing browser or clearing storage
+
+- Encryption keys live only in the current browser's `localStorage`
+- Notes locked with a **one-time passcode** require remembering that exact code
+- Export keys or use saved keys consistently on the same device
+
 ### Blank page or 404 after hosting deploy
 
 - Run `npm run firebase:deploy:hosting` again
@@ -399,9 +420,17 @@ src/
     notes.ts             # Note CRUD, trash, bulk operations
     note-io.ts           # JSON import/export helpers
     pagination.ts        # Page size for load-more lists
+    crypto.ts            # AES-GCM encrypt/decrypt (Web Crypto)
+    encryption-keys.ts   # Passcode CRUD in localStorage
+    portal.ts            # Portal action for modals
     components/
       LocaleThemeControls.svelte  # EN/VI toggle and dark mode switch
+      KeyManagerModal.svelte      # Create/delete encryption keys
+      KeySelectModal.svelte       # Pick key or passcode when save/unlock
+      PasscodePad.svelte          # iPhone-style 6-digit pad
       ...                # AuthPage, NotesApp, NoteSidebar, TrashSidebar, ...
+scripts/
+  run-manual-lint.sh     # oxlint + svelte-check manual lint script
 database.rules.json      # Security rules for notes and trash
 firebase.json            # Firebase Hosting + Database config
 .env.example             # Environment variable template

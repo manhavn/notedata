@@ -4,6 +4,8 @@ export interface Note {
   content: string
   createdAt: number
   updatedAt: number
+  encrypted?: boolean
+  keyId?: string
 }
 
 export interface TrashedNote extends Note {
@@ -13,4 +15,13 @@ export interface TrashedNote extends Note {
 export interface NoteInput {
   title: string
   content: string
+  encrypted?: boolean
+  keyId?: string
+}
+
+export interface EncryptionKey {
+  id: string
+  label: string
+  code: string
+  createdAt: number
 }

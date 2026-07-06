@@ -31,6 +31,48 @@ function parseTrashedNotes(data: Record<string, Omit<TrashedNote, 'id'>>): Trash
     .sort((a, b) => b.deletedAt - a.deletedAt)
 }
 
+function buildNotePayload(input: NoteInput, now: number) {
+  const payload: Record<string, string | number | boolean> = {
+    title: input.title.trim() || getUntitledNoteTitle(),
+    content: input.content,
+    createdAt: now,
+    updatedAt: now,
+  }
+
+  if (input.encrypted) {
+    payload.encrypted = true
+  }
+  if (input.keyId) {
+    payload.keyId = input.keyId
+  }
+
+  return payload
+}
+
+function buildNoteUpdates(input: Partial<NoteInput>) {
+  const updates: Record<string, string | number | boolean | null> = {
+    updatedAt: Date.now(),
+  }
+
+  if (input.title !== undefined) {
+    updates.title = input.title.trim() || getUntitledNoteTitle()
+  }
+  if (input.content !== undefined) {
+    updates.content = input.content
+  }
+  if (input.encrypted === false) {
+    updates.encrypted = null
+    updates.keyId = null
+  } else if (input.encrypted) {
+    updates.encrypted = true
+  }
+  if (input.keyId) {
+    updates.keyId = input.keyId
+  }
+
+  return updates
+}
+
 export function subscribeToNotes(
   userId: string,
   callback: (notes: Note[]) => void,
@@ -58,13 +100,7 @@ export async function createNote(userId: string, input: NoteInput): Promise<stri
   const notesRef = ref(db, notesPath(userId))
   const newRef = push(notesRef)
 
-  await set(newRef, {
-    title: input.title.trim() || getUntitledNoteTitle(),
-    content: input.content,
-    createdAt: now,
-    updatedAt: now,
-  })
-
+  await set(newRef, buildNotePayload(input, now))
   return newRef.key!
 }
 
@@ -74,42 +110,39 @@ export async function updateNote(
   input: Partial<NoteInput>,
 ): Promise<void> {
   const noteRef = ref(db, `${notesPath(userId)}/${noteId}`)
-  const updates: Record<string, string | number> = { updatedAt: Date.now() }
-
-  if (input.title !== undefined) {
-    updates.title = input.title.trim() || getUntitledNoteTitle()
-  }
-  if (input.content !== undefined) {
-    updates.content = input.content
-  }
-
-  await update(noteRef, updates)
+  await update(noteRef, buildNoteUpdates(input))
 }
 
 export async function moveNoteToTrash(userId: string, note: Note): Promise<void> {
   const now = Date.now()
-
-  await set(ref(db, `${trashPath(userId)}/${note.id}`), {
+  const payload: Record<string, string | number | boolean> = {
     title: note.title,
     content: note.content,
     createdAt: note.createdAt,
     updatedAt: note.updatedAt,
     deletedAt: now,
-  })
+  }
 
+  if (note.encrypted) payload.encrypted = true
+  if (note.keyId) payload.keyId = note.keyId
+
+  await set(ref(db, `${trashPath(userId)}/${note.id}`), payload)
   await remove(ref(db, `${notesPath(userId)}/${note.id}`))
 }
 
 export async function restoreNoteFromTrash(userId: string, note: TrashedNote): Promise<void> {
   const now = Date.now()
-
-  await set(ref(db, `${notesPath(userId)}/${note.id}`), {
+  const payload: Record<string, string | number | boolean> = {
     title: note.title,
     content: note.content,
     createdAt: note.createdAt,
     updatedAt: now,
-  })
+  }
 
+  if (note.encrypted) payload.encrypted = true
+  if (note.keyId) payload.keyId = note.keyId
+
+  await set(ref(db, `${notesPath(userId)}/${note.id}`), payload)
   await remove(ref(db, `${trashPath(userId)}/${note.id}`))
 }
 

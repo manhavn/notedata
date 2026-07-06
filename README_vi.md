@@ -31,6 +31,16 @@
 - **Export** ghi chú đã chọn thành file `.json`
 - **Import** ghi chú từ JSON (mảng, `{ notes: [...] }`, hoặc định dạng export của NoteData)
 
+### Mã hóa ghi chú
+
+- Mã hóa **nội dung ghi chú** (tiêu đề vẫn hiển thị dạng plain text trên sidebar)
+- Nhiều **mã 6 chữ số** trên mỗi trình duyệt, lưu trong `localStorage` (`notedata-encryption-keys`) — không gửi lên Firebase
+- **Quản lý mã khóa** qua biểu tượng khóa trên header (tạo, xem danh sách, xóa)
+- **Khi lưu:** chọn mã đã lưu hoặc nhập mã tự nhập (nhập 2 lần để xác nhận)
+- **Khi mở khóa:** mặc định nhập mã thủ công; có thể chuyển sang **Chọn từ danh sách đã lưu**
+- Mã hóa AES-GCM qua Web Crypto API; database chỉ lưu `encrypted: true` và `keyId`
+- Sai mã chỉ hiện thông báo chung trên ghi chú — không gợi ý trong popup (chống đoán mã)
+
 ### Dark mode
 
 - **Mặc định dark mode** khi truy cập lần đầu
@@ -248,6 +258,8 @@ users/
         content: string
         createdAt: number (timestamp)
         updatedAt: number (timestamp)
+        encrypted?: boolean
+        keyId?: string
     trash/
       {noteId}/
         title: string
@@ -255,6 +267,8 @@ users/
         createdAt: number (timestamp)
         updatedAt: number (timestamp)
         deletedAt: number (timestamp)
+        encrypted?: boolean
+        keyId?: string
 ```
 
 ---
@@ -337,6 +351,7 @@ t('importSuccess', { count: 5 })
 | `npm run build` | Build production vào `dist/` |
 | `npm run preview` | Xem trước bản build |
 | `npm run check` | Kiểm tra TypeScript + Svelte |
+| `npm run lint` | Chạy oxlint + `npm run check` (script kiểm tra code thủ công) |
 | `npm run firebase:deploy:database` | Deploy Realtime Database rules |
 | `npm run firebase:deploy:hosting` | Build + deploy Firebase Hosting |
 
@@ -377,6 +392,12 @@ Khi muốn dùng project Firebase mới, làm lần lượt:
 - User chưa đăng nhập
 - Rules chưa khớp cấu trúc `users/{uid}/notes`
 
+### Không giải mã được ghi chú sau khi đổi trình duyệt hoặc xóa storage
+
+- Mã khóa chỉ lưu trên `localStorage` của trình duyệt hiện tại
+- Ghi chú khóa bằng **mã tự nhập** cần nhớ đúng mã đó
+- Nên dùng mã đã lưu trên cùng một thiết bị/trình duyệt
+
 ### Deploy hosting xong nhưng vào URL bị trắng trang / 404
 
 - Chạy lại `npm run firebase:deploy:hosting`
@@ -399,9 +420,17 @@ src/
     notes.ts             # CRUD ghi chú, thùng rác, thao tác hàng loạt
     note-io.ts           # Import/export JSON
     pagination.ts        # Số lượng mỗi lần tải thêm
+    crypto.ts            # Mã hóa/giải mã AES-GCM (Web Crypto)
+    encryption-keys.ts   # CRUD mã khóa trong localStorage
+    portal.ts            # Portal action cho modal
     components/
       LocaleThemeControls.svelte  # Nút EN/VI và switch dark mode
+      KeyManagerModal.svelte      # Tạo/xóa mã khóa
+      KeySelectModal.svelte       # Chọn mã khi lưu/mở khóa
+      PasscodePad.svelte          # Bàn phím 6 số kiểu iPhone
       ...                # AuthPage, NotesApp, NoteSidebar, TrashSidebar, ...
+scripts/
+  run-manual-lint.sh     # Script oxlint + svelte-check
 database.rules.json      # Security rules cho notes và trash
 firebase.json            # Cấu hình Firebase Hosting + Database
 .env.example             # Mẫu biến môi trường

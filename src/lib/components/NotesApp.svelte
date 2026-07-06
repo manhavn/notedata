@@ -16,8 +16,9 @@
     subscribeToTrash,
     updateNote,
   } from '../notes'
-  import type { Note, TrashedNote } from '../types'
+  import type { Note, NoteInput, TrashedNote } from '../types'
   import { t } from '../i18n.svelte'
+  import KeyManagerModal from './KeyManagerModal.svelte'
   import LocaleThemeControls from './LocaleThemeControls.svelte'
   import NoteEditor from './NoteEditor.svelte'
   import NoteSidebar from './NoteSidebar.svelte'
@@ -32,7 +33,8 @@
   let checkedIds = $state<Set<string>>(new Set())
   let saving = $state(false)
   let sidebarOpen = $state(false)
-  let importInput: HTMLInputElement
+  let keyManagerOpen = $state(false)
+  let importInput = $state<HTMLInputElement | undefined>(undefined)
 
   const selectedNote = $derived(
     notes.find((n) => n.id === selectedId) ?? null,
@@ -121,16 +123,20 @@
     sidebarOpen = false
   }
 
-  async function handleSave(title: string, content: string) {
+  async function handleSave(payload: NoteInput) {
     const userId = authState.user?.uid
     if (!userId || !selectedId || view !== 'notes') return
 
     saving = true
     try {
-      await updateNote(userId, selectedId, { title, content })
+      await updateNote(userId, selectedId, payload)
     } finally {
       saving = false
     }
+  }
+
+  function openKeyManager() {
+    keyManagerOpen = true
   }
 
   async function handleMoveToTrash(id: string) {
@@ -307,6 +313,24 @@
     <div class="user-area">
       <span class="email">{authState.user?.email}</span>
       <LocaleThemeControls />
+      <button
+        type="button"
+        class="keys-btn"
+        onclick={openKeyManager}
+        aria-label={t('encryptionKeys')}
+        title={t('encryptionKeys')}
+      >
+        <svg class="keys-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M7 11V7a5 5 0 0 1 10 0v4M6 11h12a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1z"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </button>
       <button type="button" class="logout-btn" onclick={logout} aria-label={t('logout')}>
         <svg class="logout-icon" viewBox="0 0 24 24" aria-hidden="true">
           <path
@@ -374,7 +398,12 @@
 
     <main class="main">
       {#if view === 'notes'}
-        <NoteEditor note={selectedNote} onSave={handleSave} {saving} />
+        <NoteEditor
+          note={selectedNote}
+          onSave={handleSave}
+          {saving}
+          onManageKeys={openKeyManager}
+        />
       {:else}
         <NoteEditor
           note={selectedTrashedNote}
@@ -384,6 +413,7 @@
           deletedAt={selectedTrashedNote?.deletedAt}
           onRestore={() => selectedTrashedNote && handleRestore(selectedTrashedNote.id)}
           onPermanentDelete={() => selectedTrashedNote && handlePermanentDelete(selectedTrashedNote.id)}
+          onManageKeys={openKeyManager}
           emptyTitle={t('selectTrashNote')}
           emptyDescription={t('selectTrashNoteHint')}
         />
@@ -391,6 +421,8 @@
     </main>
   </div>
 </div>
+
+<KeyManagerModal open={keyManagerOpen} onClose={() => (keyManagerOpen = false)} />
 
 <style>
   .hidden-input {
@@ -445,6 +477,30 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .keys-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .keys-btn:hover {
+    background: var(--surface);
+  }
+
+  .keys-icon {
+    width: 18px;
+    height: 18px;
   }
 
   .logout-btn {

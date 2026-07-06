@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { isNoteEncrypted } from '../crypto'
   import { formatAppDate, t } from '../i18n.svelte'
   import { PAGE_SIZE } from '../pagination'
   import type { Note } from '../types'
@@ -52,8 +53,11 @@
     visibleNotes.some((note) => checkedIds.has(note.id)) && !allVisibleChecked,
   )
 
-  function preview(content: string) {
-    const text = content.trim()
+  function preview(note: Note) {
+    if (isNoteEncrypted(note)) {
+      return `🔒 ${t('encryptedContent')}`
+    }
+    const text = note.content.trim()
     return text.length > 80 ? `${text.slice(0, 80)}...` : text || t('noContent')
   }
 
@@ -130,7 +134,7 @@
           </div>
           <button type="button" class="note-btn" onclick={() => onSelect(note.id)}>
             <span class="title">{note.title}</span>
-            <span class="preview">{preview(note.content)}</span>
+            <span class="preview">{preview(note)}</span>
             <span class="date">{formatAppDate(note.updatedAt)}</span>
           </button>
           <button
