@@ -206,9 +206,9 @@
     await restoreNoteFromTrash(userId, note)
     checkedIds.delete(id)
     checkedIds = new Set(checkedIds)
-    view = 'notes'
-    selectedId = id
-    sidebarOpen = false
+    if (selectedId === id) {
+      selectedId = trashedNotes.find((n) => n.id !== id)?.id ?? null
+    }
   }
 
   async function handleBulkRestore() {
@@ -216,11 +216,12 @@
     const selectedTrash = getCheckedTrashedNotes()
     if (!userId || selectedTrash.length === 0) return
 
+    const restoredIds = new Set(selectedTrash.map((note) => note.id))
     await restoreNotesFromTrash(userId, selectedTrash)
     clearSelection()
-    view = 'notes'
-    selectedId = selectedTrash[0]?.id ?? notes[0]?.id ?? null
-    sidebarOpen = false
+    if (selectedId && restoredIds.has(selectedId)) {
+      selectedId = trashedNotes.find((note) => !restoredIds.has(note.id))?.id ?? null
+    }
   }
 
   async function handlePermanentDelete(id: string) {
