@@ -380,34 +380,47 @@
         {/if}
       </div>
       <div class="meta">
-        <div class="meta-info">
-          <span>{t('updatedAt', { date: formatAppDate(note.updatedAt) })}</span>
-          {#if hasUnsavedChanges && !readonly}
-            <span class="draft-badge">
-              <svg class="draft-badge-icon" viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linejoin="round"
-                />
-                <path
-                  d="M14 2v6h6M12 18v-6M9 15h6"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-              </svg>
-              {t('unsavedContent')}
-            </span>
-          {:else if noteIsEncrypted}
-            <span class="encrypted-badge">🔒 {t('encryptedNote')}</span>
-          {/if}
-          {#if deletedAt}
-            <span class="deleted-at">{t('deletedAt', { date: formatAppDate(deletedAt) })}</span>
+        <div class="meta-aside">
+          <div class="meta-info">
+            <span>{t('updatedAt', { date: formatAppDate(note.updatedAt) })}</span>
+            {#if hasUnsavedChanges && !readonly}
+              <span class="draft-badge">
+                <svg class="draft-badge-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linejoin="round"
+                  />
+                  <path
+                    d="M14 2v6h6M12 18v-6M9 15h6"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+                {t('unsavedContent')}
+              </span>
+            {:else if noteIsEncrypted}
+              <span class="encrypted-badge">🔒 {t('encryptedNote')}</span>
+            {/if}
+            {#if deletedAt}
+              <span class="deleted-at">{t('deletedAt', { date: formatAppDate(deletedAt) })}</span>
+            {/if}
+          </div>
+          {#if onDelete && !readonly}
+            <button
+              type="button"
+              class="delete-note-link"
+              onclick={onDelete}
+              title={t('moveToTrash')}
+              aria-label={t('deleteNote')}
+            >
+              {t('deleteNote')}
+            </button>
           {/if}
         </div>
         {#if readonly}
@@ -416,6 +429,7 @@
               type="button"
               class="markdown-btn"
               class:active={markdownView}
+              class:accessible={!showLockedState}
               onclick={toggleMarkdownView}
               disabled={showLockedState}
             >
@@ -430,17 +444,16 @@
           </div>
         {:else}
           <div class="editor-actions">
-            {#if onDelete}
-              <button
-                type="button"
-                class="delete-btn"
-                onclick={onDelete}
-                title={t('moveToTrash')}
-                aria-label={t('deleteNote')}
-              >
-                {t('deleteNote')}
-              </button>
-            {/if}
+            <button
+              type="button"
+              class="markdown-btn"
+              class:active={markdownView}
+              class:accessible={!showLockedState}
+              onclick={toggleMarkdownView}
+              disabled={showLockedState}
+            >
+              {markdownView ? t('editMode') : t('viewMarkdown')}
+            </button>
             <button
               type="button"
               class="cancel-edit-btn"
@@ -451,19 +464,10 @@
             </button>
             <button
               type="button"
-              class="markdown-btn"
-              class:active={markdownView}
-              onclick={toggleMarkdownView}
-              disabled={showLockedState}
-            >
-              {markdownView ? t('editMode') : t('viewMarkdown')}
-            </button>
-            <button
-              type="button"
               class="save-btn"
               class:unsaved={hasUnsavedChanges}
               onclick={openSaveModal}
-              disabled={saving || showLockedState}
+              disabled={saving || showLockedState || !hasUnsavedChanges}
             >
               {saving ? t('saving') : t('save')}
             </button>
@@ -719,10 +723,39 @@
     flex-wrap: wrap;
   }
 
+  .meta-aside {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
   .meta-info {
     display: flex;
     flex-direction: column;
     gap: 0.2rem;
+  }
+
+  .delete-note-link {
+    flex-shrink: 0;
+    margin: 0;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--danger);
+    border-radius: 6px;
+    background: none;
+    font-size: 0.85rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--danger);
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+    transition: opacity 0.2s, background 0.2s;
+  }
+
+  .delete-note-link:hover {
+    opacity: 0.9;
+    background: var(--danger-bg);
   }
 
   .meta-info span,
@@ -813,9 +846,17 @@
     border: 1px solid var(--border);
   }
 
+  .cancel-edit-btn:not(:disabled) {
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  }
+
+  .markdown-btn.accessible:not(.active),
   .markdown-btn.active {
-    border-color: var(--accent);
-    color: var(--accent);
+    border: 1px solid color-mix(in srgb, #3b82f6 55%, var(--border));
+  }
+
+  .markdown-btn.active {
+    color: color-mix(in srgb, #3b82f6 80%, var(--text));
   }
 
   .save-btn:disabled,
