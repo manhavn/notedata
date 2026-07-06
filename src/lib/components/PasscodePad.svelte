@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { t } from '../i18n.svelte'
+  import { MAX_PASSCODE_LENGTH, MIN_PASSCODE_LENGTH } from '../passcode'
+
   interface Props {
     title: string
     subtitle?: string
@@ -9,34 +12,65 @@
 
   let { title, subtitle = '', error = null, onComplete, onCancel }: Props = $props()
 
-  const PASSCODE_LENGTH = 6
-  let digits = $state<string[]>([])
+  let code = $state('')
+  let lengthError = $state<string | null>(null)
 
-  const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'] as const
+  const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'del', '0', 'enter'] as const
+  const canSubmit = $derived(code.length >= MIN_PASSCODE_LENGTH)
+  const displayError = $derived(error || lengthError)
 
   function addDigit(digit: string) {
-    if (digits.length >= PASSCODE_LENGTH) return
-    digits = [...digits, digit]
-    if (digits.length === PASSCODE_LENGTH) {
-      onComplete(digits.join(''))
-    }
+    if (code.length >= MAX_PASSCODE_LENGTH) return
+    code += digit
+    lengthError = null
   }
 
   function removeDigit() {
-    digits = digits.slice(0, -1)
+    code = code.slice(0, -1)
+    lengthError = null
+  }
+
+  function submit() {
+    if (code.length < MIN_PASSCODE_LENGTH) {
+      lengthError = t('passcodeTooShort')
+      return
+    }
+
+    lengthError = null
+    onComplete(code)
   }
 
   function handleKeyPress(key: (typeof keys)[number]) {
-    if (key === '') return
     if (key === 'del') {
       removeDigit()
       return
     }
+
+    if (key === 'enter') {
+      submit()
+      return
+    }
+
     addDigit(key)
   }
 
+  function handleInput() {
+    if (code.length > MAX_PASSCODE_LENGTH) {
+      code = code.slice(0, MAX_PASSCODE_LENGTH)
+    }
+    lengthError = null
+  }
+
+  function handleInputKeydown(event: KeyboardEvent) {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      submit()
+    }
+  }
+
   export function reset() {
-    digits = []
+    code = ''
+    lengthError = null
   }
 </script>
 
@@ -51,23 +85,48 @@
     {/if}
   </div>
 
-  <div class="dots" aria-hidden="true">
-    {#each Array(PASSCODE_LENGTH) as _, index}
-      <span class="dot" class:filled={index < digits.length}></span>
-    {/each}
+  <div class="code-field">
+    <input
+      type="password"
+      class="code-input"
+      bind:value={code}
+      maxlength={MAX_PASSCODE_LENGTH}
+      autocomplete="off"
+      autocapitalize="off"
+      spellcheck="false"
+      aria-label={title}
+      oninput={handleInput}
+      onkeydown={handleInputKeydown}
+    />
+    <p class="length-hint">
+      {t('passcodeLengthHint', {
+        current: code.length,
+        min: MIN_PASSCODE_LENGTH,
+        max: MAX_PASSCODE_LENGTH,
+      })}
+    </p>
   </div>
 
-  {#if error}
-    <p class="error" role="alert">{error}</p>
+  {#if displayError}
+    <p class="error" role="alert">{displayError}</p>
   {/if}
 
   <div class="pad">
     {#each keys as key}
-      {#if key === ''}
-        <span class="pad-spacer"></span>
-      {:else if key === 'del'}
+      {#if key === 'del'}
         <button type="button" class="pad-key action" onclick={() => handleKeyPress(key)} aria-label="Delete">
           ⌫
+        </button>
+      {:else if key === 'enter'}
+        <button
+          type="button"
+          class="pad-key action enter"
+          class:ready={canSubmit}
+          disabled={!canSubmit}
+          onclick={() => handleKeyPress(key)}
+          aria-label={t('submitPasscode')}
+        >
+          ↵
         </button>
       {:else}
         <button type="button" class="pad-key" onclick={() => handleKeyPress(key)}>
@@ -87,7 +146,7 @@
 
   .header {
     position: relative;
-    margin-bottom: 1.75rem;
+    margin-bottom: 1.25rem;
   }
 
   .cancel-btn {
@@ -118,25 +177,33 @@
     line-height: 1.5;
   }
 
-  .dots {
-    display: flex;
-    justify-content: center;
-    gap: 0.85rem;
-    margin-bottom: 1rem;
+  .code-field {
+    margin-bottom: 0.75rem;
   }
 
-  .dot {
-    width: 12px;
-    height: 12px;
-    border-radius: 999px;
-    border: 1.5px solid var(--text-muted);
-    transition: all 0.15s ease;
+  .code-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 1.1rem;
+    letter-spacing: 0.12em;
+    text-align: center;
   }
 
-  .dot.filled {
-    background: var(--text);
-    border-color: var(--text);
-    transform: scale(1.05);
+  .code-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--input-focus-ring);
+  }
+
+  .length-hint {
+    margin: 0.45rem 0 0;
+    font-size: 0.8rem;
+    color: var(--text-muted);
   }
 
   .error {
@@ -152,10 +219,6 @@
     padding: 0 0.5rem;
   }
 
-  .pad-spacer {
-    display: block;
-  }
-
   .pad-key {
     width: 72px;
     height: 72px;
@@ -167,22 +230,22 @@
     font-size: 1.75rem;
     font-weight: 400;
     cursor: pointer;
-    transition: background 0.15s, transform 0.1s;
+    transition: background 0.15s, transform 0.1s, opacity 0.15s;
   }
 
   :global([data-theme='dark']) .pad-key {
     background: rgba(255, 255, 255, 0.08);
   }
 
-  .pad-key:hover {
+  .pad-key:hover:not(:disabled) {
     background: rgba(120, 113, 108, 0.2);
   }
 
-  :global([data-theme='dark']) .pad-key:hover {
+  :global([data-theme='dark']) .pad-key:hover:not(:disabled) {
     background: rgba(255, 255, 255, 0.14);
   }
 
-  .pad-key:active {
+  .pad-key:active:not(:disabled) {
     transform: scale(0.96);
   }
 
@@ -191,7 +254,31 @@
     background: transparent;
   }
 
-  .pad-key.action:hover {
+  .pad-key.action:hover:not(:disabled) {
     background: rgba(120, 113, 108, 0.1);
+  }
+
+  .pad-key.enter {
+    font-size: 1.55rem;
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+
+  .pad-key.enter.ready {
+    color: var(--accent);
+    background: rgba(245, 158, 11, 0.12);
+  }
+
+  .pad-key.enter.ready:hover:not(:disabled) {
+    background: rgba(245, 158, 11, 0.2);
+  }
+
+  :global([data-theme='dark']) .pad-key.enter.ready {
+    background: rgba(245, 158, 11, 0.16);
+  }
+
+  .pad-key:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
   }
 </style>
