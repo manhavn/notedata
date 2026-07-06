@@ -1,6 +1,6 @@
 <script lang="ts">
   import { untrack } from 'svelte'
-  import { getEncryptionKeys, maskKeyCode } from '../encryption-keys'
+  import { getEncryptionKeys, maskKeyCode, verifyEncryptionKeyCode } from '../encryption-keys'
   import { t } from '../i18n.svelte'
   import { PAGE_SIZE } from '../pagination'
   import type { EncryptionKey } from '../types'
@@ -112,7 +112,7 @@
     onSuccess({ code, keyId })
   }
 
-  function handleSavedPasscodeComplete(code: string) {
+  async function handleSavedPasscodeComplete(code: string) {
     if (!selectedKey) return
 
     const keyId = customPasscodeConfirm
@@ -120,6 +120,16 @@
       : (noteKeyId ?? selectedKey.id)
     if (!keyId) return
 
+    if (customPasscodeConfirm) {
+      const valid = await verifyEncryptionKeyCode(selectedKey.id, code)
+      if (!valid) {
+        error = t('wrongPasscode')
+        resetPasscodePad()
+        return
+      }
+    }
+
+    error = null
     submitPasscode(code, keyId)
   }
 
@@ -325,7 +335,7 @@
           showAutoFocusToggle
           title={t('enterPasscode')}
           subtitle={t('passcodeUnlockHint')}
-          error={null}
+          error={error}
           onComplete={handleSavedPasscodeComplete}
           onCancel={handleClose}
         />

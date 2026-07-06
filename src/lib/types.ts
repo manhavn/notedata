@@ -24,6 +24,6 @@ export interface NoteInput {
 export interface EncryptionKey {
   id: string
   label: string
-  code: string
+  codeHash: string
   createdAt: number
 }

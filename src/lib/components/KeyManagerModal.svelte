@@ -76,14 +76,14 @@
     passcodePad?.reset()
   }
 
-  function handleConfirmComplete(code: string) {
+  async function handleConfirmComplete(code: string) {
     if (code !== draftCode) {
       error = t('passcodeMismatch')
       passcodePad?.reset()
       return
     }
 
-    createEncryptionKey(label, code)
+    await createEncryptionKey(label, code)
     refreshKeys()
     resetCreateFlow()
   }
