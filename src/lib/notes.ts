@@ -119,3 +119,26 @@ export async function permanentlyDeleteNote(userId: string, noteId: string): Pro
 export async function emptyTrash(userId: string): Promise<void> {
   await remove(ref(db, trashPath(userId)))
 }
+
+export async function moveNotesToTrash(userId: string, notes: Note[]): Promise<void> {
+  await Promise.all(notes.map((note) => moveNoteToTrash(userId, note)))
+}
+
+export async function restoreNotesFromTrash(userId: string, notes: TrashedNote[]): Promise<void> {
+  await Promise.all(notes.map((note) => restoreNoteFromTrash(userId, note)))
+}
+
+export async function permanentlyDeleteNotes(userId: string, noteIds: string[]): Promise<void> {
+  await Promise.all(noteIds.map((noteId) => permanentlyDeleteNote(userId, noteId)))
+}
+
+export async function importNotes(userId: string, inputs: NoteInput[]): Promise<string[]> {
+  const ids: string[] = []
+
+  for (const input of inputs) {
+    const id = await createNote(userId, input)
+    ids.push(id)
+  }
+
+  return ids
+}

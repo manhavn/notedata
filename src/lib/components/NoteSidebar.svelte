@@ -1,17 +1,55 @@
 <script lang="ts">
+  import { PAGE_SIZE } from '../pagination'
   import type { Note } from '../types'
 
   interface Props {
     notes: Note[]
     trashCount: number
     selectedId: string | null
+    checkedIds: Set<string>
     onSelect: (id: string) => void
     onCreate: () => void
     onDelete: (id: string) => void
     onOpenTrash: () => void
+    onToggleCheck: (id: string) => void
+    onCheckIds: (ids: string[]) => void
+    onUncheckIds: (ids: string[]) => void
+    onClearSelection: () => void
+    onBulkDelete: () => void
+    onBulkExport: () => void
+    onImport: () => void
   }
 
-  let { notes, trashCount, selectedId, onSelect, onCreate, onDelete, onOpenTrash }: Props = $props()
+  let {
+    notes,
+    trashCount,
+    selectedId,
+    checkedIds,
+    onSelect,
+    onCreate,
+    onDelete,
+    onOpenTrash,
+    onToggleCheck,
+    onCheckIds,
+    onUncheckIds,
+    onClearSelection,
+    onBulkDelete,
+    onBulkExport,
+    onImport,
+  }: Props = $props()
+
+  let displayLimit = $state(PAGE_SIZE)
+
+  const visibleNotes = $derived(notes.slice(0, displayLimit))
+  const hasMore = $derived(notes.length > displayLimit)
+  const visibleIds = $derived(visibleNotes.map((note) => note.id))
+  const checkedCount = $derived(checkedIds.size)
+  const allVisibleChecked = $derived(
+    visibleNotes.length > 0 && visibleNotes.every((note) => checkedIds.has(note.id)),
+  )
+  const someVisibleChecked = $derived(
+    visibleNotes.some((note) => checkedIds.has(note.id)) && !allVisibleChecked,
+  )
 
   function formatDate(timestamp: number) {
     return new Intl.DateTimeFormat('vi-VN', {
@@ -27,22 +65,78 @@
     const text = content.trim()
     return text.length > 80 ? `${text.slice(0, 80)}...` : text || 'Chưa có nội dung'
   }
+
+  function handleSelectAllChange() {
+    if (allVisibleChecked) {
+      onUncheckIds(visibleIds)
+    } else {
+      onCheckIds(visibleIds)
+    }
+  }
+
+  function loadMore() {
+    displayLimit += PAGE_SIZE
+  }
 </script>
 
 <aside class="sidebar">
   <div class="sidebar-header">
     <h2>Ghi chú</h2>
-    <button type="button" class="new-btn" onclick={onCreate} title="Tạo ghi chú mới">
-      +
-    </button>
+    <div class="header-actions">
+      <button type="button" class="icon-btn" onclick={onImport} title="Import JSON">
+        ↓
+      </button>
+      <button type="button" class="new-btn" onclick={onCreate} title="Tạo ghi chú mới">
+        +
+      </button>
+    </div>
   </div>
+
+  {#if checkedCount > 0}
+    <div class="bulk-bar">
+      <span class="bulk-count">Đã chọn {checkedCount}</span>
+      <div class="bulk-actions">
+        <button type="button" class="bulk-btn danger" onclick={onBulkDelete}>
+          Xóa
+        </button>
+        <button type="button" class="bulk-btn" onclick={onBulkExport}>
+          Export
+        </button>
+        <button type="button" class="bulk-btn ghost" onclick={onClearSelection}>
+          Bỏ chọn
+        </button>
+      </div>
+    </div>
+  {/if}
 
   <div class="note-list">
     {#if notes.length === 0}
-      <p class="empty">Chưa có ghi chú nào. Nhấn + để tạo mới.</p>
+      <p class="empty">Chưa có ghi chú nào. Nhấn + để tạo mới hoặc Import JSON.</p>
     {:else}
-      {#each notes as note (note.id)}
-        <div class="note-item" class:selected={note.id === selectedId}>
+      <label class="select-all">
+        <input
+          type="checkbox"
+          checked={allVisibleChecked}
+          indeterminate={someVisibleChecked}
+          onchange={handleSelectAllChange}
+        />
+        <span>Chọn tất cả ({visibleNotes.length})</span>
+      </label>
+
+      {#each visibleNotes as note (note.id)}
+        <div
+          class="note-item"
+          class:selected={note.id === selectedId}
+          class:checked={checkedIds.has(note.id)}
+        >
+          <div class="checkbox-wrap">
+            <input
+              type="checkbox"
+              checked={checkedIds.has(note.id)}
+              onclick={(e) => e.stopPropagation()}
+              onchange={() => onToggleCheck(note.id)}
+            />
+          </div>
           <button type="button" class="note-btn" onclick={() => onSelect(note.id)}>
             <span class="title">{note.title}</span>
             <span class="preview">{preview(note.content)}</span>
@@ -59,6 +153,15 @@
           </button>
         </div>
       {/each}
+
+      {#if hasMore}
+        <div class="load-more-wrap">
+          <p class="load-more-info">Hiển thị {visibleNotes.length} / {notes.length}</p>
+          <button type="button" class="load-more-btn" onclick={loadMore}>
+            Tải thêm
+          </button>
+        </div>
+      {/if}
     {/if}
   </div>
 
@@ -96,6 +199,29 @@
     font-weight: 700;
   }
 
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .icon-btn {
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 1.1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .icon-btn:hover {
+    background: var(--surface);
+  }
+
   .new-btn {
     width: 36px;
     height: 36px;
@@ -113,10 +239,62 @@
     transform: scale(1.05);
   }
 
+  .bulk-bar {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border);
+    background: rgba(245, 158, 11, 0.06);
+  }
+
+  .bulk-count {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .bulk-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  .bulk-btn {
+    padding: 0.4rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .bulk-btn.danger {
+    border-color: rgba(239, 68, 68, 0.25);
+    background: rgba(239, 68, 68, 0.08);
+    color: #dc2626;
+  }
+
+  .bulk-btn.ghost {
+    background: transparent;
+  }
+
   .note-list {
     flex: 1;
     overflow-y: auto;
     padding: 0.75rem;
+  }
+
+  .select-all {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.5rem 0.75rem 0.75rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    cursor: pointer;
   }
 
   .empty {
@@ -130,7 +308,7 @@
   .note-item {
     display: flex;
     align-items: stretch;
-    gap: 0.25rem;
+    gap: 0.35rem;
     margin-bottom: 0.5rem;
     border-radius: 12px;
     transition: background 0.2s;
@@ -140,13 +318,32 @@
     background: rgba(245, 158, 11, 0.08);
   }
 
+  .note-item.checked {
+    background: rgba(59, 130, 246, 0.06);
+  }
+
+  .checkbox-wrap {
+    display: grid;
+    place-items: center;
+    padding-left: 0.35rem;
+    cursor: pointer;
+  }
+
+  .checkbox-wrap input,
+  .select-all input {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+
   .note-btn {
     flex: 1;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
     gap: 0.25rem;
-    padding: 0.85rem 1rem;
+    padding: 0.85rem 0.75rem;
     border: none;
     border-radius: 12px;
     background: transparent;
@@ -204,6 +401,35 @@
   .delete-btn:hover {
     background: rgba(239, 68, 68, 0.1);
     color: #dc2626;
+  }
+
+  .load-more-wrap {
+    padding: 0.75rem 0.5rem 0.25rem;
+    text-align: center;
+  }
+
+  .load-more-info {
+    margin: 0 0 0.6rem;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+  }
+
+  .load-more-btn {
+    width: 100%;
+    padding: 0.65rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+  }
+
+  .load-more-btn:hover {
+    background: var(--surface);
+    border-color: #d6d3d1;
   }
 
   .sidebar-footer {

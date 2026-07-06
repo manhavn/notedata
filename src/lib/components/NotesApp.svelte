@@ -1,12 +1,17 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { authState, logout } from '../auth.svelte'
+  import { downloadNotesJson, readNotesFromFile } from '../note-io'
   import {
     createNote,
     emptyTrash,
+    importNotes,
     moveNoteToTrash,
+    moveNotesToTrash,
     permanentlyDeleteNote,
+    permanentlyDeleteNotes,
     restoreNoteFromTrash,
+    restoreNotesFromTrash,
     subscribeToNotes,
     subscribeToTrash,
     updateNote,
@@ -22,8 +27,10 @@
   let notes = $state<Note[]>([])
   let trashedNotes = $state<TrashedNote[]>([])
   let selectedId = $state<string | null>(null)
+  let checkedIds = $state<Set<string>>(new Set())
   let saving = $state(false)
   let sidebarOpen = $state(false)
+  let importInput: HTMLInputElement
 
   const selectedNote = $derived(
     notes.find((n) => n.id === selectedId) ?? null,
@@ -39,6 +46,7 @@
 
     const unsubscribeNotes = subscribeToNotes(userId, (loaded) => {
       notes = loaded
+      pruneCheckedIds(loaded.map((n) => n.id))
       if (view === 'notes' && selectedId && !loaded.some((n) => n.id === selectedId)) {
         selectedId = loaded[0]?.id ?? null
       }
@@ -46,6 +54,7 @@
 
     const unsubscribeTrash = subscribeToTrash(userId, (loaded) => {
       trashedNotes = loaded
+      pruneCheckedIds(loaded.map((n) => n.id))
       if (view === 'trash' && selectedId && !loaded.some((n) => n.id === selectedId)) {
         selectedId = loaded[0]?.id ?? null
       }
@@ -57,11 +66,54 @@
     }
   })
 
+  function pruneCheckedIds(validIds: string[]) {
+    const valid = new Set(validIds)
+    const next = new Set([...checkedIds].filter((id) => valid.has(id)))
+    if (next.size !== checkedIds.size) {
+      checkedIds = next
+    }
+  }
+
+  function clearSelection() {
+    checkedIds = new Set()
+  }
+
+  function toggleCheck(id: string) {
+    const next = new Set(checkedIds)
+    if (next.has(id)) {
+      next.delete(id)
+    } else {
+      next.add(id)
+    }
+    checkedIds = next
+  }
+
+  function checkIds(ids: string[]) {
+    const next = new Set(checkedIds)
+    ids.forEach((id) => next.add(id))
+    checkedIds = next
+  }
+
+  function uncheckIds(ids: string[]) {
+    const next = new Set(checkedIds)
+    ids.forEach((id) => next.delete(id))
+    checkedIds = next
+  }
+
+  function getCheckedNotes() {
+    return notes.filter((note) => checkedIds.has(note.id))
+  }
+
+  function getCheckedTrashedNotes() {
+    return trashedNotes.filter((note) => checkedIds.has(note.id))
+  }
+
   async function handleCreate() {
     const userId = authState.user?.uid
     if (!userId) return
 
     view = 'notes'
+    clearSelection()
     const id = await createNote(userId, { title: '', content: '' })
     selectedId = id
     sidebarOpen = false
@@ -89,8 +141,58 @@
     if (!confirm('Chuyển ghi chú này vào thùng rác?')) return
 
     await moveNoteToTrash(userId, note)
+    checkedIds.delete(id)
+    checkedIds = new Set(checkedIds)
     if (selectedId === id) {
       selectedId = notes.find((n) => n.id !== id)?.id ?? null
+    }
+  }
+
+  async function handleBulkDelete() {
+    const userId = authState.user?.uid
+    const selectedNotes = getCheckedNotes()
+    if (!userId || selectedNotes.length === 0) return
+
+    if (!confirm(`Chuyển ${selectedNotes.length} ghi chú vào thùng rác?`)) return
+
+    await moveNotesToTrash(userId, selectedNotes)
+    clearSelection()
+    if (selectedId && !notes.some((n) => n.id === selectedId)) {
+      selectedId = notes[0]?.id ?? null
+    }
+  }
+
+  function handleBulkExport() {
+    const selectedNotes = getCheckedNotes()
+    if (selectedNotes.length === 0) return
+
+    downloadNotesJson(selectedNotes)
+  }
+
+  function triggerImport() {
+    importInput?.click()
+  }
+
+  async function handleImportFile(event: Event) {
+    const input = event.target as HTMLInputElement
+    const file = input.files?.[0]
+    input.value = ''
+
+    if (!file) return
+
+    const userId = authState.user?.uid
+    if (!userId) return
+
+    try {
+      const imported = await readNotesFromFile(file)
+      const ids = await importNotes(userId, imported)
+
+      view = 'notes'
+      clearSelection()
+      selectedId = ids[0] ?? selectedId
+      alert(`Đã import ${ids.length} ghi chú.`)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Import thất bại.')
     }
   }
 
@@ -102,8 +204,22 @@
     if (!note) return
 
     await restoreNoteFromTrash(userId, note)
+    checkedIds.delete(id)
+    checkedIds = new Set(checkedIds)
     view = 'notes'
     selectedId = id
+    sidebarOpen = false
+  }
+
+  async function handleBulkRestore() {
+    const userId = authState.user?.uid
+    const selectedTrash = getCheckedTrashedNotes()
+    if (!userId || selectedTrash.length === 0) return
+
+    await restoreNotesFromTrash(userId, selectedTrash)
+    clearSelection()
+    view = 'notes'
+    selectedId = selectedTrash[0]?.id ?? notes[0]?.id ?? null
     sidebarOpen = false
   }
 
@@ -114,8 +230,24 @@
     if (!confirm('Xóa vĩnh viễn ghi chú này? Hành động này không thể hoàn tác.')) return
 
     await permanentlyDeleteNote(userId, id)
+    checkedIds.delete(id)
+    checkedIds = new Set(checkedIds)
     if (selectedId === id) {
       selectedId = trashedNotes.find((n) => n.id !== id)?.id ?? null
+    }
+  }
+
+  async function handleBulkPermanentDelete() {
+    const userId = authState.user?.uid
+    const ids = [...checkedIds]
+    if (!userId || ids.length === 0) return
+
+    if (!confirm(`Xóa vĩnh viễn ${ids.length} ghi chú? Hành động này không thể hoàn tác.`)) return
+
+    await permanentlyDeleteNotes(userId, ids)
+    clearSelection()
+    if (selectedId && !trashedNotes.some((n) => n.id === selectedId)) {
+      selectedId = trashedNotes[0]?.id ?? null
     }
   }
 
@@ -126,6 +258,7 @@
     if (!confirm(`Xóa vĩnh viễn ${trashedNotes.length} ghi chú trong thùng rác?`)) return
 
     await emptyTrash(userId)
+    clearSelection()
     selectedId = null
   }
 
@@ -136,16 +269,26 @@
 
   function openTrash() {
     view = 'trash'
+    clearSelection()
     selectedId = trashedNotes[0]?.id ?? null
     sidebarOpen = false
   }
 
   function backToNotes() {
     view = 'notes'
+    clearSelection()
     selectedId = notes[0]?.id ?? null
     sidebarOpen = false
   }
 </script>
+
+<input
+  bind:this={importInput}
+  type="file"
+  accept="application/json,.json"
+  class="hidden-input"
+  onchange={handleImportFile}
+/>
 
 <div class="app">
   <header class="topbar">
@@ -171,20 +314,35 @@
           {notes}
           trashCount={trashedNotes.length}
           selectedId={selectedId}
+          {checkedIds}
           onSelect={handleSelect}
           onCreate={handleCreate}
           onDelete={handleMoveToTrash}
           onOpenTrash={openTrash}
+          onToggleCheck={toggleCheck}
+          onCheckIds={checkIds}
+          onUncheckIds={uncheckIds}
+          onClearSelection={clearSelection}
+          onBulkDelete={handleBulkDelete}
+          onBulkExport={handleBulkExport}
+          onImport={triggerImport}
         />
       {:else}
         <TrashSidebar
           notes={trashedNotes}
           selectedId={selectedId}
+          {checkedIds}
           onSelect={handleSelect}
           onRestore={handleRestore}
           onPermanentDelete={handlePermanentDelete}
           onEmptyTrash={handleEmptyTrash}
           onBack={backToNotes}
+          onToggleCheck={toggleCheck}
+          onCheckIds={checkIds}
+          onUncheckIds={uncheckIds}
+          onClearSelection={clearSelection}
+          onBulkRestore={handleBulkRestore}
+          onBulkPermanentDelete={handleBulkPermanentDelete}
         />
       {/if}
     </div>
@@ -219,6 +377,10 @@
 </div>
 
 <style>
+  .hidden-input {
+    display: none;
+  }
+
   .app {
     height: 100vh;
     display: flex;
