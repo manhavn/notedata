@@ -123,6 +123,7 @@
           class="note-item"
           class:selected={note.id === selectedId}
           class:checked={checkedIds.has(note.id)}
+          title={note.title}
         >
           <div class="checkbox-wrap">
             <input
@@ -306,6 +307,7 @@
     gap: 0.35rem;
     margin-bottom: 0.5rem;
     border-radius: 12px;
+    overflow: hidden;
     transition: background 0.2s;
   }
 
