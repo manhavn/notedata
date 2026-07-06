@@ -26,14 +26,42 @@
     </button>
   </div>
 
-  <label class="theme-switch" title={t('darkMode')}>
-    <input
-      type="checkbox"
-      checked={themeState.mode === 'dark'}
-      onchange={() => setTheme(themeState.mode === 'dark' ? 'light' : 'dark')}
-    />
-    <span class="slider" aria-hidden="true"></span>
-  </label>
+  <div class="theme-toggle" role="group" aria-label={t('darkMode')} title={t('darkMode')}>
+    <button
+      type="button"
+      class:active={themeState.mode === 'light'}
+      onclick={() => setTheme('light')}
+      aria-label="Light mode"
+    >
+      <svg class="theme-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2" />
+        <path
+          d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+        />
+      </svg>
+    </button>
+    <button
+      type="button"
+      class:active={themeState.mode === 'dark'}
+      onclick={() => setTheme('dark')}
+      aria-label="Dark mode"
+    >
+      <svg class="theme-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </svg>
+    </button>
+  </div>
 </div>
 
 <style>
@@ -70,48 +98,36 @@
     box-shadow: var(--shadow-sm);
   }
 
-  .theme-switch {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    width: 44px;
-    height: 24px;
+  .theme-toggle {
+    display: flex;
+    padding: 0.2rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+  }
+
+  .theme-toggle button {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 26px;
+    padding: 0;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-muted);
     cursor: pointer;
+    transition: all 0.2s;
   }
 
-  .theme-switch input {
-    position: absolute;
-    opacity: 0;
-    width: 0;
-    height: 0;
-  }
-
-  .slider {
-    position: absolute;
-    inset: 0;
-    border-radius: 999px;
-    background: var(--border);
-    transition: background 0.2s;
-  }
-
-  .slider::before {
-    content: '';
-    position: absolute;
-    top: 3px;
-    left: 3px;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
+  .theme-toggle button.active {
     background: var(--surface);
+    color: var(--accent);
     box-shadow: var(--shadow-sm);
-    transition: transform 0.2s;
   }
 
-  .theme-switch input:checked + .slider {
-    background: linear-gradient(135deg, var(--accent), #f97316);
-  }
-
-  .theme-switch input:checked + .slider::before {
-    transform: translateX(20px);
+  .theme-icon {
+    width: 16px;
+    height: 16px;
   }
 </style>
