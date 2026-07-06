@@ -184,6 +184,12 @@
     error = null
     resetPasscodePad()
   }
+
+  function handleManageKeys() {
+    if (!onManageKeys) return
+    handleClose()
+    onManageKeys()
+  }
 </script>
 
 {#if open}
@@ -200,6 +206,10 @@
         {#if keys.length > 0}
           <button type="button" class="accent-action-btn" onclick={backToSavedKeys}>
             {t('chooseFromSavedKeys')}
+          </button>
+        {:else}
+          <button type="button" class="accent-action-btn" onclick={handleManageKeys}>
+            {t('manageSavedKeys')}
           </button>
         {/if}
 
@@ -235,8 +245,8 @@
         </button>
       {/if}
 
-      <button type="button" class="primary-btn" onclick={onManageKeys}>
-        {t('createEncryptionKey')}
+      <button type="button" class="primary-btn" onclick={handleManageKeys}>
+        {t('manageSavedKeys')}
       </button>
       <button type="button" class="ghost-btn full" onclick={handleClose}>{t('cancel')}</button>
     {:else}
