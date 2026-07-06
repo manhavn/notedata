@@ -46,7 +46,10 @@
   const user = $derived(authState.user)
   const hasPassword = $derived(user ? userHasPasswordProvider(user) : false)
   const hasGoogle = $derived(user ? userHasGoogleProvider(user) : false)
-  const needsVerification = $derived(user ? userNeedsEmailVerification(user) : false)
+  const needsVerification = $derived.by(() => {
+    void authState.profileTick
+    return user ? userNeedsEmailVerification(user) : false
+  })
   const showsVerificationStatus = $derived(
     user ? userShowsEmailVerificationStatus(user) : false,
   )

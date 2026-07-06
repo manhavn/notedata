@@ -5,9 +5,10 @@
   import EmailVerificationScreen from './lib/components/EmailVerificationScreen.svelte'
   import NotesApp from './lib/components/NotesApp.svelte'
 
-  const pendingEmailVerification = $derived(
-    authState.user ? userNeedsEmailVerification(authState.user) : false,
-  )
+  const pendingEmailVerification = $derived.by(() => {
+    void authState.profileTick
+    return authState.user ? userNeedsEmailVerification(authState.user) : false
+  })
 </script>
 
 {#if authState.loading}

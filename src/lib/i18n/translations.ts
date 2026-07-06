@@ -156,6 +156,7 @@ export const translations = {
     emailVerificationResent: 'Verification email sent again. Check your inbox and spam folder.',
     emailVerificationStillPending:
       'Email is not verified yet. Open the link in your inbox, then try again.',
+    emailVerificationSuccess: 'Email verified. Opening the app...',
     resendVerificationEmail: 'Resend verification email',
     checkVerificationStatus: 'Check verification status',
     emailVerified: 'Verified',
@@ -336,6 +337,7 @@ export const translations = {
     emailVerificationResent: 'Đã gửi lại email xác minh. Kiểm tra hộp thư và thư rác.',
     emailVerificationStillPending:
       'Email chưa được xác minh. Mở link trong hộp thư rồi thử lại.',
+    emailVerificationSuccess: 'Email đã xác minh. Đang mở app...',
     resendVerificationEmail: 'Gửi lại email xác minh',
     checkVerificationStatus: 'Kiểm tra trạng thái',
     emailVerified: 'Đã xác minh',

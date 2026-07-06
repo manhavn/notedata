@@ -11,6 +11,7 @@
   let resending = $state(false)
   let checking = $state(false)
   let resendSuccess = $state(false)
+  let checkSuccess = $state(false)
   let localError = $state<string | null>(null)
 
   const userEmail = $derived(authState.user?.email ?? '')
@@ -34,11 +35,14 @@
   async function handleCheckStatus() {
     checking = true
     localError = null
+    checkSuccess = false
     authState.error = null
 
     try {
       const verified = await refreshEmailVerificationStatus()
-      if (!verified) {
+      if (verified) {
+        checkSuccess = true
+      } else {
         localError = t('emailVerificationStillPending')
       }
     } catch {
@@ -65,7 +69,9 @@
       <p>{t('emailVerificationHint', { email: userEmail })}</p>
     </div>
 
-    {#if resendSuccess}
+    {#if checkSuccess}
+      <p class="success" role="status">{t('emailVerificationSuccess')}</p>
+    {:else if resendSuccess}
       <p class="success" role="status">{t('emailVerificationResent')}</p>
     {/if}
 
