@@ -1,6 +1,7 @@
 <script lang="ts">
   import { decryptContent, encryptContent, isNoteEncrypted } from '../crypto'
   import { formatAppDate, t } from '../i18n.svelte'
+  import { renderMarkdown } from '../markdown'
   import { portal } from '../portal'
   import type { Note } from '../types'
   import KeySelectModal, { type PasscodeSubmit } from './KeySelectModal.svelte'
@@ -45,11 +46,13 @@
   let keyModalOpen = $state(false)
   let keyModalMode = $state<'unlock' | 'save'>('unlock')
   let decryptError = $state<string | null>(null)
+  let markdownView = $state(false)
 
   const resolvedEmptyTitle = $derived(emptyTitle || t('selectOrCreateNote'))
   const resolvedEmptyDescription = $derived(emptyDescription || t('selectOrCreateNoteHint'))
   const noteIsEncrypted = $derived(note ? isNoteEncrypted(note) : false)
   const showLockedState = $derived(Boolean(note && noteIsEncrypted && !isUnlocked))
+  const renderedMarkdown = $derived(renderMarkdown(plainContent))
 
   $effect(() => {
     if (!note) {
@@ -59,6 +62,7 @@
       isUnlocked = false
       decryptError = null
       keyModalOpen = false
+      markdownView = false
       return
     }
 
@@ -69,8 +73,13 @@
       isUnlocked = !isNoteEncrypted(note)
       decryptError = null
       keyModalOpen = false
+      markdownView = false
     }
   })
+
+  function toggleMarkdownView() {
+    markdownView = !markdownView
+  }
 
   function openUnlockModal() {
     if (keyModalOpen) return
@@ -166,6 +175,15 @@
         </div>
         {#if readonly}
           <div class="trash-actions">
+            <button
+              type="button"
+              class="markdown-btn"
+              class:active={markdownView}
+              onclick={toggleMarkdownView}
+              disabled={showLockedState}
+            >
+              {markdownView ? t('editMode') : t('viewMarkdown')}
+            </button>
             <button type="button" class="restore-btn" onclick={onRestore}>
               {t('restore')}
             </button>
@@ -174,9 +192,20 @@
             </button>
           </div>
         {:else}
-          <button type="button" class="save-btn" onclick={openSaveModal} disabled={saving || showLockedState}>
-            {saving ? t('saving') : t('save')}
-          </button>
+          <div class="editor-actions">
+            <button
+              type="button"
+              class="markdown-btn"
+              class:active={markdownView}
+              onclick={toggleMarkdownView}
+              disabled={showLockedState}
+            >
+              {markdownView ? t('editMode') : t('viewMarkdown')}
+            </button>
+            <button type="button" class="save-btn" onclick={openSaveModal} disabled={saving || showLockedState}>
+              {saving ? t('saving') : t('save')}
+            </button>
+          </div>
         {/if}
       </div>
       {#if decryptError && !showLockedState}
@@ -195,6 +224,14 @@
         <button type="button" class="unlock-btn" onclick={openUnlockModal}>
           {t('unlockNote')}
         </button>
+      </div>
+    {:else if markdownView}
+      <div class="markdown-preview">
+        {#if plainContent.trim()}
+          <div class="markdown-body">{@html renderedMarkdown}</div>
+        {:else}
+          <p class="markdown-empty">{t('noteContentPlaceholder')}</p>
+        {/if}
       </div>
     {:else}
       <textarea
@@ -307,7 +344,8 @@
     color: var(--danger);
   }
 
-  .trash-actions {
+  .trash-actions,
+  .editor-actions {
     display: flex;
     gap: 0.5rem;
     flex-wrap: wrap;
@@ -316,6 +354,7 @@
   .restore-btn,
   .delete-btn,
   .save-btn,
+  .markdown-btn,
   .unlock-btn {
     padding: 0.5rem 1rem;
     border: none;
@@ -341,7 +380,19 @@
     color: white;
   }
 
-  .save-btn:disabled {
+  .markdown-btn {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+
+  .markdown-btn.active {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .save-btn:disabled,
+  .markdown-btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
   }
@@ -410,6 +461,119 @@
   .content-input.readonly {
     cursor: default;
     opacity: 0.85;
+  }
+
+  .markdown-preview {
+    flex: 1;
+    overflow-y: auto;
+    padding: 2rem;
+  }
+
+  .markdown-empty {
+    margin: 0;
+    color: var(--text-muted);
+    opacity: 0.5;
+    font-size: 1rem;
+    line-height: 1.7;
+  }
+
+  .markdown-body {
+    color: var(--text);
+    font-size: 1rem;
+    line-height: 1.7;
+    word-break: break-word;
+  }
+
+  .markdown-body :global(h1),
+  .markdown-body :global(h2),
+  .markdown-body :global(h3),
+  .markdown-body :global(h4),
+  .markdown-body :global(h5),
+  .markdown-body :global(h6) {
+    margin: 1.5rem 0 0.75rem;
+    line-height: 1.3;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .markdown-body :global(h1) {
+    font-size: 1.75rem;
+  }
+
+  .markdown-body :global(h2) {
+    font-size: 1.5rem;
+  }
+
+  .markdown-body :global(h3) {
+    font-size: 1.25rem;
+  }
+
+  .markdown-body :global(p),
+  .markdown-body :global(ul),
+  .markdown-body :global(ol),
+  .markdown-body :global(blockquote),
+  .markdown-body :global(pre) {
+    margin: 0 0 1rem;
+  }
+
+  .markdown-body :global(ul),
+  .markdown-body :global(ol) {
+    padding-left: 1.5rem;
+  }
+
+  .markdown-body :global(blockquote) {
+    border-left: 3px solid var(--accent);
+    padding-left: 1rem;
+    color: var(--text-muted);
+  }
+
+  .markdown-body :global(code) {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.9em;
+    background: var(--border);
+    padding: 0.15em 0.35em;
+    border-radius: 4px;
+  }
+
+  .markdown-body :global(pre) {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    overflow-x: auto;
+  }
+
+  .markdown-body :global(pre code) {
+    background: transparent;
+    padding: 0;
+  }
+
+  .markdown-body :global(a) {
+    color: var(--accent);
+    text-decoration: underline;
+  }
+
+  .markdown-body :global(hr) {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 1.5rem 0;
+  }
+
+  .markdown-body :global(table) {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1rem;
+  }
+
+  .markdown-body :global(th),
+  .markdown-body :global(td) {
+    border: 1px solid var(--border);
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+  }
+
+  .markdown-body :global(th) {
+    background: var(--surface);
   }
 
   .title-input:read-only {
