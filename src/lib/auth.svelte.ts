@@ -16,9 +16,12 @@ import {
   updateProfile,
   type User,
 } from 'firebase/auth'
+import { assertAuthFeatureEnabled, authFeatures } from './auth-features'
 import { t } from './i18n.svelte'
 import type { TranslationKey } from './i18n/translations'
 import { auth } from './firebase'
+
+export { authFeatures } from './auth-features'
 
 const googleProvider = new GoogleAuthProvider()
 googleProvider.setCustomParameters({ prompt: 'select_account' })
@@ -87,6 +90,7 @@ export async function login(email: string, password: string) {
 }
 
 export async function register(email: string, password: string) {
+  assertAuthFeatureEnabled(!authFeatures.disableSignupEmailPassword)
   setError(null)
   try {
     const credential = await createUserWithEmailAndPassword(auth, email, password)
@@ -118,6 +122,7 @@ export async function refreshEmailVerificationStatus(): Promise<boolean> {
 }
 
 export async function requestPasswordReset(email: string) {
+  assertAuthFeatureEnabled(!authFeatures.disableForgotPassword)
   setError(null)
   try {
     await sendPasswordResetEmail(auth, email.trim())
@@ -127,7 +132,10 @@ export async function requestPasswordReset(email: string) {
   }
 }
 
-export async function loginWithGoogle() {
+export async function loginWithGoogle(intent: 'login' | 'signup' = 'login') {
+  if (intent === 'signup') {
+    assertAuthFeatureEnabled(!authFeatures.disableSignupGoogle)
+  }
   setError(null)
   try {
     await signInWithPopup(auth, googleProvider)
@@ -159,6 +167,7 @@ export async function saveDisplayName(displayName: string) {
 }
 
 export async function addAccountPassword(newPassword: string) {
+  assertAuthFeatureEnabled(!authFeatures.disableChangePassword)
   const user = auth.currentUser
   if (!user?.email) throw new Error('No email')
 
@@ -199,6 +208,7 @@ async function reauthenticateForSensitiveAction(currentPassword?: string) {
 }
 
 export async function requestEmailChange(newEmail: string, currentPassword?: string) {
+  assertAuthFeatureEnabled(!authFeatures.disableChangeEmail)
   const user = auth.currentUser
   if (!user) throw new Error('Not signed in')
 
@@ -222,6 +232,7 @@ export async function requestEmailChange(newEmail: string, currentPassword?: str
 }
 
 export async function changeAccountPassword(currentPassword: string, newPassword: string) {
+  assertAuthFeatureEnabled(!authFeatures.disableChangePassword)
   const user = auth.currentUser
   if (!user?.email) throw new Error('No email')
 
@@ -259,6 +270,7 @@ const authErrorMap: Record<string, TranslationKey> = {
   'auth/credential-already-in-use': 'authCredentialAlreadyInUse',
   'auth/email-same-as-current': 'authEmailSameAsCurrent',
   'auth/operation-not-allowed': 'authOperationNotAllowed',
+  'auth/feature-disabled': 'authFeatureDisabled',
 }
 
 function getAuthErrorMessage(err: unknown): string {

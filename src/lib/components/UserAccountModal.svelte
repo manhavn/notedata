@@ -2,6 +2,7 @@
   import { untrack } from 'svelte'
   import {
     addAccountPassword,
+    authFeatures,
     authState,
     changeAccountPassword,
     getUserDisplayLabel,
@@ -315,88 +316,92 @@
       </button>
     </section>
 
-    <section class="section">
-      <h3>{t('changeEmail')}</h3>
-      <p class="hint">{t('changeEmailHint')}</p>
+    {#if !authFeatures.disableChangeEmail}
+      <section class="section">
+        <h3>{t('changeEmail')}</h3>
+        <p class="hint">{t('changeEmailHint')}</p>
 
-      <label class="field">
-        <span>{t('currentEmail')}</span>
-        <input type="email" value={user.email ?? ''} readonly />
-      </label>
-
-      <label class="field">
-        <span>{t('newEmail')}</span>
-        <input
-          type="email"
-          bind:value={newEmail}
-          placeholder={t('newEmailPlaceholder')}
-          autocomplete="email"
-        />
-      </label>
-
-      {#if hasPassword}
         <label class="field">
-          <span>{t('currentPassword')}</span>
-          <PasswordInput bind:value={emailCurrentPassword} autocomplete="current-password" />
+          <span>{t('currentEmail')}</span>
+          <input type="email" value={user.email ?? ''} readonly />
         </label>
-      {:else if hasGoogle}
-        <p class="hint reauth-hint">{t('changeEmailGoogleReauthHint')}</p>
-      {/if}
 
-      {#if emailError}
-        <p class="error">{emailError}</p>
-      {/if}
-      {#if emailSuccess}
-        <p class="success">{emailSuccess}</p>
-      {/if}
-
-      <button
-        type="button"
-        class="primary-btn"
-        onclick={handleRequestEmailChange}
-        disabled={savingEmail}
-      >
-        {savingEmail ? t('processing') : t('changeEmail')}
-      </button>
-    </section>
-
-    <section class="section">
-      <h3>{hasPassword ? t('changePassword') : t('addPassword')}</h3>
-      <p class="hint">{hasPassword ? t('changePasswordHint') : t('addPasswordHint')}</p>
-
-      {#if hasPassword}
         <label class="field">
-          <span>{t('currentPassword')}</span>
-          <PasswordInput bind:value={currentPassword} autocomplete="current-password" />
+          <span>{t('newEmail')}</span>
+          <input
+            type="email"
+            bind:value={newEmail}
+            placeholder={t('newEmailPlaceholder')}
+            autocomplete="email"
+          />
         </label>
-      {/if}
 
-      <label class="field">
-        <span>{t('newPassword')}</span>
-        <PasswordInput bind:value={newPassword} autocomplete="new-password" />
-      </label>
+        {#if hasPassword}
+          <label class="field">
+            <span>{t('currentPassword')}</span>
+            <PasswordInput bind:value={emailCurrentPassword} autocomplete="current-password" />
+          </label>
+        {:else if hasGoogle}
+          <p class="hint reauth-hint">{t('changeEmailGoogleReauthHint')}</p>
+        {/if}
 
-      <label class="field">
-        <span>{t('confirmNewPassword')}</span>
-        <PasswordInput bind:value={confirmPassword} autocomplete="new-password" />
-      </label>
+        {#if emailError}
+          <p class="error">{emailError}</p>
+        {/if}
+        {#if emailSuccess}
+          <p class="success">{emailSuccess}</p>
+        {/if}
 
-      {#if passwordError}
-        <p class="error">{passwordError}</p>
-      {/if}
-      {#if passwordSuccess}
-        <p class="success">{passwordSuccess}</p>
-      {/if}
+        <button
+          type="button"
+          class="primary-btn"
+          onclick={handleRequestEmailChange}
+          disabled={savingEmail}
+        >
+          {savingEmail ? t('processing') : t('changeEmail')}
+        </button>
+      </section>
+    {/if}
 
-      <button
-        type="button"
-        class="primary-btn"
-        onclick={handleSavePassword}
-        disabled={savingPassword}
-      >
-        {savingPassword ? t('processing') : hasPassword ? t('changePassword') : t('addPassword')}
-      </button>
-    </section>
+    {#if !authFeatures.disableChangePassword}
+      <section class="section">
+        <h3>{hasPassword ? t('changePassword') : t('addPassword')}</h3>
+        <p class="hint">{hasPassword ? t('changePasswordHint') : t('addPasswordHint')}</p>
+
+        {#if hasPassword}
+          <label class="field">
+            <span>{t('currentPassword')}</span>
+            <PasswordInput bind:value={currentPassword} autocomplete="current-password" />
+          </label>
+        {/if}
+
+        <label class="field">
+          <span>{t('newPassword')}</span>
+          <PasswordInput bind:value={newPassword} autocomplete="new-password" />
+        </label>
+
+        <label class="field">
+          <span>{t('confirmNewPassword')}</span>
+          <PasswordInput bind:value={confirmPassword} autocomplete="new-password" />
+        </label>
+
+        {#if passwordError}
+          <p class="error">{passwordError}</p>
+        {/if}
+        {#if passwordSuccess}
+          <p class="success">{passwordSuccess}</p>
+        {/if}
+
+        <button
+          type="button"
+          class="primary-btn"
+          onclick={handleSavePassword}
+          disabled={savingPassword}
+        >
+          {savingPassword ? t('processing') : hasPassword ? t('changePassword') : t('addPassword')}
+        </button>
+      </section>
+    {/if}
 
     <section class="section logout-section">
       <button type="button" class="logout-btn" onclick={handleLogout}>

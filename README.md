@@ -16,6 +16,7 @@ A personal notes app built with **Svelte 5 + Vite**, using **Firebase Authentica
 - **Forgot password** — Firebase sends a reset link by email (`sendPasswordResetEmail`)
 - **Email verification** — after email/password sign-up, Firebase sends a verification link (`sendEmailVerification`); the app unlocks after the user verifies
 - **Account settings** — display name (shown in the top bar), sign-in method chips, email verification status, change email (`verifyBeforeUpdateEmail`), change/add password, resend verification
+- **Auth feature flags** — optionally disable sign-up, forgot password, change email, or change/add password via `VITE_DISABLE_*` env variables (UI + actions)
 - Login required before using the app
 
 ### Notes
@@ -256,9 +257,43 @@ VITE_FIREBASE_PROJECT_ID=your-project-id
 VITE_FIREBASE_STORAGE_BUCKET=your-project-id.firebasestorage.app
 VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
 VITE_FIREBASE_APP_ID=your_app_id
+
+# Optional — set to true to disable auth features (UI + actions)
+VITE_DISABLE_SIGNUP_EMAIL_PASSWORD=false
+VITE_DISABLE_SIGNUP_GOOGLE=false
+VITE_DISABLE_FORGOT_PASSWORD=false
+VITE_DISABLE_CHANGE_EMAIL=false
+VITE_DISABLE_CHANGE_PASSWORD=false
 ```
 
 > **Note:** `VITE_*` variables are embedded into the frontend at build time. Do not commit `.env` to git.
+
+#### Disable auth features (optional)
+
+You can temporarily turn off specific auth flows without changing code. Set a variable to `true` (also accepts `1` or `yes`, case-insensitive) before starting the dev server or running a production build.
+
+| Variable | When `true` | UI | Blocked action |
+|----------|-------------|-----|----------------|
+| `VITE_DISABLE_SIGNUP_EMAIL_PASSWORD` | Disable email/password sign-up | Hides the **Sign up** tab | `register()` |
+| `VITE_DISABLE_SIGNUP_GOOGLE` | Disable Google sign-up | Hides the Google button on the sign-up tab | `loginWithGoogle('signup')` |
+| `VITE_DISABLE_FORGOT_PASSWORD` | Disable forgot password | Hides **Forgot password?** | `requestPasswordReset()` |
+| `VITE_DISABLE_CHANGE_EMAIL` | Disable change email | Hides the change-email section in Account settings | `requestEmailChange()` |
+| `VITE_DISABLE_CHANGE_PASSWORD` | Disable change/add password | Hides the password section in Account settings | `changeAccountPassword()`, `addAccountPassword()` |
+
+**Notes:**
+
+- **Sign-in is not disabled** — only sign-up and account-management flows listed above are affected.
+- **Google sign-in still works** when only `VITE_DISABLE_SIGNUP_GOOGLE` is `true`; the Google button remains on the sign-in tab.
+- Flags are read at **build time**. After editing `.env`, restart `npm run dev` or run `npm run build` again before deploying.
+- Implementation lives in `src/lib/auth-features.ts`; guards are applied in `src/lib/auth.svelte.ts` and the auth/account UI components.
+
+Example — close registration and forgot password on a private instance:
+
+```env
+VITE_DISABLE_SIGNUP_EMAIL_PASSWORD=true
+VITE_DISABLE_SIGNUP_GOOGLE=true
+VITE_DISABLE_FORGOT_PASSWORD=true
+```
 
 ### Step 8: Link Firebase CLI to your project
 
@@ -533,6 +568,7 @@ To use a new Firebase project:
 src/
   lib/
     firebase.ts          # Initialize Firebase from env variables
+    auth-features.ts     # VITE_DISABLE_* auth feature flags
     auth.svelte.ts       # Login, register, verification, password/email changes, profile
     theme.svelte.ts      # Dark/light theme state and persistence
     i18n.svelte.ts       # Locale state, t(), date formatting

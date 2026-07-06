@@ -16,6 +16,7 @@
 - **Quên mật khẩu** — Firebase gửi link đặt lại qua email (`sendPasswordResetEmail`)
 - **Xác minh email** — sau đăng ký email/mật khẩu, Firebase gửi link xác minh (`sendEmailVerification`); app mở sau khi xác minh
 - **Cài đặt tài khoản** — tên hiển thị (topbar), chip phương thức đăng nhập, trạng thái xác minh email, đổi email (`verifyBeforeUpdateEmail`), đổi/thêm mật khẩu, gửi lại xác minh
+- **Tắt tính năng auth** — tùy chọn tắt đăng ký, quên mật khẩu, đổi email, đổi/thêm mật khẩu qua biến `VITE_DISABLE_*` (cả UI lẫn action)
 - Bắt buộc đăng nhập trước khi sử dụng app
 
 ### Ghi chú
@@ -256,9 +257,43 @@ VITE_FIREBASE_PROJECT_ID=your-project-id
 VITE_FIREBASE_STORAGE_BUCKET=your-project-id.firebasestorage.app
 VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
 VITE_FIREBASE_APP_ID=your_app_id
+
+# Tùy chọn — đặt true để tắt tính năng auth (cả UI lẫn action)
+VITE_DISABLE_SIGNUP_EMAIL_PASSWORD=false
+VITE_DISABLE_SIGNUP_GOOGLE=false
+VITE_DISABLE_FORGOT_PASSWORD=false
+VITE_DISABLE_CHANGE_EMAIL=false
+VITE_DISABLE_CHANGE_PASSWORD=false
 ```
 
 > **Lưu ý:** Các biến `VITE_*` được Vite nhúng vào frontend khi build. Không commit file `.env` lên git.
+
+#### Tắt tính năng auth (tùy chọn)
+
+Bạn có thể tạm thời tắt từng luồng xác thực mà không cần sửa code. Đặt biến thành `true` (cũng chấp nhận `1` hoặc `yes`, không phân biệt hoa thường) trước khi chạy dev server hoặc build production.
+
+| Biến | Khi `true` | UI | Action bị chặn |
+|------|------------|-----|----------------|
+| `VITE_DISABLE_SIGNUP_EMAIL_PASSWORD` | Tắt đăng ký email/mật khẩu | Ẩn tab **Đăng ký** | `register()` |
+| `VITE_DISABLE_SIGNUP_GOOGLE` | Tắt đăng ký Google | Ẩn nút Google ở tab đăng ký | `loginWithGoogle('signup')` |
+| `VITE_DISABLE_FORGOT_PASSWORD` | Tắt quên mật khẩu | Ẩn **Quên mật khẩu?** | `requestPasswordReset()` |
+| `VITE_DISABLE_CHANGE_EMAIL` | Tắt đổi email | Ẩn section đổi email trong Cài đặt tài khoản | `requestEmailChange()` |
+| `VITE_DISABLE_CHANGE_PASSWORD` | Tắt đổi/thêm mật khẩu | Ẩn section mật khẩu trong Cài đặt tài khoản | `changeAccountPassword()`, `addAccountPassword()` |
+
+**Lưu ý:**
+
+- **Đăng nhập không bị tắt** — chỉ các luồng đăng ký và quản lý tài khoản ở trên bị ảnh hưởng.
+- **Đăng nhập Google vẫn hoạt động** khi chỉ bật `VITE_DISABLE_SIGNUP_GOOGLE`; nút Google vẫn hiện ở tab đăng nhập.
+- Các flag được đọc lúc **build**. Sau khi sửa `.env`, restart `npm run dev` hoặc chạy lại `npm run build` trước khi deploy.
+- Code nằm tại `src/lib/auth-features.ts`; guard được áp dụng trong `src/lib/auth.svelte.ts` và các component auth/account.
+
+Ví dụ — đóng đăng ký và quên mật khẩu trên instance riêng:
+
+```env
+VITE_DISABLE_SIGNUP_EMAIL_PASSWORD=true
+VITE_DISABLE_SIGNUP_GOOGLE=true
+VITE_DISABLE_FORGOT_PASSWORD=true
+```
 
 ### Bước 8: Liên kết Firebase CLI với project
 
@@ -533,6 +568,7 @@ Khi muốn dùng project Firebase mới, làm lần lượt:
 src/
   lib/
     firebase.ts          # Khởi tạo Firebase từ biến môi trường
+    auth-features.ts     # Các flag VITE_DISABLE_* cho auth
     auth.svelte.ts       # Đăng nhập, đăng ký, xác minh, đổi mật khẩu/email, profile
     theme.svelte.ts      # Trạng thái dark/light và lưu preference
     i18n.svelte.ts       # Locale, hàm t(), format ngày

@@ -183,6 +183,7 @@ export const translations = {
     authCredentialAlreadyInUse: 'This email is already linked to another sign-in method.',
     authEmailSameAsCurrent: 'The new email is the same as your current email.',
     authOperationNotAllowed: 'This operation is not allowed. Check Firebase Authentication settings.',
+    authFeatureDisabled: 'This feature is currently disabled.',
   },
   vi: {
     appName: 'NoteData',
@@ -368,6 +369,7 @@ export const translations = {
     authCredentialAlreadyInUse: 'Email này đã được liên kết với phương thức đăng nhập khác.',
     authEmailSameAsCurrent: 'Email mới trùng với email hiện tại.',
     authOperationNotAllowed: 'Thao tác không được phép. Kiểm tra cài đặt Firebase Authentication.',
+    authFeatureDisabled: 'Tính năng này hiện đang bị tắt.',
   },
 } as const
 
