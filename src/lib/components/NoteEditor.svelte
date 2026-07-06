@@ -6,7 +6,7 @@
     setDraftContent,
   } from '../draft-content'
   import { formatAppDate, t } from '../i18n.svelte'
-  import { renderMarkdown } from '../markdown'
+  import { renderHtml, renderMarkdown } from '../markdown'
   import { portal } from '../portal'
   import { normalizeTags } from '../notes'
   import type { Note } from '../types'
@@ -60,7 +60,8 @@
   let keyModalOpen = $state(false)
   let keyModalMode = $state<'unlock' | 'save'>('unlock')
   let decryptError = $state<string | null>(null)
-  let markdownView = $state(false)
+  type ContentViewMode = 'txt' | 'md' | 'html'
+  let contentViewMode = $state<ContentViewMode>('txt')
   let headerCollapsed = $state(false)
 
   const resolvedEmptyTitle = $derived(emptyTitle || t('selectOrCreateNote'))
@@ -72,6 +73,7 @@
     Boolean(note && noteIsEncrypted && !isUnlocked && !hasDraft),
   )
   const renderedMarkdown = $derived(renderMarkdown(plainContent))
+  const renderedHtml = $derived(renderHtml(plainContent))
 
   $effect(() => {
     if (!note) {
@@ -84,7 +86,7 @@
       isUnlocked = false
       decryptError = null
       keyModalOpen = false
-      markdownView = false
+      contentViewMode = 'txt'
       headerCollapsed = false
       return
     }
@@ -96,7 +98,7 @@
       lastLoadedId = note.id
       decryptError = null
       keyModalOpen = false
-      markdownView = false
+      contentViewMode = 'txt'
       headerCollapsed = false
 
       const draft = $draftContentStore[note.id]
@@ -149,10 +151,6 @@
     }
   })
 
-  function toggleMarkdownView() {
-    markdownView = !markdownView
-  }
-
   function toggleHeaderCollapse() {
     headerCollapsed = !headerCollapsed
   }
@@ -175,7 +173,7 @@
       isUnlocked = false
     }
 
-    markdownView = false
+    contentViewMode = 'txt'
     decryptError = null
   }
 
@@ -436,32 +434,70 @@
         </div>
         {#if readonly}
           <div class="trash-actions">
-            <button
-              type="button"
-              class="markdown-btn"
-              class:active={markdownView}
-              class:accessible={!showLockedState}
-              onclick={toggleMarkdownView}
-              disabled={showLockedState}
-            >
-              {markdownView ? t('editMode') : t('viewMarkdown')}
-            </button>
+            <div class="view-toggle" role="group" aria-label={t('editMode')}>
+              <button
+                type="button"
+                class:active={contentViewMode === 'txt'}
+                onclick={() => (contentViewMode = 'txt')}
+                disabled={showLockedState}
+                aria-label={t('editMode')}
+              >
+                TXT
+              </button>
+              <button
+                type="button"
+                class:active={contentViewMode === 'md'}
+                onclick={() => (contentViewMode = 'md')}
+                disabled={showLockedState}
+                aria-label={t('viewMarkdown')}
+              >
+                MD
+              </button>
+              <button
+                type="button"
+                class:active={contentViewMode === 'html'}
+                onclick={() => (contentViewMode = 'html')}
+                disabled={showLockedState}
+                aria-label={t('viewHtml')}
+              >
+                HTML
+              </button>
+            </div>
             <button type="button" class="restore-btn" onclick={onRestore}>
               {t('restore')}
             </button>
           </div>
         {:else}
           <div class="editor-actions">
-            <button
-              type="button"
-              class="markdown-btn"
-              class:active={markdownView}
-              class:accessible={!showLockedState}
-              onclick={toggleMarkdownView}
-              disabled={showLockedState}
-            >
-              {markdownView ? t('editMode') : t('viewMarkdown')}
-            </button>
+            <div class="view-toggle" role="group" aria-label={t('editMode')}>
+              <button
+                type="button"
+                class:active={contentViewMode === 'txt'}
+                onclick={() => (contentViewMode = 'txt')}
+                disabled={showLockedState}
+                aria-label={t('editMode')}
+              >
+                TXT
+              </button>
+              <button
+                type="button"
+                class:active={contentViewMode === 'md'}
+                onclick={() => (contentViewMode = 'md')}
+                disabled={showLockedState}
+                aria-label={t('viewMarkdown')}
+              >
+                MD
+              </button>
+              <button
+                type="button"
+                class:active={contentViewMode === 'html'}
+                onclick={() => (contentViewMode = 'html')}
+                disabled={showLockedState}
+                aria-label={t('viewHtml')}
+              >
+                HTML
+              </button>
+            </div>
             <button
               type="button"
               class="cancel-edit-btn"
@@ -499,10 +535,18 @@
           {t('unlockNote')}
         </button>
       </div>
-    {:else if markdownView}
+    {:else if contentViewMode === 'md'}
       <div class="markdown-preview">
         {#if plainContent.trim()}
           <div class="markdown-body">{@html renderedMarkdown}</div>
+        {:else}
+          <p class="markdown-empty">{t('noteContentPlaceholder')}</p>
+        {/if}
+      </div>
+    {:else if contentViewMode === 'html'}
+      <div class="markdown-preview">
+        {#if plainContent.trim()}
+          <div class="markdown-body">{@html renderedHtml}</div>
         {:else}
           <p class="markdown-empty">{t('noteContentPlaceholder')}</p>
         {/if}
@@ -809,7 +853,6 @@
   .restore-btn,
   .save-btn,
   .cancel-edit-btn,
-  .markdown-btn,
   .unlock-btn {
     padding: 0.5rem 1rem;
     border: none;
@@ -817,6 +860,38 @@
     font-weight: 600;
     cursor: pointer;
     transition: opacity 0.2s;
+  }
+
+  .view-toggle {
+    display: flex;
+    padding: 0.2rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+  }
+
+  .view-toggle button {
+    min-width: 34px;
+    padding: 0.3rem 0.45rem;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .view-toggle button.active {
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .view-toggle button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 
   .restore-btn {
@@ -842,8 +917,7 @@
     border-color: var(--accent);
   }
 
-  .cancel-edit-btn,
-  .markdown-btn {
+  .cancel-edit-btn {
     background: var(--surface);
     color: var(--text);
     border: 1px solid var(--border);
@@ -853,14 +927,8 @@
     border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
   }
 
-  .markdown-btn.accessible:not(.active),
-  .markdown-btn.active {
-    border: 1px solid color-mix(in srgb, #3b82f6 55%, var(--border));
-  }
-
   .save-btn:disabled,
-  .cancel-edit-btn:disabled,
-  .markdown-btn:disabled {
+  .cancel-edit-btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
   }
