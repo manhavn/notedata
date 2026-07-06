@@ -281,6 +281,15 @@
       </form>
     {/if}
   </div>
+
+  <a
+    class="source-link"
+    href="https://github.com/manhavn/notedata"
+    target="_blank"
+    rel="noopener noreferrer"
+  >
+    {t('sourceCode')}
+  </a>
 </div>
 
 <style>
@@ -527,5 +536,22 @@
   .submit:disabled {
     opacity: 0.7;
     cursor: not-allowed;
+  }
+
+  .source-link {
+    position: fixed;
+    bottom: 1.25rem;
+    left: 50%;
+    transform: translateX(-50%);
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+
+  .source-link:hover {
+    color: var(--accent);
+    text-decoration: underline;
   }
 </style>

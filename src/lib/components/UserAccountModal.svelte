@@ -418,6 +418,15 @@
         {t('logout')}
       </button>
     </section>
+
+    <a
+      class="source-link"
+      href="https://github.com/manhavn/notedata"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      {t('sourceCode')}
+    </a>
   </div>
 {/if}
 
@@ -744,5 +753,21 @@
   .logout-icon {
     width: 18px;
     height: 18px;
+  }
+
+  .source-link {
+    display: block;
+    margin-top: 1.25rem;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+
+  .source-link:hover {
+    color: var(--accent);
+    text-decoration: underline;
   }
 </style>
