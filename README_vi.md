@@ -10,17 +10,26 @@
 
 - Đăng ký / đăng nhập bằng Email + Password
 - Đăng ký / đăng nhập bằng Google
+- **Nhập lại mật khẩu khi đăng ký** — xác nhận mật khẩu; kiểm tra khớp trước khi gọi Firebase
+- **Hiện/ẩn mật khẩu** — nút mắt trên form auth và các ô mật khẩu trong cài đặt tài khoản
+- **Hỗ trợ bàn phím** — Enter submit form; Tab theo thứ tự email → mật khẩu → mắt → submit (link quên mật khẩu nằm dưới nút submit)
 - **Quên mật khẩu** — Firebase gửi link đặt lại qua email (`sendPasswordResetEmail`)
 - **Xác minh email** — sau đăng ký email/mật khẩu, Firebase gửi link xác minh (`sendEmailVerification`); app mở sau khi xác minh
-- **Cài đặt tài khoản** — tên hiển thị (topbar), đổi email (`verifyBeforeUpdateEmail`), đổi/thêm mật khẩu, gửi lại xác minh
+- **Cài đặt tài khoản** — tên hiển thị (topbar), chip phương thức đăng nhập, trạng thái xác minh email, đổi email (`verifyBeforeUpdateEmail`), đổi/thêm mật khẩu, gửi lại xác minh
 - Bắt buộc đăng nhập trước khi sử dụng app
 
 ### Ghi chú
 
 - Tạo, sửa và lưu ghi chú
+- **Thẻ (tags)** — gắn thẻ phân cách bằng dấu phẩy; thêm/xóa trong editor; hỗ trợ import/export
+- **Tìm kiếm** — tìm theo tiêu đề hoặc thẻ từ topbar (debounce; dùng cùng sort và phân trang)
+- **Sắp xếp** — tiêu đề A–Z / Z–A, ngày tạo/cập nhật tăng/giảm; lưu trong `localStorage` (`notedata-note-sort`)
+- **Xem Markdown** — chuyển giữa chế độ Sửa và Markdown khi viết
+- **Thu gọn header editor** — thu gọn thanh tiêu đề/thẻ để có thêm không gian viết
 - Đồng bộ realtime theo `userId`
 - Danh sách phân trang với nút **Tải thêm** (20 ghi chú mỗi lần)
-- **Thùng rác** — xóa mềm, có thể khôi phục hoặc xóa vĩnh viễn
+- **Thùng rác** — xóa mềm; khôi phục, xóa vĩnh viễn, hoặc **Dọn thùng rác**
+- **Giao diện mobile** — menu hamburger mở/đóng sidebar dạng overlay trên màn hình nhỏ
 
 ### Thao tác hàng loạt
 
@@ -37,17 +46,18 @@
 ### Mã hóa ghi chú
 
 - Mã hóa **nội dung ghi chú** (tiêu đề vẫn hiển thị dạng plain text trên sidebar)
-- Nhiều **mã 6 chữ số** trên mỗi trình duyệt, lưu trong `localStorage` (`notedata-encryption-keys`) — không gửi lên Firebase
+- Nhiều **mã khóa (6–32 ký tự)** trên mỗi trình duyệt, lưu trong `localStorage` (`notedata-encryption-keys`) — không gửi lên Firebase
 - **Quản lý mã khóa** qua biểu tượng khóa trên header (tạo, xem danh sách, xóa)
 - **Khi lưu:** chọn mã đã lưu hoặc nhập mã tự nhập (nhập 2 lần để xác nhận)
 - **Khi mở khóa:** mặc định nhập mã thủ công; có thể chuyển sang **Chọn từ danh sách đã lưu**
+- Nhập mã bằng ô text và bàn phím số trên màn hình; tùy chọn **tự focus** ô nhập mã (`notedata-passcode-autofocus`)
 - Mã hóa AES-GCM qua Web Crypto API; database chỉ lưu `encrypted: true` và `keyId`
 - Sai mã chỉ hiện thông báo chung trên ghi chú — không gợi ý trong popup (chống đoán mã)
 
 ### Dark mode
 
 - **Mặc định dark mode** khi truy cập lần đầu
-- Nút switch ở header (giữa email và Đăng xuất) và màn hình đăng nhập
+- Nút switch ở topbar (cạnh tên/email người dùng) và màn hình đăng nhập
 - Lưu preference trong `localStorage` với key `notedata-theme` (`dark` hoặc `light`)
 - Màu sắc dùng CSS variables trong `src/app.css` qua `data-theme` trên `<html>`
 
@@ -303,9 +313,10 @@ Thử:
 1. Đăng ký email/mật khẩu — kiểm tra email **xác minh** và mở link
 2. Bấm **Kiểm tra trạng thái** trên màn xác minh để vào app
 3. Hoặc đăng nhập Google (bỏ qua xác minh email)
-4. Thử **Quên mật khẩu?** trên màn đăng nhập
-5. Tạo và lưu ghi chú
-6. Mở **Cài đặt tài khoản** từ icon user trên topbar
+4. Thử **Quên mật khẩu?** trên màn đăng nhập (dưới nút submit)
+5. Khi đăng ký, thử ô **nhập lại mật khẩu** và nút mắt **hiện/ẩn mật khẩu**
+6. Tạo và lưu ghi chú — thêm thẻ, tìm kiếm, sắp xếp, xem Markdown
+7. Mở **Cài đặt tài khoản** từ icon user trên topbar
 
 ### Bước 11: Deploy lên Firebase Hosting
 
@@ -335,6 +346,7 @@ users/
       {noteId}/
         title: string
         content: string
+        tags?: string (phân cách bằng dấu phẩy trên Firebase)
         createdAt: number (timestamp)
         updatedAt: number (timestamp)
         encrypted?: boolean
@@ -343,6 +355,7 @@ users/
       {noteId}/
         title: string
         content: string
+        tags?: string (phân cách bằng dấu phẩy trên Firebase)
         createdAt: number (timestamp)
         updatedAt: number (timestamp)
         deletedAt: number (timestamp)
@@ -364,6 +377,7 @@ File export có dạng:
     {
       "title": "Ghi chú của tôi",
       "content": "Nội dung ghi chú",
+      "tags": ["công-việc", "ý-tưởng"],
       "createdAt": 1710000000000,
       "updatedAt": 1710000000000
     }
@@ -373,8 +387,8 @@ File export có dạng:
 
 Import cũng hỗ trợ:
 
-- Mảng thuần: `[{ "title": "...", "content": "..." }]`
-- Một object ghi chú đơn có `title` và `content`
+- Mảng thuần: `[{ "title": "...", "content": "...", "tags": ["..."] }]`
+- Một object ghi chú đơn có `title` và `content` (tuỳ chọn `tags` dạng mảng hoặc chuỗi phân cách dấu phẩy)
 
 Ghi chú import sẽ được tạo mới trên Firebase (ID mới).
 
@@ -524,20 +538,25 @@ src/
     i18n.svelte.ts       # Locale, hàm t(), format ngày
     i18n/
       translations.ts    # Chuỗi tiếng Anh và tiếng Việt
-    notes.ts             # CRUD ghi chú, thùng rác, thao tác hàng loạt
+    notes.ts             # CRUD ghi chú, thùng rác, tìm kiếm, sắp xếp, thao tác hàng loạt
     note-io.ts           # Import/export JSON
+    markdown.ts          # Render Markdown cho chế độ xem trước
     pagination.ts        # Số lượng mỗi lần tải thêm
+    passcode.ts          # Hằng số độ dài mã khóa
+    passcode-focus.svelte.ts  # Preference tự focus ô nhập mã
     crypto.ts            # Mã hóa/giải mã AES-GCM (Web Crypto)
     encryption-keys.ts   # CRUD mã khóa trong localStorage
     portal.ts            # Portal action cho modal
     components/
+      AuthPage.svelte             # Đăng nhập, đăng ký, quên mật khẩu
+      PasswordInput.svelte        # Ô mật khẩu có nút hiện/ẩn
       LocaleThemeControls.svelte  # Nút EN/VI và switch dark mode
       KeyManagerModal.svelte      # Tạo/xóa mã khóa
       KeySelectModal.svelte       # Chọn mã khi lưu/mở khóa
-      PasscodePad.svelte          # Bàn phím 6 số kiểu iPhone
-      UserAccountModal.svelte   # Tên hiển thị, email và mật khẩu
+      PasscodePad.svelte          # Nhập mã kèm bàn phím số
+      UserAccountModal.svelte     # Tên hiển thị, email và mật khẩu
       EmailVerificationScreen.svelte  # Màn chờ xác minh email sau đăng ký
-      ...                # AuthPage, NotesApp, NoteSidebar, TrashSidebar, ...
+      ...                # NotesApp, NoteEditor, NoteSidebar, TrashSidebar, ...
 scripts/
   run-manual-lint.sh     # Script oxlint + svelte-check
 database.rules.json      # Security rules cho notes và trash

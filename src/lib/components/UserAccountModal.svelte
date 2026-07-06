@@ -16,6 +16,7 @@
     userShowsEmailVerificationStatus,
   } from '../auth.svelte'
   import { t } from '../i18n.svelte'
+  import PasswordInput from './PasswordInput.svelte'
 
   interface Props {
     open: boolean
@@ -336,11 +337,7 @@
       {#if hasPassword}
         <label class="field">
           <span>{t('currentPassword')}</span>
-          <input
-            type="password"
-            bind:value={emailCurrentPassword}
-            autocomplete="current-password"
-          />
+          <PasswordInput bind:value={emailCurrentPassword} autocomplete="current-password" />
         </label>
       {:else if hasGoogle}
         <p class="hint reauth-hint">{t('changeEmailGoogleReauthHint')}</p>
@@ -370,22 +367,18 @@
       {#if hasPassword}
         <label class="field">
           <span>{t('currentPassword')}</span>
-          <input
-            type="password"
-            bind:value={currentPassword}
-            autocomplete="current-password"
-          />
+          <PasswordInput bind:value={currentPassword} autocomplete="current-password" />
         </label>
       {/if}
 
       <label class="field">
         <span>{t('newPassword')}</span>
-        <input type="password" bind:value={newPassword} autocomplete="new-password" />
+        <PasswordInput bind:value={newPassword} autocomplete="new-password" />
       </label>
 
       <label class="field">
         <span>{t('confirmNewPassword')}</span>
-        <input type="password" bind:value={confirmPassword} autocomplete="new-password" />
+        <PasswordInput bind:value={confirmPassword} autocomplete="new-password" />
       </label>
 
       {#if passwordError}

@@ -2,10 +2,12 @@
   import { authState, login, loginWithGoogle, register, requestPasswordReset } from '../auth.svelte'
   import { t } from '../i18n.svelte'
   import LocaleThemeControls from './LocaleThemeControls.svelte'
+  import PasswordInput from './PasswordInput.svelte'
 
   let mode = $state<'login' | 'register' | 'reset'>('login')
   let email = $state('')
   let password = $state('')
+  let confirmPassword = $state('')
   let submitting = $state(false)
   let googleSubmitting = $state(false)
   let resetSubmitting = $state(false)
@@ -16,18 +18,29 @@
     authState.error = null
     resetSuccess = false
     password = ''
+    confirmPassword = ''
   }
 
   function openAuthMode(nextMode: 'login' | 'register') {
     mode = nextMode
     authState.error = null
     resetSuccess = false
+    confirmPassword = ''
   }
 
   async function handleSubmit(e: SubmitEvent) {
     e.preventDefault()
     if (!email.trim() || !password) return
 
+    if (mode === 'register') {
+      if (!confirmPassword) return
+      if (password !== confirmPassword) {
+        authState.error = t('registerPasswordMismatch')
+        return
+      }
+    }
+
+    authState.error = null
     submitting = true
     try {
       if (mode === 'login') {
@@ -70,6 +83,15 @@
       googleSubmitting = false
     }
   }
+
+  function handleFormKeydown(e: KeyboardEvent) {
+    if (e.key !== 'Enter') return
+    const target = e.target
+    if (!(target instanceof HTMLInputElement)) return
+
+    e.preventDefault()
+    target.form?.requestSubmit()
+  }
 </script>
 
 <div class="auth-page">
@@ -97,6 +119,7 @@
             placeholder="you@example.com"
             autocomplete="email"
             required
+            onkeydown={handleFormKeydown}
           />
         </label>
 
@@ -178,25 +201,37 @@
             placeholder="you@example.com"
             autocomplete="email"
             required
+            onkeydown={handleFormKeydown}
           />
         </label>
 
         <label>
-          <div class="label-row">
-            <span>{t('password')}</span>
-            <button type="button" class="link-btn" onclick={openResetMode}>
-              {t('forgotPassword')}
-            </button>
-          </div>
-          <input
-            type="password"
-            bind:value={password}
-            placeholder="••••••••"
-            autocomplete={mode === 'login' ? 'current-password' : 'new-password'}
-            minlength="6"
-            required
-          />
+          <span>{t('password')}</span>
+          {#key mode}
+            <PasswordInput
+              bind:value={password}
+              placeholder="••••••••"
+              autocomplete={mode === 'login' ? 'current-password' : 'new-password'}
+              minlength={6}
+              required
+              onkeydown={handleFormKeydown}
+            />
+          {/key}
         </label>
+
+        {#if mode === 'register'}
+          <label>
+            <span>{t('confirmPassword')}</span>
+            <PasswordInput
+              bind:value={confirmPassword}
+              placeholder="••••••••"
+              autocomplete="new-password"
+              minlength={6}
+              required
+              onkeydown={handleFormKeydown}
+            />
+          </label>
+        {/if}
 
         {#if authState.error}
           <p class="error" role="alert">{authState.error}</p>
@@ -205,6 +240,12 @@
         <button type="submit" class="submit" disabled={submitting || googleSubmitting}>
           {submitting ? t('processing') : mode === 'login' ? t('login') : t('createAccount')}
         </button>
+
+        {#if mode === 'login'}
+          <button type="button" class="link-btn forgot-btn" onclick={openResetMode}>
+            {t('forgotPassword')}
+          </button>
+        {/if}
       </form>
     {/if}
   </div>
@@ -370,13 +411,6 @@
     gap: 0.4rem;
   }
 
-  .label-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-  }
-
   label span {
     font-size: 0.875rem;
     font-weight: 600;
@@ -398,7 +432,8 @@
     text-decoration: underline;
   }
 
-  .back-btn {
+  .back-btn,
+  .forgot-btn {
     width: 100%;
     text-align: center;
     margin-top: 0.25rem;

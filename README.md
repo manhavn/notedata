@@ -10,17 +10,26 @@ A personal notes app built with **Svelte 5 + Vite**, using **Firebase Authentica
 
 - Sign up / sign in with Email + Password
 - Sign up / sign in with Google
+- **Sign-up confirm password** — re-enter password on registration; client-side mismatch check before calling Firebase
+- **Show/hide password** — eye toggle on auth and account password fields
+- **Keyboard-friendly auth** — Enter submits the form; Tab order is email → password → eye → submit (forgot-password link sits below submit)
 - **Forgot password** — Firebase sends a reset link by email (`sendPasswordResetEmail`)
 - **Email verification** — after email/password sign-up, Firebase sends a verification link (`sendEmailVerification`); the app unlocks after the user verifies
-- **Account settings** — display name (shown in the top bar), change email (`verifyBeforeUpdateEmail`), change/add password, resend verification
+- **Account settings** — display name (shown in the top bar), sign-in method chips, email verification status, change email (`verifyBeforeUpdateEmail`), change/add password, resend verification
 - Login required before using the app
 
 ### Notes
 
 - Create, edit, and save notes
+- **Tags** — comma-separated tags per note; add/remove in the editor; included in import/export
+- **Search** — find notes by title or tag from the top bar (debounced; works alongside sort and pagination)
+- **Sort** — title A–Z / Z–A, created/updated ascending or descending; preference saved in `localStorage` (`notedata-note-sort`)
+- **Markdown preview** — toggle between Edit and Markdown view while writing
+- **Collapsible editor header** — collapse the title/tags toolbar for more writing space
 - Realtime sync scoped by `userId`
 - Paginated note list with **Load more** (20 items per page)
-- Soft delete via **Trash** — restore or permanently delete later
+- Soft delete via **Trash** — restore, permanently delete, or **Empty trash**
+- **Mobile layout** — hamburger menu opens/closes the sidebar overlay on small screens
 
 ### Bulk actions
 
@@ -37,17 +46,18 @@ A personal notes app built with **Svelte 5 + Vite**, using **Firebase Authentica
 ### Note encryption
 
 - Encrypt **note content** (title stays plain text for the sidebar list)
-- Multiple **6-digit passcodes** per browser, stored in `localStorage` (`notedata-encryption-keys`) — never sent to Firebase
+- Multiple **passcodes (6–32 characters)** per browser, stored in `localStorage` (`notedata-encryption-keys`) — never sent to Firebase
 - **Manage keys** from the lock icon in the header (create, list, delete)
 - **Save flow:** pick a saved key or enter a one-time passcode (enter twice to confirm)
 - **Unlock flow:** default screen is manual passcode entry; switch to **Choose from saved keys** if needed
+- Passcode entry uses a text field plus an on-screen numeric keypad; optional **auto-focus** toggle (`notedata-passcode-autofocus`)
 - AES-GCM encryption via Web Crypto API; database stores `encrypted: true` and `keyId` only
 - Wrong passcode shows a generic error on the note — no hints in the modal (anti-enumeration)
 
 ### Dark mode
 
 - **Dark mode by default** on first visit
-- Toggle switch in the header (between email and Sign out) and on the auth screen
+- Toggle switch in the top bar (next to the user label) and on the auth screen
 - Preference saved in `localStorage` under `notedata-theme` (`dark` or `light`)
 - Theme colors are driven by CSS variables in `src/app.css` via `data-theme` on `<html>`
 
@@ -303,9 +313,10 @@ Try:
 1. Register with email/password — check inbox for the **verification** email and open the link
 2. Tap **Check verification status** on the verification screen to enter the app
 3. Or sign in with Google (skips email verification)
-4. Try **Forgot password?** on the login screen
-5. Create and save a note
-6. Open **Account settings** from the top-bar user icon to set a display name or change email
+4. Try **Forgot password?** on the login screen (below the submit button)
+5. On sign-up, try the **confirm password** field and the **show/hide password** eye icon
+6. Create and save a note — add tags, search, sort, and preview Markdown
+7. Open **Account settings** from the top-bar user icon to set a display name or change email
 
 ### Step 11: Deploy to Firebase Hosting
 
@@ -335,6 +346,7 @@ users/
       {noteId}/
         title: string
         content: string
+        tags?: string (comma-separated in Firebase)
         createdAt: number (timestamp)
         updatedAt: number (timestamp)
         encrypted?: boolean
@@ -343,6 +355,7 @@ users/
       {noteId}/
         title: string
         content: string
+        tags?: string (comma-separated in Firebase)
         createdAt: number (timestamp)
         updatedAt: number (timestamp)
         deletedAt: number (timestamp)
@@ -364,6 +377,7 @@ Export produces a JSON file like:
     {
       "title": "My note",
       "content": "Note content",
+      "tags": ["work", "ideas"],
       "createdAt": 1710000000000,
       "updatedAt": 1710000000000
     }
@@ -373,8 +387,8 @@ Export produces a JSON file like:
 
 Import also accepts:
 
-- A plain array: `[{ "title": "...", "content": "..." }]`
-- A single note object with `title` and `content`
+- A plain array: `[{ "title": "...", "content": "...", "tags": ["..."] }]`
+- A single note object with `title` and `content` (optional `tags` array or comma-separated string)
 
 Imported notes are created as new entries in Firebase (new IDs).
 
@@ -524,20 +538,25 @@ src/
     i18n.svelte.ts       # Locale state, t(), date formatting
     i18n/
       translations.ts    # English and Vietnamese strings
-    notes.ts             # Note CRUD, trash, bulk operations
+    notes.ts             # Note CRUD, trash, search, sort, bulk operations
     note-io.ts           # JSON import/export helpers
+    markdown.ts          # Markdown rendering for preview
     pagination.ts        # Page size for load-more lists
+    passcode.ts          # Passcode length constants
+    passcode-focus.svelte.ts  # Auto-focus passcode input preference
     crypto.ts            # AES-GCM encrypt/decrypt (Web Crypto)
     encryption-keys.ts   # Passcode CRUD in localStorage
     portal.ts            # Portal action for modals
     components/
+      AuthPage.svelte             # Login, register, forgot password
+      PasswordInput.svelte        # Password field with show/hide toggle
       LocaleThemeControls.svelte  # EN/VI toggle and dark mode switch
       KeyManagerModal.svelte      # Create/delete encryption keys
       KeySelectModal.svelte       # Pick key or passcode when save/unlock
-      PasscodePad.svelte          # iPhone-style 6-digit pad
-      UserAccountModal.svelte   # Display name, email, and password management
+      PasscodePad.svelte          # Passcode entry with keypad
+      UserAccountModal.svelte     # Display name, email, and password management
       EmailVerificationScreen.svelte  # Post-sign-up email verification gate
-      ...                # AuthPage, NotesApp, NoteSidebar, TrashSidebar, ...
+      ...                # NotesApp, NoteEditor, NoteSidebar, TrashSidebar, ...
 scripts/
   run-manual-lint.sh     # oxlint + svelte-check manual lint script
 database.rules.json      # Security rules for notes and trash

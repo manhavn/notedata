@@ -7,6 +7,10 @@ export const translations = {
     register: 'Sign up',
     email: 'Email',
     password: 'Password',
+    confirmPassword: 'Confirm password',
+    registerPasswordMismatch: 'Passwords do not match.',
+    showPassword: 'Show password',
+    hidePassword: 'Hide password',
     forgotPassword: 'Forgot password?',
     resetPassword: 'Reset password',
     resetPasswordHint:
@@ -188,6 +192,10 @@ export const translations = {
     register: 'Đăng ký',
     email: 'Email',
     password: 'Mật khẩu',
+    confirmPassword: 'Nhập lại mật khẩu',
+    registerPasswordMismatch: 'Hai mật khẩu không khớp.',
+    showPassword: 'Hiển thị mật khẩu',
+    hidePassword: 'Ẩn mật khẩu',
     forgotPassword: 'Quên mật khẩu?',
     resetPassword: 'Đặt lại mật khẩu',
     resetPasswordHint:
