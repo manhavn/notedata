@@ -183,6 +183,7 @@
     {:else}
       <PasscodePad
         bind:this={passcodePad}
+        showAutoFocusToggle
         title={mode === 'create' ? t('enterNewPasscode') : t('confirmNewPasscode')}
         subtitle={mode === 'create' ? t('passcodeCreateHint') : t('passcodeConfirmHint')}
         {error}
