@@ -81,7 +81,7 @@ export const translations = {
     keyLabel: 'Key name',
     continue: 'Continue',
     cancel: 'Cancel',
-    enterNewPasscode: 'Enter a new passcode',
+    enterNewPasscode: 'Enter passcode',
     confirmNewPasscode: 'Re-enter your passcode',
     passcodeCreateHint: 'Create a passcode with 6–32 characters to encrypt your notes.',
     passcodeConfirmHint: 'Enter the same passcode again.',
@@ -109,6 +109,7 @@ export const translations = {
     manageSavedKeys: 'Manage saved keys (optional)',
     customPasscodeSaveHint: 'Create a passcode (6–32 characters) for this note. It is not saved in your key list.',
     customPasscodeUnlockHint: 'Enter the passcode you used when saving this note.',
+    passcodeAutoFocus: 'Auto-focus passcode input',
   },
   vi: {
     appName: 'NoteData',
@@ -192,7 +193,7 @@ export const translations = {
     keyLabel: 'Tên mã khóa',
     continue: 'Tiếp tục',
     cancel: 'Hủy',
-    enterNewPasscode: 'Nhập mã khóa mới',
+    enterNewPasscode: 'Nhập mã khóa',
     confirmNewPasscode: 'Nhập lại mã khóa',
     passcodeCreateHint: 'Tạo mã khóa từ 6–32 ký tự để mã hóa ghi chú.',
     passcodeConfirmHint: 'Nhập lại đúng mã khóa.',
@@ -220,6 +221,7 @@ export const translations = {
     manageSavedKeys: 'Quản lý mã khóa đã lưu (không bắt buộc)',
     customPasscodeSaveHint: 'Tạo mã khóa (6–32 ký tự) cho ghi chú này. Mã không được lưu trong danh sách khóa.',
     customPasscodeUnlockHint: 'Nhập mã khóa bạn đã dùng khi lưu ghi chú này.',
+    passcodeAutoFocus: 'Tự động focus ô nhập mã',
   },
 } as const
 

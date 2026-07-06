@@ -215,6 +215,7 @@
 
         <PasscodePad
           bind:this={passcodePad}
+          showAutoFocusToggle
           title={view === 'custom-create' ? t('enterNewPasscode') : t('confirmNewPasscode')}
           subtitle={view === 'custom-create'
             ? customPasscodeConfirm
@@ -229,7 +230,17 @@
     {:else if keys.length === 0}
       <div class="modal-header">
         <h2>{title}</h2>
-        <button type="button" class="close-btn" onclick={handleClose}>×</button>
+        <button type="button" class="close-btn" onclick={handleClose} aria-label={t('cancel')}>
+          <svg class="close-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M18 6L6 18M6 6l12 12"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            />
+          </svg>
+        </button>
       </div>
 
       <p class="empty">{t('noEncryptionKeys')}</p>
@@ -257,7 +268,17 @@
             <p>{subtitle}</p>
           {/if}
         </div>
-        <button type="button" class="close-btn" onclick={handleClose}>×</button>
+        <button type="button" class="close-btn" onclick={handleClose} aria-label={t('cancel')}>
+          <svg class="close-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M18 6L6 18M6 6l12 12"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            />
+          </svg>
+        </button>
       </div>
 
       <div class="key-picker-wrap">
@@ -301,6 +322,7 @@
 
         <PasscodePad
           bind:this={passcodePad}
+          showAutoFocusToggle
           title={t('enterPasscode')}
           subtitle={t('passcodeUnlockHint')}
           error={null}
@@ -365,15 +387,28 @@
   }
 
   .close-btn {
+    display: grid;
+    place-items: center;
     width: 32px;
     height: 32px;
+    padding: 0;
     border: none;
     border-radius: 999px;
     background: var(--bg);
     color: var(--text-muted);
-    font-size: 1.4rem;
     cursor: pointer;
+    transition: color 0.2s, background 0.2s;
     flex-shrink: 0;
+  }
+
+  .close-btn:hover {
+    background: var(--surface);
+    color: var(--text);
+  }
+
+  .close-icon {
+    width: 18px;
+    height: 18px;
   }
 
   .key-picker-wrap {
