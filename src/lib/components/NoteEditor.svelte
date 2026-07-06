@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { formatAppDate, t } from '../i18n.svelte'
   import type { Note } from '../types'
 
   interface Props {
@@ -21,13 +22,16 @@
     deletedAt,
     onRestore,
     onPermanentDelete,
-    emptyTitle = 'Chọn hoặc tạo ghi chú',
-    emptyDescription = 'Nhấn nút + ở thanh bên để tạo ghi chú mới',
+    emptyTitle = '',
+    emptyDescription = '',
   }: Props = $props()
 
   let title = $state('')
   let content = $state('')
   let lastSavedId = $state<string | null>(null)
+
+  const resolvedEmptyTitle = $derived(emptyTitle || t('selectOrCreateNote'))
+  const resolvedEmptyDescription = $derived(emptyDescription || t('selectOrCreateNoteHint'))
 
   $effect(() => {
     if (note && note.id !== lastSavedId) {
@@ -43,16 +47,6 @@
     if (!note) return
     onSave(title, content)
   }
-
-  function formatDate(timestamp: number) {
-    return new Intl.DateTimeFormat('vi-VN', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(new Date(timestamp))
-  }
 </script>
 
 <section class="editor">
@@ -62,28 +56,28 @@
         type="text"
         class="title-input"
         bind:value={title}
-        placeholder="Tiêu đề ghi chú"
+        placeholder={t('noteTitle')}
         readonly={readonly}
       />
       <div class="meta">
         <div class="meta-info">
-          <span>Cập nhật: {formatDate(note.updatedAt)}</span>
+          <span>{t('updatedAt', { date: formatAppDate(note.updatedAt) })}</span>
           {#if deletedAt}
-            <span class="deleted-at">Đã xóa: {formatDate(deletedAt)}</span>
+            <span class="deleted-at">{t('deletedAt', { date: formatAppDate(deletedAt) })}</span>
           {/if}
         </div>
         {#if readonly}
           <div class="trash-actions">
             <button type="button" class="restore-btn" onclick={onRestore}>
-              Khôi phục
+              {t('restore')}
             </button>
             <button type="button" class="delete-btn" onclick={onPermanentDelete}>
-              Xóa vĩnh viễn
+              {t('permanentDelete')}
             </button>
           </div>
         {:else}
           <button type="button" class="save-btn" onclick={handleSave} disabled={saving}>
-            {saving ? 'Đang lưu...' : 'Lưu'}
+            {saving ? t('saving') : t('save')}
           </button>
         {/if}
       </div>
@@ -93,14 +87,14 @@
       class="content-input"
       class:readonly
       bind:value={content}
-      placeholder="Bắt đầu viết ghi chú của bạn..."
+      placeholder={t('noteContentPlaceholder')}
       readonly={readonly}
     ></textarea>
   {:else}
     <div class="placeholder">
       <div class="placeholder-icon">{readonly ? '🗑' : '📝'}</div>
-      <h3>{emptyTitle}</h3>
-      <p>{emptyDescription}</p>
+      <h3>{resolvedEmptyTitle}</h3>
+      <p>{resolvedEmptyDescription}</p>
     </div>
   {/if}
 </section>
@@ -159,7 +153,7 @@
   }
 
   .deleted-at {
-    color: #dc2626;
+    color: var(--danger);
   }
 
   .trash-actions {
@@ -179,13 +173,13 @@
   }
 
   .restore-btn {
-    background: #16a34a;
+    background: var(--success);
     color: white;
   }
 
   .delete-btn {
-    background: rgba(239, 68, 68, 0.12);
-    color: #dc2626;
+    background: var(--danger-bg);
+    color: var(--danger);
   }
 
   .restore-btn:hover,

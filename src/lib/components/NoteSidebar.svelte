@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { formatAppDate, t } from '../i18n.svelte'
   import { PAGE_SIZE } from '../pagination'
   import type { Note } from '../types'
 
@@ -51,19 +52,9 @@
     visibleNotes.some((note) => checkedIds.has(note.id)) && !allVisibleChecked,
   )
 
-  function formatDate(timestamp: number) {
-    return new Intl.DateTimeFormat('vi-VN', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(new Date(timestamp))
-  }
-
   function preview(content: string) {
     const text = content.trim()
-    return text.length > 80 ? `${text.slice(0, 80)}...` : text || 'Chưa có nội dung'
+    return text.length > 80 ? `${text.slice(0, 80)}...` : text || t('noContent')
   }
 
   function handleSelectAllChange() {
@@ -81,12 +72,12 @@
 
 <aside class="sidebar">
   <div class="sidebar-header">
-    <h2>Ghi chú</h2>
+    <h2>{t('notes')}</h2>
     <div class="header-actions">
-      <button type="button" class="icon-btn" onclick={onImport} title="Import JSON">
+      <button type="button" class="icon-btn" onclick={onImport} title={t('importJson')}>
         ↓
       </button>
-      <button type="button" class="new-btn" onclick={onCreate} title="Tạo ghi chú mới">
+      <button type="button" class="new-btn" onclick={onCreate} title={t('newNote')}>
         +
       </button>
     </div>
@@ -94,16 +85,16 @@
 
   {#if checkedCount > 0}
     <div class="bulk-bar">
-      <span class="bulk-count">Đã chọn {checkedCount}</span>
+      <span class="bulk-count">{t('selectedCount', { count: checkedCount })}</span>
       <div class="bulk-actions">
         <button type="button" class="bulk-btn danger" onclick={onBulkDelete}>
-          Xóa
+          {t('delete')}
         </button>
         <button type="button" class="bulk-btn" onclick={onBulkExport}>
-          Export
+          {t('export')}
         </button>
         <button type="button" class="bulk-btn ghost" onclick={onClearSelection}>
-          Bỏ chọn
+          {t('clearSelection')}
         </button>
       </div>
     </div>
@@ -111,7 +102,7 @@
 
   <div class="note-list">
     {#if notes.length === 0}
-      <p class="empty">Chưa có ghi chú nào. Nhấn + để tạo mới hoặc Import JSON.</p>
+      <p class="empty">{t('notesEmpty')}</p>
     {:else}
       <label class="select-all">
         <input
@@ -120,7 +111,7 @@
           indeterminate={someVisibleChecked}
           onchange={handleSelectAllChange}
         />
-        <span>Chọn tất cả ({visibleNotes.length})</span>
+        <span>{t('selectAll', { count: visibleNotes.length })}</span>
       </label>
 
       {#each visibleNotes as note (note.id)}
@@ -140,14 +131,14 @@
           <button type="button" class="note-btn" onclick={() => onSelect(note.id)}>
             <span class="title">{note.title}</span>
             <span class="preview">{preview(note.content)}</span>
-            <span class="date">{formatDate(note.updatedAt)}</span>
+            <span class="date">{formatAppDate(note.updatedAt)}</span>
           </button>
           <button
             type="button"
             class="delete-btn"
             onclick={() => onDelete(note.id)}
-            title="Chuyển vào thùng rác"
-            aria-label="Chuyển vào thùng rác"
+            title={t('moveToTrash')}
+            aria-label={t('moveToTrash')}
           >
             ×
           </button>
@@ -156,9 +147,9 @@
 
       {#if hasMore}
         <div class="load-more-wrap">
-          <p class="load-more-info">Hiển thị {visibleNotes.length} / {notes.length}</p>
+          <p class="load-more-info">{t('showingCount', { visible: visibleNotes.length, total: notes.length })}</p>
           <button type="button" class="load-more-btn" onclick={loadMore}>
-            Tải thêm
+            {t('loadMore')}
           </button>
         </div>
       {/if}
@@ -168,7 +159,7 @@
   <div class="sidebar-footer">
     <button type="button" class="trash-btn" onclick={onOpenTrash}>
       <span class="trash-icon">🗑</span>
-      <span>Thùng rác</span>
+      <span>{t('trash')}</span>
       {#if trashCount > 0}
         <span class="trash-badge">{trashCount}</span>
       {/if}
@@ -273,7 +264,7 @@
   .bulk-btn.danger {
     border-color: rgba(239, 68, 68, 0.25);
     background: rgba(239, 68, 68, 0.08);
-    color: #dc2626;
+    color: var(--danger);
   }
 
   .bulk-btn.ghost {
@@ -400,7 +391,7 @@
 
   .delete-btn:hover {
     background: rgba(239, 68, 68, 0.1);
-    color: #dc2626;
+    color: var(--danger);
   }
 
   .load-more-wrap {
@@ -429,7 +420,7 @@
 
   .load-more-btn:hover {
     background: var(--surface);
-    border-color: #d6d3d1;
+    border-color: var(--border);
   }
 
   .sidebar-footer {
@@ -455,7 +446,7 @@
 
   .trash-btn:hover {
     background: var(--surface);
-    border-color: #d6d3d1;
+    border-color: var(--border);
   }
 
   .trash-icon {
@@ -469,7 +460,7 @@
     padding: 0 0.4rem;
     border-radius: 999px;
     background: rgba(239, 68, 68, 0.12);
-    color: #dc2626;
+    color: var(--danger);
     font-size: 0.75rem;
     font-weight: 700;
     display: grid;

@@ -1,3 +1,4 @@
+import { t } from './i18n.svelte'
 import type { Note, NoteInput } from './types'
 
 export interface NoteExportPayload {
@@ -36,13 +37,13 @@ export function parseImportedNotes(data: unknown): NoteInput[] {
   } else if (isRecord(data) && parseNoteInput(data)) {
     items = [data]
   } else {
-    throw new Error('File JSON không đúng định dạng. Cần mảng ghi chú hoặc object có trường "notes".')
+    throw new Error(t('jsonInvalidFormat'))
   }
 
   const notes = items.map(parseNoteInput).filter((note): note is NoteInput => note !== null)
 
   if (notes.length === 0) {
-    throw new Error('Không tìm thấy ghi chú hợp lệ trong file JSON.')
+    throw new Error(t('jsonNoValidNotes'))
   }
 
   return notes
@@ -81,7 +82,7 @@ export async function readNotesFromFile(file: File): Promise<NoteInput[]> {
   try {
     parsed = JSON.parse(text)
   } catch {
-    throw new Error('File JSON không hợp lệ.')
+    throw new Error(t('jsonInvalidFile'))
   }
 
   return parseImportedNotes(parsed)

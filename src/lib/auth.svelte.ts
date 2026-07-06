@@ -7,6 +7,8 @@ import {
   signOut,
   type User,
 } from 'firebase/auth'
+import { t } from './i18n.svelte'
+import type { TranslationKey } from './i18n/translations'
 import { auth } from './firebase'
 
 const googleProvider = new GoogleAuthProvider()
@@ -62,32 +64,23 @@ export async function logout() {
   await signOut(auth)
 }
 
+const authErrorMap: Record<string, TranslationKey> = {
+  'auth/invalid-email': 'authInvalidEmail',
+  'auth/user-disabled': 'authUserDisabled',
+  'auth/user-not-found': 'authWrongCredentials',
+  'auth/wrong-password': 'authWrongCredentials',
+  'auth/invalid-credential': 'authWrongCredentials',
+  'auth/email-already-in-use': 'authEmailInUse',
+  'auth/weak-password': 'authWeakPassword',
+  'auth/too-many-requests': 'authTooManyRequests',
+  'auth/popup-closed-by-user': 'authPopupClosed',
+  'auth/cancelled-popup-request': 'authPopupPending',
+  'auth/account-exists-with-different-credential': 'authAccountExists',
+  'auth/popup-blocked': 'authPopupBlocked',
+}
+
 function getAuthErrorMessage(err: unknown): string {
   const code = (err as { code?: string }).code
-  switch (code) {
-    case 'auth/invalid-email':
-      return 'Email không hợp lệ.'
-    case 'auth/user-disabled':
-      return 'Tài khoản đã bị vô hiệu hóa.'
-    case 'auth/user-not-found':
-    case 'auth/wrong-password':
-    case 'auth/invalid-credential':
-      return 'Email hoặc mật khẩu không đúng.'
-    case 'auth/email-already-in-use':
-      return 'Email đã được sử dụng.'
-    case 'auth/weak-password':
-      return 'Mật khẩu phải có ít nhất 6 ký tự.'
-    case 'auth/too-many-requests':
-      return 'Quá nhiều lần thử. Vui lòng thử lại sau.'
-    case 'auth/popup-closed-by-user':
-      return 'Đã hủy đăng nhập Google.'
-    case 'auth/cancelled-popup-request':
-      return 'Cửa sổ đăng nhập Google đang mở.'
-    case 'auth/account-exists-with-different-credential':
-      return 'Email này đã được đăng ký bằng phương thức khác.'
-    case 'auth/popup-blocked':
-      return 'Trình duyệt đã chặn cửa sổ đăng nhập. Vui lòng cho phép popup.'
-    default:
-      return 'Đã xảy ra lỗi. Vui lòng thử lại.'
-  }
+  const key = code ? authErrorMap[code] : undefined
+  return t(key ?? 'authErrorGeneric')
 }

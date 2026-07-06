@@ -7,6 +7,7 @@ import {
   update,
   type Unsubscribe,
 } from 'firebase/database'
+import { getUntitledNoteTitle } from './i18n.svelte'
 import { db } from './firebase'
 import type { Note, NoteInput, TrashedNote } from './types'
 
@@ -58,7 +59,7 @@ export async function createNote(userId: string, input: NoteInput): Promise<stri
   const newRef = push(notesRef)
 
   await set(newRef, {
-    title: input.title.trim() || 'Ghi chú không tiêu đề',
+    title: input.title.trim() || getUntitledNoteTitle(),
     content: input.content,
     createdAt: now,
     updatedAt: now,
@@ -76,7 +77,7 @@ export async function updateNote(
   const updates: Record<string, string | number> = { updatedAt: Date.now() }
 
   if (input.title !== undefined) {
-    updates.title = input.title.trim() || 'Ghi chú không tiêu đề'
+    updates.title = input.title.trim() || getUntitledNoteTitle()
   }
   if (input.content !== undefined) {
     updates.content = input.content

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { authState } from './lib/auth.svelte'
+  import { t } from './lib/i18n.svelte'
   import AuthPage from './lib/components/AuthPage.svelte'
   import NotesApp from './lib/components/NotesApp.svelte'
 </script>
@@ -7,7 +8,7 @@
 {#if authState.loading}
   <div class="loading">
     <div class="spinner"></div>
-    <p>Đang tải...</p>
+    <p>{t('loading')}</p>
   </div>
 {:else if authState.user}
   <NotesApp />

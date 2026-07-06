@@ -17,6 +17,8 @@
     updateNote,
   } from '../notes'
   import type { Note, TrashedNote } from '../types'
+  import { t } from '../i18n.svelte'
+  import LocaleThemeControls from './LocaleThemeControls.svelte'
   import NoteEditor from './NoteEditor.svelte'
   import NoteSidebar from './NoteSidebar.svelte'
   import TrashSidebar from './TrashSidebar.svelte'
@@ -138,7 +140,7 @@
     const note = notes.find((n) => n.id === id)
     if (!note) return
 
-    if (!confirm('Chuyển ghi chú này vào thùng rác?')) return
+    if (!confirm(t('confirmMoveToTrash'))) return
 
     await moveNoteToTrash(userId, note)
     checkedIds.delete(id)
@@ -153,7 +155,7 @@
     const selectedNotes = getCheckedNotes()
     if (!userId || selectedNotes.length === 0) return
 
-    if (!confirm(`Chuyển ${selectedNotes.length} ghi chú vào thùng rác?`)) return
+    if (!confirm(t('confirmBulkMoveToTrash', { count: selectedNotes.length }))) return
 
     await moveNotesToTrash(userId, selectedNotes)
     clearSelection()
@@ -190,9 +192,9 @@
       view = 'notes'
       clearSelection()
       selectedId = ids[0] ?? selectedId
-      alert(`Đã import ${ids.length} ghi chú.`)
+      alert(t('importSuccess', { count: ids.length }))
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Import thất bại.')
+      alert(err instanceof Error ? err.message : t('importFailed'))
     }
   }
 
@@ -228,7 +230,7 @@
     const userId = authState.user?.uid
     if (!userId) return
 
-    if (!confirm('Xóa vĩnh viễn ghi chú này? Hành động này không thể hoàn tác.')) return
+    if (!confirm(t('confirmPermanentDelete'))) return
 
     await permanentlyDeleteNote(userId, id)
     checkedIds.delete(id)
@@ -243,7 +245,7 @@
     const ids = [...checkedIds]
     if (!userId || ids.length === 0) return
 
-    if (!confirm(`Xóa vĩnh viễn ${ids.length} ghi chú? Hành động này không thể hoàn tác.`)) return
+    if (!confirm(t('confirmBulkPermanentDelete', { count: ids.length }))) return
 
     await permanentlyDeleteNotes(userId, ids)
     clearSelection()
@@ -256,7 +258,7 @@
     const userId = authState.user?.uid
     if (!userId || trashedNotes.length === 0) return
 
-    if (!confirm(`Xóa vĩnh viễn ${trashedNotes.length} ghi chú trong thùng rác?`)) return
+    if (!confirm(t('confirmEmptyTrash', { count: trashedNotes.length }))) return
 
     await emptyTrash(userId)
     clearSelection()
@@ -297,14 +299,27 @@
       type="button"
       class="menu-btn"
       onclick={() => (sidebarOpen = !sidebarOpen)}
-      aria-label="Mở menu"
+      aria-label={t('openMenu')}
     >
       ☰
     </button>
-    <span class="app-name">NoteData</span>
+    <span class="app-name">{t('appName')}</span>
     <div class="user-area">
       <span class="email">{authState.user?.email}</span>
-      <button type="button" class="logout-btn" onclick={logout}>Đăng xuất</button>
+      <LocaleThemeControls />
+      <button type="button" class="logout-btn" onclick={logout} aria-label={t('logout')}>
+        <svg class="logout-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+        <span class="logout-text">{t('logout')}</span>
+      </button>
     </div>
   </header>
 
@@ -353,7 +368,7 @@
         type="button"
         class="overlay"
         onclick={() => (sidebarOpen = false)}
-        aria-label="Đóng menu"
+        aria-label={t('closeMenu')}
       ></button>
     {/if}
 
@@ -369,8 +384,8 @@
           deletedAt={selectedTrashedNote?.deletedAt}
           onRestore={() => selectedTrashedNote && handleRestore(selectedTrashedNote.id)}
           onPermanentDelete={() => selectedTrashedNote && handlePermanentDelete(selectedTrashedNote.id)}
-          emptyTitle="Chọn ghi chú trong thùng rác"
-          emptyDescription="Bạn có thể khôi phục hoặc xóa vĩnh viễn các ghi chú đã xóa"
+          emptyTitle={t('selectTrashNote')}
+          emptyDescription={t('selectTrashNoteHint')}
         />
       {/if}
     </main>
@@ -433,6 +448,10 @@
   }
 
   .logout-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
     padding: 0.45rem 0.9rem;
     border: 1px solid var(--border);
     border-radius: 8px;
@@ -446,6 +465,16 @@
 
   .logout-btn:hover {
     background: var(--surface);
+  }
+
+  .logout-icon {
+    display: none;
+    width: 18px;
+    height: 18px;
+  }
+
+  .logout-text {
+    line-height: 1;
   }
 
   .layout {
@@ -473,18 +502,45 @@
     position: absolute;
     inset: 0;
     border: none;
-    background: rgba(0, 0, 0, 0.3);
+    background: var(--overlay);
     cursor: pointer;
     z-index: 4;
   }
 
   @media (max-width: 768px) {
+    .topbar {
+      gap: 0.5rem;
+      padding: 0.75rem 1rem;
+    }
+
     .menu-btn {
       display: grid;
       place-items: center;
     }
 
+    .app-name {
+      display: none;
+    }
+
+    .user-area {
+      gap: 0.5rem;
+    }
+
     .email {
+      display: none;
+    }
+
+    .logout-btn {
+      width: 40px;
+      height: 40px;
+      padding: 0;
+    }
+
+    .logout-icon {
+      display: block;
+    }
+
+    .logout-text {
       display: none;
     }
 

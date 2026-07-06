@@ -1,5 +1,7 @@
 <script lang="ts">
   import { authState, login, loginWithGoogle, register } from '../auth.svelte'
+  import { t } from '../i18n.svelte'
+  import LocaleThemeControls from './LocaleThemeControls.svelte'
 
   let mode = $state<'login' | 'register'>('login')
   let email = $state('')
@@ -38,11 +40,15 @@
 </script>
 
 <div class="auth-page">
+  <div class="auth-toolbar">
+    <LocaleThemeControls />
+  </div>
+
   <div class="auth-card">
     <div class="brand">
       <div class="logo">N</div>
-      <h1>NoteData</h1>
-      <p>Ghi chú cá nhân, đồng bộ theo thời gian thực</p>
+      <h1>{t('appName')}</h1>
+      <p>{t('appTagline')}</p>
     </div>
 
     <div class="tabs">
@@ -51,14 +57,14 @@
         class:active={mode === 'login'}
         onclick={() => { mode = 'login'; authState.error = null }}
       >
-        Đăng nhập
+        {t('login')}
       </button>
       <button
         type="button"
         class:active={mode === 'register'}
         onclick={() => { mode = 'register'; authState.error = null }}
       >
-        Đăng ký
+        {t('register')}
       </button>
     </div>
 
@@ -87,19 +93,19 @@
         />
       </svg>
       {googleSubmitting
-        ? 'Đang xử lý...'
+        ? t('processing')
         : mode === 'login'
-          ? 'Đăng nhập với Google'
-          : 'Đăng ký với Google'}
+          ? t('signInGoogle')
+          : t('signUpGoogle')}
     </button>
 
     <div class="divider">
-      <span>hoặc</span>
+      <span>{t('or')}</span>
     </div>
 
     <form onsubmit={handleSubmit}>
       <label>
-        <span>Email</span>
+        <span>{t('email')}</span>
         <input
           type="email"
           bind:value={email}
@@ -110,7 +116,7 @@
       </label>
 
       <label>
-        <span>Mật khẩu</span>
+        <span>{t('password')}</span>
         <input
           type="password"
           bind:value={password}
@@ -126,7 +132,7 @@
       {/if}
 
       <button type="submit" class="submit" disabled={submitting || googleSubmitting}>
-        {submitting ? 'Đang xử lý...' : mode === 'login' ? 'Đăng nhập' : 'Tạo tài khoản'}
+        {submitting ? t('processing') : mode === 'login' ? t('login') : t('createAccount')}
       </button>
     </form>
   </div>
@@ -142,6 +148,13 @@
       radial-gradient(circle at 20% 20%, rgba(245, 158, 11, 0.12), transparent 40%),
       radial-gradient(circle at 80% 80%, rgba(59, 130, 246, 0.1), transparent 40%),
       var(--bg);
+  }
+
+  .auth-toolbar {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 20;
   }
 
   .auth-card {
@@ -230,7 +243,6 @@
 
   .google-btn:hover:not(:disabled) {
     background: var(--bg);
-    border-color: #dadce0;
   }
 
   .google-btn:disabled {
@@ -292,15 +304,15 @@
   input:focus {
     outline: none;
     border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
+    box-shadow: 0 0 0 3px var(--input-focus-ring);
   }
 
   .error {
     margin: 0;
     padding: 0.75rem 1rem;
     border-radius: 10px;
-    background: rgba(239, 68, 68, 0.1);
-    color: #dc2626;
+    background: var(--danger-bg);
+    color: var(--danger);
     font-size: 0.875rem;
   }
 

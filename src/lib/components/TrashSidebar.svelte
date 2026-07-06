@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { formatAppDate, t } from '../i18n.svelte'
   import { PAGE_SIZE } from '../pagination'
   import type { TrashedNote } from '../types'
 
@@ -49,19 +50,9 @@
     visibleNotes.some((note) => checkedIds.has(note.id)) && !allVisibleChecked,
   )
 
-  function formatDate(timestamp: number) {
-    return new Intl.DateTimeFormat('vi-VN', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(new Date(timestamp))
-  }
-
   function preview(content: string) {
     const text = content.trim()
-    return text.length > 80 ? `${text.slice(0, 80)}...` : text || 'Chưa có nội dung'
+    return text.length > 80 ? `${text.slice(0, 80)}...` : text || t('noContent')
   }
 
   function handleSelectAllChange() {
@@ -79,41 +70,41 @@
 
 <aside class="sidebar">
   <div class="sidebar-header">
-    <button type="button" class="back-btn" onclick={onBack} title="Quay lại ghi chú">
+    <button type="button" class="back-btn" onclick={onBack} title={t('backToNotes')}>
       ←
     </button>
     <div class="header-text">
-      <h2>Thùng rác</h2>
-      <span class="count">{notes.length} ghi chú</span>
+      <h2>{t('trash')}</h2>
+      <span class="count">{t('noteCount', { count: notes.length })}</span>
     </div>
   </div>
 
   {#if checkedCount > 0}
     <div class="bulk-bar">
-      <span class="bulk-count">Đã chọn {checkedCount}</span>
+      <span class="bulk-count">{t('selectedCount', { count: checkedCount })}</span>
       <div class="bulk-actions">
         <button type="button" class="bulk-btn success" onclick={onBulkRestore}>
-          Khôi phục
+          {t('bulkRestore')}
         </button>
         <button type="button" class="bulk-btn danger" onclick={onBulkPermanentDelete}>
-          Xóa vĩnh viễn
+          {t('bulkPermanentDelete')}
         </button>
         <button type="button" class="bulk-btn ghost" onclick={onClearSelection}>
-          Bỏ chọn
+          {t('clearSelection')}
         </button>
       </div>
     </div>
   {:else if notes.length > 0}
     <div class="actions">
       <button type="button" class="empty-btn" onclick={onEmptyTrash}>
-        Dọn sạch thùng rác
+        {t('emptyTrash')}
       </button>
     </div>
   {/if}
 
   <div class="note-list">
     {#if notes.length === 0}
-      <p class="empty">Thùng rác trống. Các ghi chú đã xóa sẽ xuất hiện ở đây.</p>
+      <p class="empty">{t('trashEmpty')}</p>
     {:else}
       <label class="select-all">
         <input
@@ -122,7 +113,7 @@
           indeterminate={someVisibleChecked}
           onchange={handleSelectAllChange}
         />
-        <span>Chọn tất cả ({visibleNotes.length})</span>
+        <span>{t('selectAll', { count: visibleNotes.length })}</span>
       </label>
 
       {#each visibleNotes as note (note.id)}
@@ -142,15 +133,15 @@
           <button type="button" class="note-btn" onclick={() => onSelect(note.id)}>
             <span class="title">{note.title}</span>
             <span class="preview">{preview(note.content)}</span>
-            <span class="date">Đã xóa: {formatDate(note.deletedAt)}</span>
+            <span class="date">{t('deletedAt', { date: formatAppDate(note.deletedAt) })}</span>
           </button>
           <div class="item-actions">
             <button
               type="button"
               class="restore-btn"
               onclick={() => onRestore(note.id)}
-              title="Khôi phục"
-              aria-label="Khôi phục ghi chú"
+              title={t('restore')}
+              aria-label={t('restoreNote')}
             >
               ↩
             </button>
@@ -158,8 +149,8 @@
               type="button"
               class="delete-btn"
               onclick={() => onPermanentDelete(note.id)}
-              title="Xóa vĩnh viễn"
-              aria-label="Xóa vĩnh viễn"
+              title={t('permanentDelete')}
+              aria-label={t('permanentDeleteNote')}
             >
               ×
             </button>
@@ -169,9 +160,9 @@
 
       {#if hasMore}
         <div class="load-more-wrap">
-          <p class="load-more-info">Hiển thị {visibleNotes.length} / {notes.length}</p>
+          <p class="load-more-info">{t('showingCount', { visible: visibleNotes.length, total: notes.length })}</p>
           <button type="button" class="load-more-btn" onclick={loadMore}>
-            Tải thêm
+            {t('loadMore')}
           </button>
         </div>
       {/if}
@@ -257,13 +248,13 @@
   .bulk-btn.success {
     border-color: rgba(34, 197, 94, 0.25);
     background: rgba(34, 197, 94, 0.08);
-    color: #16a34a;
+    color: var(--success);
   }
 
   .bulk-btn.danger {
     border-color: rgba(239, 68, 68, 0.25);
     background: rgba(239, 68, 68, 0.08);
-    color: #dc2626;
+    color: var(--danger);
   }
 
   .bulk-btn.ghost {
@@ -280,7 +271,7 @@
     border: 1px solid rgba(239, 68, 68, 0.25);
     border-radius: 10px;
     background: rgba(239, 68, 68, 0.06);
-    color: #dc2626;
+    color: var(--danger);
     font-size: 0.85rem;
     font-weight: 600;
     cursor: pointer;
@@ -424,7 +415,7 @@
 
   .restore-btn:hover {
     background: rgba(34, 197, 94, 0.12);
-    color: #16a34a;
+    color: var(--success);
   }
 
   .delete-btn {
@@ -434,7 +425,7 @@
 
   .delete-btn:hover {
     background: rgba(239, 68, 68, 0.1);
-    color: #dc2626;
+    color: var(--danger);
   }
 
   .load-more-wrap {
