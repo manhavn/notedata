@@ -82,8 +82,38 @@
   <div class="sidebar-header">
     <h2>{t('notes')}</h2>
     <div class="header-actions">
-      <button type="button" class="icon-btn" onclick={onImport} title={t('importJson')}>
-        ↓
+      <button type="button" class="icon-btn" onclick={onImport} title={t('importJson')} aria-label={t('importJson')}>
+        <svg class="import-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M12 16V4M8 8l4-4 4 4M4 20h16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </button>
+      <button
+        type="button"
+        class="icon-btn trash-btn"
+        onclick={onOpenTrash}
+        title={trashCount > 0 ? `${t('trash')} (${trashCount})` : t('trash')}
+        aria-label={trashCount > 0 ? `${t('trash')} (${trashCount})` : t('trash')}
+      >
+        <svg class="trash-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M10 11v6M14 11v6M6 7l1 12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-12"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+        {#if trashCount > 0}
+          <span class="trash-count">{trashCount}</span>
+        {/if}
       </button>
       <button
         type="button"
@@ -189,16 +219,6 @@
       {/if}
     {/if}
   </div>
-
-  <div class="sidebar-footer">
-    <button type="button" class="trash-btn" onclick={onOpenTrash}>
-      <span class="trash-icon">🗑</span>
-      <span>{t('trash')}</span>
-      {#if trashCount > 0}
-        <span class="trash-badge">{trashCount}</span>
-      {/if}
-    </button>
-  </div>
 </aside>
 
 <style>
@@ -227,12 +247,17 @@
   .header-actions {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.35rem;
   }
 
   .icon-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     width: 36px;
     height: 36px;
+    padding: 0;
     border: 1px solid var(--border);
     border-radius: 10px;
     background: var(--bg);
@@ -240,11 +265,39 @@
     font-size: 1.1rem;
     font-weight: 700;
     cursor: pointer;
-    transition: background 0.2s;
+    transition: background 0.2s, border-color 0.2s;
   }
 
   .icon-btn:hover {
     background: var(--surface);
+  }
+
+  .trash-btn:hover {
+    border-color: rgba(239, 68, 68, 0.35);
+    color: var(--danger);
+  }
+
+  .import-icon,
+  .trash-icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  .trash-count {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 0.25rem;
+    border-radius: 999px;
+    background: var(--danger);
+    color: #fff;
+    font-size: 0.625rem;
+    font-weight: 700;
+    line-height: 16px;
+    text-align: center;
+    pointer-events: none;
   }
 
   .new-btn {
@@ -309,7 +362,15 @@
   }
 
   .bulk-btn.ghost {
-    background: transparent;
+    background: var(--surface);
+    color: var(--text-muted);
+    border-color: var(--border);
+  }
+
+  .bulk-btn.ghost:hover {
+    background: var(--bg);
+    color: var(--text);
+    border-color: var(--text-muted);
   }
 
   .note-list {
@@ -491,47 +552,4 @@
     border-color: var(--border);
   }
 
-  .sidebar-footer {
-    padding: 0.75rem 1rem 1rem;
-    border-top: 1px solid var(--border);
-  }
-
-  .trash-btn {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    padding: 0.75rem 1rem;
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    background: var(--bg);
-    color: var(--text);
-    font-size: 0.9rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.2s, border-color 0.2s;
-  }
-
-  .trash-btn:hover {
-    background: var(--surface);
-    border-color: var(--border);
-  }
-
-  .trash-icon {
-    font-size: 1rem;
-  }
-
-  .trash-badge {
-    margin-left: auto;
-    min-width: 22px;
-    height: 22px;
-    padding: 0 0.4rem;
-    border-radius: 999px;
-    background: rgba(239, 68, 68, 0.12);
-    color: var(--danger);
-    font-size: 0.75rem;
-    font-weight: 700;
-    display: grid;
-    place-items: center;
-  }
 </style>

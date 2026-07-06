@@ -24,7 +24,7 @@ export const translations = {
     selectedCount: '{count} selected',
     delete: 'Delete',
     export: 'Export',
-    clearSelection: 'Clear',
+    clearSelection: 'Deselect',
     selectAll: 'Select all ({count})',
     searchNotes: 'Search notes',
     searchNotesPlaceholder: 'Search by title or tag...',

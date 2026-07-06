@@ -263,7 +263,15 @@
   }
 
   .bulk-btn.ghost {
-    background: transparent;
+    background: var(--surface);
+    color: var(--text-muted);
+    border-color: var(--border);
+  }
+
+  .bulk-btn.ghost:hover {
+    background: var(--bg);
+    color: var(--text);
+    border-color: var(--text-muted);
   }
 
   .actions {
