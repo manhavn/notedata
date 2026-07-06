@@ -118,6 +118,8 @@ export const translations = {
     customPasscodeSaveHint: 'Create a passcode (6–32 characters) for this note. It is not saved in your key list.',
     customPasscodeUnlockHint: 'Enter the passcode you used when saving this note.',
     passcodeAutoFocus: 'Auto-focus passcode input',
+    collapseHeader: 'Collapse header',
+    expandHeader: 'Expand header',
   },
   vi: {
     appName: 'NoteData',
@@ -238,6 +240,8 @@ export const translations = {
     customPasscodeSaveHint: 'Tạo mã khóa (6–32 ký tự) cho ghi chú này. Mã không được lưu trong danh sách khóa.',
     customPasscodeUnlockHint: 'Nhập mã khóa bạn đã dùng khi lưu ghi chú này.',
     passcodeAutoFocus: 'Tự động focus ô nhập mã',
+    collapseHeader: 'Thu gọn thanh tiêu đề',
+    expandHeader: 'Mở rộng thanh tiêu đề',
   },
 } as const
 

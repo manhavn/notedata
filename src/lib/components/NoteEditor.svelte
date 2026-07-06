@@ -53,6 +53,7 @@
   let keyModalMode = $state<'unlock' | 'save'>('unlock')
   let decryptError = $state<string | null>(null)
   let markdownView = $state(false)
+  let headerCollapsed = $state(false)
 
   const resolvedEmptyTitle = $derived(emptyTitle || t('selectOrCreateNote'))
   const resolvedEmptyDescription = $derived(emptyDescription || t('selectOrCreateNoteHint'))
@@ -71,6 +72,7 @@
       decryptError = null
       keyModalOpen = false
       markdownView = false
+      headerCollapsed = false
       return
     }
 
@@ -84,11 +86,16 @@
       decryptError = null
       keyModalOpen = false
       markdownView = false
+      headerCollapsed = false
     }
   })
 
   function toggleMarkdownView() {
     markdownView = !markdownView
+  }
+
+  function toggleHeaderCollapse() {
+    headerCollapsed = !headerCollapsed
   }
 
   function openUnlockModal() {
@@ -204,7 +211,37 @@
 
 <section class="editor">
   {#if note}
-    <div class="editor-header">
+    <button
+      type="button"
+      class="header-collapse-btn"
+      class:collapsed={headerCollapsed}
+      onclick={toggleHeaderCollapse}
+      aria-label={headerCollapsed ? t('expandHeader') : t('collapseHeader')}
+      title={headerCollapsed ? t('expandHeader') : t('collapseHeader')}
+    >
+      <svg class="header-collapse-icon" viewBox="0 0 24 24" aria-hidden="true">
+        {#if headerCollapsed}
+          <path
+            d="M6 9l6 6 6-6"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        {:else}
+          <path
+            d="M6 15l6-6 6 6"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        {/if}
+      </svg>
+    </button>
+    <div class="editor-header" class:collapsed={headerCollapsed}>
       <input
         type="text"
         class="title-input"
@@ -364,10 +401,69 @@
     position: relative;
   }
 
+  .header-collapse-btn {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 0.85rem;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+    background: var(--surface);
+    color: var(--text-muted);
+    cursor: pointer;
+    transform: translateX(-50%);
+    transition:
+      color 0.2s,
+      background 0.2s,
+      border-color 0.2s,
+      box-shadow 0.2s;
+  }
+
+  .header-collapse-btn.collapsed {
+    border-top: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .header-collapse-btn:hover {
+    color: var(--text);
+    background: var(--bg);
+    border-color: var(--accent);
+  }
+
+  .header-collapse-icon {
+    width: 0.85rem;
+    height: 0.85rem;
+  }
+
   .editor-header {
+    flex-shrink: 0;
     padding: 1.5rem 2rem 1rem;
     border-bottom: 1px solid var(--border);
     background: var(--surface);
+    overflow: hidden;
+    transition:
+      max-height 0.25s ease,
+      padding 0.25s ease,
+      opacity 0.2s ease,
+      border-width 0.25s ease,
+      border-color 0.25s ease;
+    max-height: 40rem;
+  }
+
+  .editor-header.collapsed {
+    max-height: 0;
+    padding: 0;
+    margin: 0;
+    opacity: 0;
+    border-bottom-width: 0;
+    pointer-events: none;
   }
 
   .title-input {
