@@ -16,6 +16,7 @@ A personal notes app built with **Svelte 5 + Vite**, using **Firebase Authentica
 - **Forgot password** — Firebase sends a reset link by email (`sendPasswordResetEmail`)
 - **Email verification** — after email/password sign-up, Firebase sends a verification link (`sendEmailVerification`); the app unlocks after the user verifies
 - **Account settings** — display name (shown in the top bar), sign-in method chips, email verification status, change email (`verifyBeforeUpdateEmail`), change/add password, resend verification
+- **Source code link** — GitHub repo link on the auth screen and in Account settings
 - **Auth feature flags** — optionally disable sign-up, forgot password, change email, or change/add password via `VITE_DISABLE_*` env variables (UI + actions)
 - Login required before using the app
 
@@ -25,11 +26,13 @@ A personal notes app built with **Svelte 5 + Vite**, using **Firebase Authentica
 - **Tags** — comma-separated tags per note; add/remove in the editor; included in import/export
 - **Search** — find notes by title or tag from the top bar (debounced; works alongside sort and pagination)
 - **Sort** — title A–Z / Z–A, created/updated ascending or descending; preference saved in `localStorage` (`notedata-note-sort`)
-- **Markdown preview** — toggle between Edit and Markdown view while writing
+- **Content view modes** — **TXT / MD / HTML** segmented toggle (same style as EN / VI): plain-text edit, Markdown preview (GFM via `marked`), or raw HTML preview (sanitized via DOMPurify)
+- **Unsaved drafts** — edits are kept in memory while you switch notes; sidebar and editor show indicators; **Cancel edit** discards changes without saving (cleared on save or page reload)
 - **Collapsible editor header** — collapse the title/tags toolbar for more writing space
+- **Move to trash** — delete link in the editor header
 - Realtime sync scoped by `userId`
 - Paginated note list with **Load more** (20 items per page)
-- Soft delete via **Trash** — restore, permanently delete, or **Empty trash**
+- Soft delete via **Trash** — restore, permanently delete, or **Empty trash**; quick **↩ restore** and **× delete** buttons on each trashed note in the sidebar
 - **Mobile layout** — hamburger menu opens/closes the sidebar overlay on small screens
 
 ### Bulk actions
@@ -58,7 +61,7 @@ A personal notes app built with **Svelte 5 + Vite**, using **Firebase Authentica
 ### Dark mode
 
 - **Dark mode by default** on first visit
-- Toggle switch in the top bar (next to the user label) and on the auth screen
+- Sun / moon icon toggle in the top bar (segmented control, same style as EN / VI) and on the auth screen
 - Preference saved in `localStorage` under `notedata-theme` (`dark` or `light`)
 - Theme colors are driven by CSS variables in `src/app.css` via `data-theme` on `<html>`
 
@@ -350,7 +353,7 @@ Try:
 3. Or sign in with Google (skips email verification)
 4. Try **Forgot password?** on the login screen (below the submit button)
 5. On sign-up, try the **confirm password** field and the **show/hide password** eye icon
-6. Create and save a note — add tags, search, sort, and preview Markdown
+6. Create and save a note — add tags, search, sort, switch **TXT / MD / HTML** preview, and try **Cancel edit** on unsaved changes
 7. Open **Account settings** from the top-bar user icon to set a display name or change email
 
 ### Step 11: Deploy to Firebase Hosting
@@ -576,7 +579,8 @@ src/
       translations.ts    # English and Vietnamese strings
     notes.ts             # Note CRUD, trash, search, sort, bulk operations
     note-io.ts           # JSON import/export helpers
-    markdown.ts          # Markdown rendering for preview
+    draft-content.ts     # In-memory unsaved note content drafts
+    markdown.ts          # Markdown and HTML preview rendering (DOMPurify)
     pagination.ts        # Page size for load-more lists
     passcode.ts          # Passcode length constants
     passcode-focus.svelte.ts  # Auto-focus passcode input preference
@@ -586,7 +590,7 @@ src/
     components/
       AuthPage.svelte             # Login, register, forgot password
       PasswordInput.svelte        # Password field with show/hide toggle
-      LocaleThemeControls.svelte  # EN/VI toggle and dark mode switch
+      LocaleThemeControls.svelte  # EN/VI and sun/moon theme segmented toggles
       KeyManagerModal.svelte      # Create/delete encryption keys
       KeySelectModal.svelte       # Pick key or passcode when save/unlock
       PasscodePad.svelte          # Passcode entry with keypad

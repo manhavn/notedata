@@ -16,6 +16,7 @@
 - **Quên mật khẩu** — Firebase gửi link đặt lại qua email (`sendPasswordResetEmail`)
 - **Xác minh email** — sau đăng ký email/mật khẩu, Firebase gửi link xác minh (`sendEmailVerification`); app mở sau khi xác minh
 - **Cài đặt tài khoản** — tên hiển thị (topbar), chip phương thức đăng nhập, trạng thái xác minh email, đổi email (`verifyBeforeUpdateEmail`), đổi/thêm mật khẩu, gửi lại xác minh
+- **Link mã nguồn** — liên kết GitHub trên màn đăng nhập và trong Cài đặt tài khoản
 - **Tắt tính năng auth** — tùy chọn tắt đăng ký, quên mật khẩu, đổi email, đổi/thêm mật khẩu qua biến `VITE_DISABLE_*` (cả UI lẫn action)
 - Bắt buộc đăng nhập trước khi sử dụng app
 
@@ -25,11 +26,13 @@
 - **Thẻ (tags)** — gắn thẻ phân cách bằng dấu phẩy; thêm/xóa trong editor; hỗ trợ import/export
 - **Tìm kiếm** — tìm theo tiêu đề hoặc thẻ từ topbar (debounce; dùng cùng sort và phân trang)
 - **Sắp xếp** — tiêu đề A–Z / Z–A, ngày tạo/cập nhật tăng/giảm; lưu trong `localStorage` (`notedata-note-sort`)
-- **Xem Markdown** — chuyển giữa chế độ Sửa và Markdown khi viết
+- **Chế độ xem nội dung** — toggle **TXT / MD / HTML** dạng phân đoạn (cùng kiểu EN / VI): sửa văn bản thuần, xem trước Markdown (GFM qua `marked`), hoặc xem trước HTML (sanitize qua DOMPurify)
+- **Bản nháp chưa lưu** — nội dung sửa được giữ trong bộ nhớ khi chuyển ghi chú; sidebar và editor hiện chỉ báo; **Hủy sửa** hủy thay đổi mà không lưu (xóa khi lưu hoặc tải lại trang)
 - **Thu gọn header editor** — thu gọn thanh tiêu đề/thẻ để có thêm không gian viết
+- **Chuyển vào thùng rác** — link xóa ghi chú trong header editor
 - Đồng bộ realtime theo `userId`
 - Danh sách phân trang với nút **Tải thêm** (20 ghi chú mỗi lần)
-- **Thùng rác** — xóa mềm; khôi phục, xóa vĩnh viễn, hoặc **Dọn thùng rác**
+- **Thùng rác** — xóa mềm; khôi phục, xóa vĩnh viễn, hoặc **Dọn thùng rác**; nút **↩ khôi phục** và **× xóa** nhanh trên từng ghi chú trong sidebar
 - **Giao diện mobile** — menu hamburger mở/đóng sidebar dạng overlay trên màn hình nhỏ
 
 ### Thao tác hàng loạt
@@ -58,7 +61,7 @@
 ### Dark mode
 
 - **Mặc định dark mode** khi truy cập lần đầu
-- Nút switch ở topbar (cạnh tên/email người dùng) và màn hình đăng nhập
+- Toggle icon mặt trời / mặt trăng ở topbar (dạng phân đoạn, cùng kiểu EN / VI) và màn hình đăng nhập
 - Lưu preference trong `localStorage` với key `notedata-theme` (`dark` hoặc `light`)
 - Màu sắc dùng CSS variables trong `src/app.css` qua `data-theme` trên `<html>`
 
@@ -350,7 +353,7 @@ Thử:
 3. Hoặc đăng nhập Google (bỏ qua xác minh email)
 4. Thử **Quên mật khẩu?** trên màn đăng nhập (dưới nút submit)
 5. Khi đăng ký, thử ô **nhập lại mật khẩu** và nút mắt **hiện/ẩn mật khẩu**
-6. Tạo và lưu ghi chú — thêm thẻ, tìm kiếm, sắp xếp, xem Markdown
+6. Tạo và lưu ghi chú — thêm thẻ, tìm kiếm, sắp xếp, chuyển **TXT / MD / HTML**, thử **Hủy sửa** khi có thay đổi chưa lưu
 7. Mở **Cài đặt tài khoản** từ icon user trên topbar
 
 ### Bước 11: Deploy lên Firebase Hosting
@@ -576,7 +579,8 @@ src/
       translations.ts    # Chuỗi tiếng Anh và tiếng Việt
     notes.ts             # CRUD ghi chú, thùng rác, tìm kiếm, sắp xếp, thao tác hàng loạt
     note-io.ts           # Import/export JSON
-    markdown.ts          # Render Markdown cho chế độ xem trước
+    draft-content.ts     # Bản nháp nội dung chưa lưu trong bộ nhớ
+    markdown.ts          # Render Markdown và HTML cho chế độ xem trước (DOMPurify)
     pagination.ts        # Số lượng mỗi lần tải thêm
     passcode.ts          # Hằng số độ dài mã khóa
     passcode-focus.svelte.ts  # Preference tự focus ô nhập mã
@@ -586,7 +590,7 @@ src/
     components/
       AuthPage.svelte             # Đăng nhập, đăng ký, quên mật khẩu
       PasswordInput.svelte        # Ô mật khẩu có nút hiện/ẩn
-      LocaleThemeControls.svelte  # Nút EN/VI và switch dark mode
+      LocaleThemeControls.svelte  # Toggle phân đoạn EN/VI và sáng/tối
       KeyManagerModal.svelte      # Tạo/xóa mã khóa
       KeySelectModal.svelte       # Chọn mã khi lưu/mở khóa
       PasscodePad.svelte          # Nhập mã kèm bàn phím số
