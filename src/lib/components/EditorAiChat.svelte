@@ -90,6 +90,7 @@
     input = ''
     loading = true
     error = null
+    queueMicrotask(scrollToBottom)
 
     const controller = new AbortController()
     abortController = controller
@@ -237,6 +238,15 @@
                 {/if}
               </article>
             {/each}
+          {/if}
+
+          {#if loading}
+            <article class="ai-chat-message ai-chat-typing" aria-label={t('aiChatTyping')}>
+              <span class="ai-chat-role">{t('aiChatAssistant')}</span>
+              <p class="ai-chat-typing-dots" aria-hidden="true">
+                <span></span><span></span><span></span>
+              </p>
+            </article>
           {/if}
         </div>
 
@@ -466,6 +476,42 @@
     font-size: 0.88rem;
     line-height: 1.55;
     color: var(--text);
+  }
+
+  .ai-chat-typing-dots {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    min-height: 1.35rem;
+  }
+
+  .ai-chat-typing-dots span {
+    width: 0.42rem;
+    height: 0.42rem;
+    border-radius: 50%;
+    background: var(--text-muted);
+    animation: ai-chat-typing-bounce 1.2s ease-in-out infinite;
+  }
+
+  .ai-chat-typing-dots span:nth-child(2) {
+    animation-delay: 0.15s;
+  }
+
+  .ai-chat-typing-dots span:nth-child(3) {
+    animation-delay: 0.3s;
+  }
+
+  @keyframes ai-chat-typing-bounce {
+    0%,
+    60%,
+    100% {
+      transform: translateY(0);
+      opacity: 0.45;
+    }
+    30% {
+      transform: translateY(-0.28rem);
+      opacity: 1;
+    }
   }
 
   .ai-chat-insert {
