@@ -29,6 +29,7 @@
   interface Props {
     note: Note | null
     onSave: (payload: SavePayload) => void | Promise<void>
+    onSaveTitle?: (noteId: string, title: string) => void | Promise<void>
     onSaveTags?: (tags: string[]) => void | Promise<void>
     saving: boolean
     readonly?: boolean
@@ -44,6 +45,7 @@
   let {
     note,
     onSave,
+    onSaveTitle,
     onSaveTags,
     saving,
     readonly = false,
@@ -69,6 +71,8 @@
   type ContentViewMode = 'txt' | 'md' | 'html'
   let contentViewMode = $state<ContentViewMode>('txt')
   let headerCollapsed = $state(false)
+  let titleSaveTimer: ReturnType<typeof setTimeout> | undefined
+  let savedTitleBaseline = $state('')
 
   const resolvedEmptyTitle = $derived(emptyTitle || t('selectOrCreateNote'))
   const resolvedEmptyDescription = $derived(emptyDescription || t('selectOrCreateNoteHint'))
@@ -145,6 +149,7 @@
       tagInput = ''
       plainContent = ''
       lastLoadedId = null
+      savedTitleBaseline = ''
       savedPlainSnapshot = null
       isUnlocked = false
       decryptError = null
@@ -155,7 +160,12 @@
     }
 
     if (note.id !== lastLoadedId) {
+      if (lastLoadedId) {
+        void flushTitleSaveForNote(lastLoadedId, title, savedTitleBaseline)
+      }
+
       title = note.title
+      savedTitleBaseline = note.title
       tags = normalizeTags(note.tags)
       tagInput = ''
       lastLoadedId = note.id
@@ -333,6 +343,51 @@
     return left.length === right.length && left.every((tag, index) => tag === right[index])
   }
 
+  async function saveTitleForNote(targetNoteId: string, value: string, baseline: string) {
+    if (readonly || !onSaveTitle || value === baseline) return
+    await onSaveTitle(targetNoteId, value)
+    if (note?.id === targetNoteId) {
+      savedTitleBaseline = value
+    }
+  }
+
+  function clearTitleSaveTimer() {
+    if (!titleSaveTimer) return
+    clearTimeout(titleSaveTimer)
+    titleSaveTimer = undefined
+  }
+
+  function scheduleTitleSave() {
+    if (!note || readonly || !onSaveTitle) return
+
+    const targetNoteId = note.id
+    const baseline = savedTitleBaseline
+
+    clearTitleSaveTimer()
+    titleSaveTimer = setTimeout(() => {
+      titleSaveTimer = undefined
+      void saveTitleForNote(targetNoteId, title, baseline)
+    }, 800)
+  }
+
+  async function flushTitleSaveForNote(targetNoteId: string, value: string, baseline: string) {
+    if (readonly || !onSaveTitle) return
+    clearTitleSaveTimer()
+    await saveTitleForNote(targetNoteId, value, baseline)
+  }
+
+  function flushTitleSave() {
+    if (!note || readonly || !onSaveTitle) return
+    void flushTitleSaveForNote(note.id, title, savedTitleBaseline)
+  }
+
+  $effect(() => {
+    if (!note || note.id !== lastLoadedId) return
+    if (title === note.title) {
+      savedTitleBaseline = note.title
+    }
+  })
+
   async function saveTags() {
     if (!note || readonly || !onSaveTags) return
     await onSaveTags([...tags])
@@ -424,6 +479,8 @@
         bind:value={title}
         placeholder={t('noteTitle')}
         readonly={readonly}
+        oninput={scheduleTitleSave}
+        onblur={flushTitleSave}
       />
       <div class="tags-row">
         {#if tags.length > 0}

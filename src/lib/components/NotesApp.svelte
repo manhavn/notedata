@@ -267,6 +267,13 @@
     await updateNote(userId, selectedId, { tags })
   }
 
+  async function handleSaveTitle(noteId: string, title: string) {
+    const userId = authState.user?.uid
+    if (!userId || view !== 'notes') return
+
+    await updateNote(userId, noteId, { title })
+  }
+
   function openKeyManager() {
     keyManagerOpen = true
   }
@@ -688,6 +695,7 @@
         <NoteEditor
           note={selectedNote}
           onSave={handleSave}
+          onSaveTitle={handleSaveTitle}
           onSaveTags={handleSaveTags}
           {saving}
           onDelete={() => selectedId && handleMoveToTrash(selectedId)}
