@@ -23,7 +23,7 @@
 ### Ghi chú
 
 - Tạo, sửa và lưu ghi chú
-- **Thẻ (tags)** — gắn thẻ phân cách bằng dấu phẩy; thêm/xóa trong editor; hỗ trợ import/export
+- **Thẻ (tags)** — gắn thẻ phân cách bằng dấu phẩy; định dạng `tênTag:giá_trị` tùy chọn gắn dữ liệu vào thẻ (dùng cho biến system prompt AI); thêm/xóa trong editor; hỗ trợ import/export
 - **Tìm kiếm** — tìm theo tiêu đề hoặc thẻ từ topbar (debounce; dùng cùng sort và phân trang)
 - **Sắp xếp** — tiêu đề A–Z / Z–A, ngày tạo/cập nhật tăng/giảm; lưu trong `localStorage` (`notedata-note-sort`)
 - **Chế độ xem nội dung** — toggle **TXT / MD / HTML** dạng phân đoạn (cùng kiểu EN / VI): sửa văn bản thuần, xem trước Markdown (GFM qua `marked`), hoặc xem trước HTML (sanitize qua DOMPurify)
@@ -44,13 +44,16 @@
 - **Kho API key** — key có nhãn, mã hóa bằng mã khóa của bạn (AES-GCM giống nội dung ghi chú) và lưu trên Firebase (`users/{uid}/settings/aiChatSettings/apiKeys`); chỉ ciphertext đồng bộ — plaintext chỉ ở bộ nhớ sau khi mở khóa
 - **Mở khóa API key** — dùng popup mã giống ghi chú mã hóa (mã đã lưu hoặc nhập thủ công); bắt buộc mỗi phiên chat mới, khi đổi key, và khi sửa key đã lưu
 - **API key đang dùng** — `activeApiKeyId` trên Firebase (giống `activeModelId` / `activeProviderId`); toolbar footer chọn key gửi request
+- **Chọn AI theo ghi chú** — mỗi ghi chú có thể nhớ provider, model và API key riêng (`aiActive*` trên Firebase); trường chưa đặt sẽ dùng mặc định tài khoản
 - **Cài đặt dạng popup** — chọn provider, model và API key từ popup danh sách; Add/Edit mở form cài đặt riêng
 - **Toolbar footer chat** — nút **Provider**, **Model** và API key (hiện tên đang chọn hoặc nhãn mặc định; ellipsis khi dài); icon bánh răng mở cài đặt bật/tắt AI tài khoản
 - **Import từ cURL** — dán lệnh `curl` để tự điền các trường provider (endpoint, xác thực, tham số sinh văn bản); không tự tạo hoặc chọn model
 - **Chat không cần API key** — endpoint local/mở hoạt động khi chọn **Chưa chọn API key** (không bắt buộc key để gửi)
-- **Ngữ cảnh ghi chú** — mẫu system prompt hỗ trợ placeholder `{{noteTitle}}` và `{{noteContent}}`
+- **Ngữ cảnh ghi chú** — mẫu system prompt hỗ trợ `{{noteTitle}}`, `{{noteContent}}` và biến tag `{{tênTag}}` (từ tag định dạng `tênTag:giá_trị`)
+- **Hướng dẫn biến system prompt** — hover dấu **?** cạnh trường system prompt để xem hướng dẫn đầy đủ
 - **Chèn vào ghi chú** — thêm bất kỳ tin nhắn nào (người dùng hoặc trợ lý) vào nội dung editor
 - **Sao chép tất cả / Chèn tất cả / Xóa** — thao tác hàng loạt cạnh nút AI khi chat đang mở và có tin nhắn
+- **Lịch sử chat trên máy** — tùy chọn lưu bản nháp chat AI theo từng ghi chú trong `localStorage` (Cài đặt tài khoản → Trợ lý AI); dọn từ cài đặt tài khoản
 - **Bật/tắt AI theo tài khoản** — bật hoặc tắt trợ lý chat trong Cài đặt tài khoản (`disableAiChat` trên Firebase)
 - **Ẩn khi ghi chú bị khóa** — không dùng chat khi ghi chú mã hóa chưa mở khóa
 - **Tắt qua env** — đặt `VITE_DISABLE_AI_CHAT=true` để ẩn hoàn toàn chat box (mặc định `false`, bật)
@@ -223,6 +226,7 @@ Sau khi đăng nhập, bấm **icon user** trên topbar (bên phải):
 | Thêm mật khẩu | `linkWithCredential` | Tài khoản chỉ Google có thể liên kết email/mật khẩu |
 | Gửi lại xác minh | `sendEmailVerification` | Tài khoản email/mật khẩu chưa xác minh |
 | Bật/tắt trợ lý AI | `users/{uid}/settings/disableAiChat` | Bật hoặc tắt nút chat AI cho tài khoản (đồng bộ qua Realtime Database) |
+| Lịch sử chat trên máy | `users/{uid}/settings/persistAiChatLocal` | Lưu bản nháp chat AI trong `localStorage` trình duyệt theo ghi chú (`chat_{noteId}`) |
 
 Ngoài bật **Email/Password** và **Google**, nên tùy chỉnh ba template: **Password reset**, **Email address verification**, **Email address change**.
 
@@ -420,6 +424,9 @@ users/
         title: string
         content: string
         tags?: string (phân cách bằng dấu phẩy trên Firebase)
+        aiActiveProviderId?: string
+        aiActiveModelId?: string
+        aiActiveApiKeyId?: string
         createdAt: number (timestamp)
         updatedAt: number (timestamp)
         encrypted?: boolean
@@ -429,6 +436,9 @@ users/
         title: string
         content: string
         tags?: string (phân cách bằng dấu phẩy trên Firebase)
+        aiActiveProviderId?: string
+        aiActiveModelId?: string
+        aiActiveApiKeyId?: string
         createdAt: number (timestamp)
         updatedAt: number (timestamp)
         deletedAt: number (timestamp)
@@ -436,6 +446,7 @@ users/
         keyId?: string
     settings/
       disableAiChat?: boolean
+      persistAiChatLocal?: boolean
       aiChatSettings/
         activeProviderId: string | null
         activeModelId: string | null
@@ -534,7 +545,7 @@ Ghi chú import sẽ được tạo mới trên Firebase (ID mới).
 | Tên | Tên hiển thị trên toolbar footer |
 | Completions URL | Endpoint chat-completions đầy đủ (vd. `https://api.example.com/v1/chat/completions`) |
 | Tên / tiền tố header xác thực | vd. `Authorization` + `Bearer `, hoặc `x-api-key` với prefix trống |
-| System prompt | Mẫu với `{{noteTitle}}` và `{{noteContent}}` |
+| System prompt | Mẫu với `{{noteTitle}}`, `{{noteContent}}` và biến tag `{{tênTag}}` (hover **?** để xem hướng dẫn đầy đủ) |
 | Temperature, max tokens, top P, penalties | Tham số sinh văn bản tùy chọn (để trống = không gửi) |
 | Stream | Cờ `stream` trong request body |
 | Header / body bổ sung | JSON object merge vào request cho tùy chọn riêng từng nhà cung cấp |
@@ -555,6 +566,30 @@ Ghi chú import sẽ được tạo mới trên Firebase (ID mới).
 |--------|-------|
 | Nhãn | Tên hiển thị trong picker model và toolbar footer |
 | Giá trị | Id model gửi trong JSON request body |
+
+### Biến trong system prompt
+
+| Placeholder | Nguồn | Ghi chú |
+|-------------|-------|---------|
+| `{{noteTitle}}` | Tiêu đề ghi chú hiện tại | Luôn dùng được |
+| `{{noteContent}}` | Nội dung plain-text ghi chú hiện tại | Luôn dùng được |
+| `{{tênTag}}` | Tag ghi chú dạng `tênTag:giá_trị` | Tag thường không có `:` sẽ không thay thế; giá trị rỗng (`tênTag:`) vẫn hợp lệ |
+
+Ví dụ tags: `công-việc, khách-hàng:Công ty ABC, nháp, ngôn-ngữ:tiếng Việt`
+
+- `{{khách-hàng}}` → `Công ty ABC`
+- `{{ngôn-ngữ}}` → `tiếng Việt`
+- `{{nháp}}` → không thay thế (tag thường, không có dấu hai chấm)
+
+Hover dấu **?** cạnh **Mẫu system prompt** trong form provider để xem hướng dẫn trong app (EN/VI).
+
+### Chọn AI theo ghi chú
+
+Khi chọn provider, model hoặc API key từ toolbar footer chat trên một ghi chú, lựa chọn được lưu trên ghi chú đó trong Firebase (`aiActiveProviderId`, `aiActiveModelId`, `aiActiveApiKeyId`). Trường chưa đặt trên ghi chú sẽ kế thừa mặc định toàn tài khoản từ `aiChatSettings`. Nếu lựa chọn đã lưu trỏ tới provider, model hoặc key đã xóa, app sẽ nhắc chọn lại.
+
+### Lịch sử chat trên máy
+
+Trong **Cài đặt tài khoản → Trợ lý AI**, bật **Đã lưu lịch sử chat trên máy** để giữ bản nháp chat trong `localStorage` (`chat_{noteId}`) sau khi tải lại trang. Mặc định tắt (chỉ giữ trong bộ nhớ đến khi reload). Dùng **Dọn lịch sử chat** để xóa mọi bản nháp đã lưu trên trình duyệt này.
 
 ### Import từ cURL
 
@@ -580,7 +615,7 @@ Parser điền URL, header xác thực và các trường body đã biết vào 
 
 ### Bật/tắt AI theo tài khoản
 
-Trong **Cài đặt tài khoản → Trợ lý AI**, bật hoặc tắt AI cho tài khoản. Cài đặt lưu tại `users/{uid}/settings/disableAiChat` trên Firebase và đồng bộ giữa các thiết bị. Bản ghi API key đã mã hóa cũng đồng bộ giữa thiết bị; bạn vẫn cần mã khóa trên mỗi thiết bị/phiên để giải mã khi chat.
+Trong **Cài đặt tài khoản → Trợ lý AI**, bật hoặc tắt AI cho tài khoản. Cài đặt lưu tại `users/{uid}/settings/disableAiChat` trên Firebase và đồng bộ giữa các thiết bị. Cùng mục này có toggle **lịch sử chat trên máy** (`persistAiChatLocal`) và nút dọn bản nháp chat đã lưu trên trình duyệt. Bản ghi API key đã mã hóa cũng đồng bộ giữa thiết bị; bạn vẫn cần mã khóa trên mỗi thiết bị/phiên để giải mã khi chat.
 
 Icon bánh răng trong footer chat mở Cài đặt tài khoản, tập trung vào mục này.
 
@@ -590,6 +625,8 @@ Icon bánh răng trong footer chat mở Cài đặt tài khoản, tập trung v�
 |---------|---------|-------------------|
 | Cài đặt AI chat | `users/{uid}/settings/aiChatSettings` | Có — providers, models, `apiKeys` và lựa chọn đang active (không có plaintext API key) |
 | Bật/tắt AI tài khoản | `users/{uid}/settings/disableAiChat` | Có |
+| Toggle lịch sử chat trên máy | `users/{uid}/settings/persistAiChatLocal` | Có |
+| Bản nháp chat AI (khi bật) | `localStorage` key `chat_{noteId}` | Không |
 | Mã khóa mã hóa | `notedata-encryption-keys` (trình duyệt) | Không (chỉ hash trong localStorage) |
 | Plaintext API key đã mở khóa | Trạng thái Svelte trong bộ nhớ | Không |
 
@@ -788,7 +825,10 @@ src/
     firebase.ts          # Khởi tạo Firebase từ biến môi trường
     auth-features.ts     # Các flag VITE_DISABLE_* cho auth
     ai-features.ts       # Flag VITE_DISABLE_AI_CHAT
-    ai-settings.ts       # Ghép provider/model đang active thành cài đặt chat
+    ai-settings.ts       # Ghép provider/model đang active thành cài đặt chat; render biến system prompt
+    note-ai-selection.ts # Ghép lựa chọn AI theo ghi chú vs mặc định toàn tài khoản
+    draft-ai-chat.ts     # Bản nháp chat AI trong bộ nhớ; tùy chọn lưu localStorage
+    local-draft-storage.ts  # Helper localStorage cho bản nháp chat
     ai-providers.ts      # CRUD cài đặt AI chat trên Firebase (providers, models, apiKeys)
     ai-providers.svelte.ts  # Đồng bộ realtime store aiChatSettings
     ai-api-keys.ts       # Đọc/ghi API key mã hóa dưới aiChatSettings/apiKeys

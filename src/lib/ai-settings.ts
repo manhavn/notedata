@@ -1,4 +1,5 @@
 import { getUnlockedApiKeyValue } from './ai-api-keys.svelte'
+import { normalizeTags } from './notes'
 import {
   getActiveModel,
   getActiveProvider,
@@ -119,13 +120,35 @@ export function buildCompletionsUrl(settings: AiChatSettings): string {
   return settings.completionsUrl.trim()
 }
 
+export function buildTagVariableMap(tags?: string[]): Map<string, string> {
+  const variables = new Map<string, string>()
+
+  for (const tag of normalizeTags(tags)) {
+    const colonIndex = tag.indexOf(':')
+    if (colonIndex === -1) continue
+
+    const name = tag.slice(0, colonIndex).trim()
+    if (!name || variables.has(name)) continue
+
+    variables.set(name, tag.slice(colonIndex + 1))
+  }
+
+  return variables
+}
+
 export function renderSystemPrompt(
   template: string,
-  context: { noteTitle: string; noteContent: string },
+  context: { noteTitle: string; noteContent: string; noteTags?: string[] },
 ): string {
-  return template
-    .replaceAll('{{noteTitle}}', context.noteTitle.trim())
-    .replaceAll('{{noteContent}}', context.noteContent.trim())
+  const tagVariables = buildTagVariableMap(context.noteTags)
+
+  return template.replace(/\{\{([^{}]+)\}\}/g, (match, rawName: string) => {
+    const name = rawName.trim()
+    if (name === 'noteTitle') return context.noteTitle.trim()
+    if (name === 'noteContent') return context.noteContent.trim()
+    if (tagVariables.has(name)) return tagVariables.get(name)!
+    return match
+  })
 }
 
 export function parseJsonObject(value: string, fieldLabel: string): Record<string, unknown> {

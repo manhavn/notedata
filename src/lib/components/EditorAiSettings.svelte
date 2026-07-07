@@ -907,7 +907,19 @@
         </label>
 
         <label class="field">
-          <span>{t('aiSettingsSystemPrompt')}</span>
+          <span class="field-label-row">
+            <span>{t('aiSettingsSystemPrompt')}</span>
+            <span class="field-help-wrap">
+              <button
+                type="button"
+                class="field-help"
+                aria-label={t('aiSettingsPromptHintTitle')}
+              >
+                ?
+              </button>
+              <span class="field-help-tip" role="tooltip">{t('aiSettingsPromptHint')}</span>
+            </span>
+          </span>
           <textarea bind:value={draft.systemPrompt} rows="5"></textarea>
         </label>
 
@@ -1018,6 +1030,61 @@
     font-size: 0.76rem;
     font-weight: 600;
     color: var(--text);
+  }
+
+  .field-label-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .field-help-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .field-help {
+    width: 1.1rem;
+    height: 1.1rem;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    background: var(--bg);
+    color: var(--text-muted);
+    font-size: 0.68rem;
+    font-weight: 700;
+    line-height: 1;
+    padding: 0;
+    cursor: help;
+  }
+
+  .field-help-tip {
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 0.4rem);
+    z-index: 5;
+    width: min(20rem, 72vw);
+    padding: 0.55rem 0.65rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    font-weight: 400;
+    line-height: 1.45;
+    white-space: pre-line;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateX(-50%);
+    transition: opacity 0.15s ease, visibility 0.15s ease;
+  }
+
+  .field-help-wrap:hover .field-help-tip,
+  .field-help-wrap:focus-within .field-help-tip {
+    opacity: 1;
+    visibility: visible;
   }
 
   .field input,

@@ -187,6 +187,7 @@ export async function sendNoteAiChatMessage(
     prompt: string
     noteTitle: string
     noteContent: string
+    noteTags?: string[]
     errorMessage: string
     activeSelection: AiActiveSelection
   },
@@ -224,6 +225,7 @@ export async function sendNoteAiChatMessage(
       content: renderSystemPrompt(settings.systemPrompt, {
         noteTitle: options.noteTitle,
         noteContent: options.noteContent,
+        noteTags: options.noteTags,
       }),
     },
     ...requestMessages.map((message) => ({

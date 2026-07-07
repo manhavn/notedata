@@ -710,6 +710,7 @@
           noteId={note.id}
           noteTitle={title}
           noteContent={plainContent}
+          noteTags={tags}
           noteAiActiveProviderId={note.aiActiveProviderId}
           noteAiActiveModelId={note.aiActiveModelId}
           noteAiActiveApiKeyId={note.aiActiveApiKeyId}

@@ -23,7 +23,7 @@ A personal notes app built with **Svelte 5 + Vite**, using **Firebase Authentica
 ### Notes
 
 - Create, edit, and save notes
-- **Tags** — comma-separated tags per note; add/remove in the editor; included in import/export
+- **Tags** — comma-separated tags per note; optional `tagName:value` format attaches data to a tag (used by AI system prompt variables); add/remove in the editor; included in import/export
 - **Search** — find notes by title or tag from the top bar (debounced; works alongside sort and pagination)
 - **Sort** — title A–Z / Z–A, created/updated ascending or descending; preference saved in `localStorage` (`notedata-note-sort`)
 - **Content view modes** — **TXT / MD / HTML** segmented toggle (same style as EN / VI): plain-text edit, Markdown preview (GFM via `marked`), or raw HTML preview (sanitized via DOMPurify)
@@ -44,13 +44,16 @@ A personal notes app built with **Svelte 5 + Vite**, using **Firebase Authentica
 - **API key vault** — labeled API keys encrypted with your passcode (same AES-GCM as note content) and stored in Firebase (`users/{uid}/settings/aiChatSettings/apiKeys`); only ciphertext is synced — plaintext stays in memory after unlock
 - **API key unlock** — same passcode modal as encrypted notes (saved keys or manual entry); required on each new chat session, when switching keys, and when editing a saved key
 - **Active API key** — `activeApiKeyId` in Firebase (like `activeModelId` / `activeProviderId`); footer toolbar picks the key used for requests
+- **Per-note AI selection** — each note can remember its own provider, model, and API key (`aiActive*` on Firebase); unset fields fall back to account defaults
 - **Popup settings** — pick providers, models, and API keys from list popups; Add/Edit opens a separate settings form
 - **Chat footer toolbar** — **Provider**, **Model**, and API key buttons (show active name or default label; ellipsis when long); gear icon links to account AI toggle
 - **Import from cURL** — paste a `curl` command to auto-fill provider fields (endpoint, auth, generation params); does not create or select a model
 - **Chat without API key** — local or open endpoints work when **No API key** is selected (no key required to send)
-- **Note context** — system prompt template supports `{{noteTitle}}` and `{{noteContent}}` placeholders
+- **Note context** — system prompt template supports `{{noteTitle}}`, `{{noteContent}}`, and tag variables `{{tagName}}` (from tags with `tagName:value` format)
+- **System prompt variable guide** — **?** hover tip on the system prompt field explains all placeholders
 - **Insert into note** — append any chat message (user or assistant) to the editor content
 - **Copy all / Insert all / Clear** — bulk actions next to the AI button when the chat is open and has messages
+- **Local chat history** — optionally persist AI chat drafts per note in `localStorage` (Account settings → AI assistant); purge from account settings
 - **Per-account AI toggle** — enable or disable the chat assistant in Account settings (`disableAiChat` on Firebase)
 - **Hidden on encrypted lock** — chat is unavailable until the note is unlocked
 - **Disable via env** — set `VITE_DISABLE_AI_CHAT=true` to hide the chat box entirely (default `false`, enabled)
@@ -223,6 +226,7 @@ After sign-in, open the **user icon** in the top bar (right side):
 | Add password | `linkWithCredential` | Google-only accounts can link email/password sign-in |
 | Resend verification | `sendEmailVerification` | Email/password accounts only, when not yet verified |
 | AI assistant toggle | `users/{uid}/settings/disableAiChat` | Enable or disable the AI chat button for your account (synced via Realtime Database) |
+| Local chat history | `users/{uid}/settings/persistAiChatLocal` | Save AI chat drafts in browser `localStorage` per note (`chat_{noteId}`) |
 
 Beyond enabling **Email/Password** and **Google**, customize the three templates above: **Password reset**, **Email address verification**, and **Email address change**.
 
@@ -420,6 +424,9 @@ users/
         title: string
         content: string
         tags?: string (comma-separated in Firebase)
+        aiActiveProviderId?: string
+        aiActiveModelId?: string
+        aiActiveApiKeyId?: string
         createdAt: number (timestamp)
         updatedAt: number (timestamp)
         encrypted?: boolean
@@ -429,6 +436,9 @@ users/
         title: string
         content: string
         tags?: string (comma-separated in Firebase)
+        aiActiveProviderId?: string
+        aiActiveModelId?: string
+        aiActiveApiKeyId?: string
         createdAt: number (timestamp)
         updatedAt: number (timestamp)
         deletedAt: number (timestamp)
@@ -436,6 +446,7 @@ users/
         keyId?: string
     settings/
       disableAiChat?: boolean
+      persistAiChatLocal?: boolean
       aiChatSettings/
         activeProviderId: string | null
         activeModelId: string | null
@@ -534,7 +545,7 @@ Imported notes are created as new entries in Firebase (new IDs).
 | Name | Display name shown in the footer toolbar |
 | Completions URL | Full chat-completions endpoint (e.g. `https://api.example.com/v1/chat/completions`) |
 | Auth header name / prefix | e.g. `Authorization` + `Bearer `, or `x-api-key` with empty prefix |
-| System prompt | Template with `{{noteTitle}}` and `{{noteContent}}` |
+| System prompt | Template with `{{noteTitle}}`, `{{noteContent}}`, and tag variables `{{tagName}}` (hover **?** for the full guide) |
 | Temperature, max tokens, top P, penalties | Optional generation params (omit field = not sent) |
 | Stream | `stream` flag in the request body |
 | Extra headers / body | JSON objects merged into the request for provider-specific options |
@@ -555,6 +566,30 @@ Imported notes are created as new entries in Firebase (new IDs).
 |-------|-------------|
 | Label | Display name in the model picker and footer toolbar |
 | Value | Model id sent in the JSON request body |
+
+### System prompt variables
+
+| Placeholder | Source | Notes |
+|-------------|--------|-------|
+| `{{noteTitle}}` | Current note title | Always available |
+| `{{noteContent}}` | Current note plain-text content | Always available |
+| `{{tagName}}` | Note tag in `tagName:value` format | Plain tags without `:` are left unchanged; empty value (`tagName:`) is allowed |
+
+Example tags: `work, client:Acme Corp, draft, language:English`
+
+- `{{client}}` → `Acme Corp`
+- `{{language}}` → `English`
+- `{{draft}}` → unchanged (plain tag, no value after colon)
+
+Hover the **?** next to **System prompt template** in the provider form for the in-app guide (EN/VI).
+
+### Per-note AI selection
+
+When you pick provider, model, or API key from the chat footer on a note, the choice is saved on that note in Firebase (`aiActiveProviderId`, `aiActiveModelId`, `aiActiveApiKeyId`). Fields left unset on the note inherit the account-wide defaults from `aiChatSettings`. If a note's saved selection points to a deleted provider, model, or key, the app asks you to choose again.
+
+### Local chat history
+
+In **Account settings → AI assistant**, toggle **Chat history saved locally** to keep chat drafts in `localStorage` (`chat_{noteId}`) across page reloads. Default is off (in-memory only until reload). Use **Clear chat storage** to remove all saved drafts on this browser.
 
 ### Import from cURL
 
@@ -580,7 +615,7 @@ The parser fills URL, auth header, and known body fields into the **provider** f
 
 ### Per-account AI toggle
 
-In **Account settings → AI assistant**, toggle AI on or off for your account. The setting is stored at `users/{uid}/settings/disableAiChat` on Firebase and syncs across devices. Encrypted API key records sync across devices too; you still need the passcode on each device/session to decrypt for chat.
+In **Account settings → AI assistant**, toggle AI on or off for your account. The setting is stored at `users/{uid}/settings/disableAiChat` on Firebase and syncs across devices. The same section lets you toggle **local chat history** (`persistAiChatLocal`) and clear saved chat drafts on this browser. Encrypted API key records sync across devices too; you still need the passcode on each device/session to decrypt for chat.
 
 The gear icon in the chat footer opens Account settings focused on this section.
 
@@ -590,6 +625,8 @@ The gear icon in the chat footer opens Account settings focused on this section.
 |------|---------|-------------------|
 | AI chat settings | `users/{uid}/settings/aiChatSettings` | Yes — providers, models, `apiKeys`, and active selections (no API key plaintext) |
 | Per-account AI toggle | `users/{uid}/settings/disableAiChat` | Yes |
+| Local chat history toggle | `users/{uid}/settings/persistAiChatLocal` | Yes |
+| AI chat drafts (when enabled) | `localStorage` keys `chat_{noteId}` | No |
 | Passcodes for encryption | `notedata-encryption-keys` (browser) | No (hash only in localStorage) |
 | Unlocked API key plaintext | In-memory Svelte state | No |
 
@@ -788,7 +825,10 @@ src/
     firebase.ts          # Initialize Firebase from env variables
     auth-features.ts     # VITE_DISABLE_* auth feature flags
     ai-features.ts       # VITE_DISABLE_AI_CHAT feature flag
-    ai-settings.ts       # Resolve active provider/model into chat settings
+    ai-settings.ts       # Resolve active provider/model into chat settings; render system prompt variables
+    note-ai-selection.ts # Per-note vs global AI provider/model/key resolution
+    draft-ai-chat.ts     # In-memory AI chat drafts; optional localStorage persistence
+    local-draft-storage.ts  # localStorage helpers for chat drafts
     ai-providers.ts      # AI chat settings CRUD on Firebase (providers, models, apiKeys)
     ai-providers.svelte.ts  # Realtime sync for aiChatSettings store
     ai-api-keys.ts       # Encrypted API key read/write under aiChatSettings/apiKeys

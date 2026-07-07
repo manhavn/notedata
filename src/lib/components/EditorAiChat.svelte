@@ -42,6 +42,7 @@
     noteId: string
     noteTitle: string
     noteContent: string
+    noteTags?: string[]
     noteAiActiveProviderId?: string | null
     noteAiActiveModelId?: string | null
     noteAiActiveApiKeyId?: string | null
@@ -55,6 +56,7 @@
     noteId,
     noteTitle,
     noteContent,
+    noteTags = [],
     noteAiActiveProviderId,
     noteAiActiveModelId,
     noteAiActiveApiKeyId,
@@ -312,6 +314,7 @@
       prompt,
       noteTitle,
       noteContent,
+      noteTags,
       errorMessage: t('aiChatError'),
       activeSelection: {
         providerId: resolvedSelection.providerId,
