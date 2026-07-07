@@ -83,6 +83,8 @@ export function readChatDraftFromLocalStorage(noteId: string): NoteAiChatDraft |
       .map((message) => ({ ...message })),
     input: typeof draft.input === 'string' ? draft.input : '',
     open: draft.open === true,
+    loading: false,
+    error: null,
   }
 }
 

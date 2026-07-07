@@ -1,11 +1,13 @@
 <script lang="ts">
-  import { chatCompletion, type ChatMessage } from '../ai-chat'
   import {
     aiChatDraftPurgeTick,
     clearDraftAiChat,
+    createEmptyAiChatDraft,
     draftAiChatStore,
     loadDraftAiChat,
-    setDraftAiChat,
+    patchDraftAiChat,
+    sendNoteAiChatMessage,
+    stopNoteAiChatGeneration,
     type AiChatUiMessage,
   } from '../draft-ai-chat'
   import { decryptApiKeyValue } from '../ai-api-keys'
@@ -21,10 +23,8 @@
   import { aiFeatures } from '../ai-features'
   import { openAccountSettings } from '../account-modal.svelte'
   import {
-    getAiChatSettings,
     hasAiChatSettingsSaved,
     isAiChatConfigured,
-    renderSystemPrompt,
   } from '../ai-settings'
   import { t } from '../i18n.svelte'
   import { toastError, toastSuccess } from '../toast.svelte'
@@ -50,22 +50,23 @@
     onManageEncryptionKeys,
   }: Props = $props()
 
-  let open = $state(false)
   let openModal = $state<AiSettingsModal>(null)
   let configured = $state(isAiChatConfigured())
   let settingsSaved = $state(hasAiChatSettingsSaved())
-  let input = $state('')
-  let messages = $state<AiChatUiMessage[]>([])
-  let lastLoadedNoteId = $state<string | null>(null)
-  let loading = $state(false)
-  let error = $state<string | null>(null)
-  let abortController = $state<AbortController | null>(null)
   let messagesEl = $state<HTMLDivElement | undefined>(undefined)
   let toolbarTick = $state(0)
   let unlockModalOpen = $state(false)
   let pendingSendPrompt = $state<string | null>(null)
   let unlockSuggestedKeyId = $state<string | null>(null)
   let unlockNoteKeyId = $state<string | null>(null)
+  let activeNoteId = $state<string | null>(null)
+
+  const session = $derived($draftAiChatStore[noteId] ?? createEmptyAiChatDraft())
+  const messages = $derived(session.messages)
+  const input = $derived(session.input)
+  const open = $derived(session.open)
+  const loading = $derived(session.loading)
+  const error = $derived(session.error)
 
   const activeProvider = $derived(getActiveProvider(aiChatSettingsState.settings))
   const activeModel = $derived(getActiveModel(aiChatSettingsState.settings))
@@ -80,88 +81,32 @@
   })
 
   $effect(() => {
-    if ($aiChatDraftPurgeTick === 0 || noteId !== lastLoadedNoteId) return
-
-    if (loading) stopGeneration()
-    messages = []
-    input = ''
-    open = false
-    error = null
-  })
-
-  $effect(() => {
+    void $aiChatDraftPurgeTick
     void userSettingsState.persistAiChatLocal
 
-    if (noteId !== lastLoadedNoteId) {
-      if (loading) stopGeneration()
-      error = null
-
-      const draft = loadDraftAiChat(noteId)
-      if (draft) {
-        messages = [...draft.messages]
-        input = draft.input
-        open = draft.open
-      } else {
-        messages = []
-        input = ''
-        open = false
+    if (noteId === activeNoteId) {
+      if (
+        userSettingsState.persistAiChatLocal &&
+        !$draftAiChatStore[noteId] &&
+        !session.messages.length &&
+        !session.input.trim() &&
+        !session.open
+      ) {
+        const draft = loadDraftAiChat(noteId)
+        if (draft?.open) queueMicrotask(scrollToBottom)
       }
-
-      lastLoadedNoteId = noteId
-      if (open) queueMicrotask(scrollToBottom)
       return
     }
 
-    if (
-      userSettingsState.persistAiChatLocal &&
-      !($draftAiChatStore[noteId]) &&
-      messages.length === 0 &&
-      !input.trim() &&
-      !open
-    ) {
-      const draft = loadDraftAiChat(noteId)
-      if (draft) {
-        messages = [...draft.messages]
-        input = draft.input
-        open = draft.open
-        if (open) queueMicrotask(scrollToBottom)
-      }
-    }
+    activeNoteId = noteId
+    const draft = loadDraftAiChat(noteId)
+    if (draft?.open) queueMicrotask(scrollToBottom)
   })
 
   $effect(() => {
-    if (noteId !== lastLoadedNoteId) return
-
-    const draft = $draftAiChatStore[noteId]
-    const isEmpty = messages.length === 0 && !input.trim() && !open
-
-    if (isEmpty) {
-      if (draft) clearDraftAiChat(noteId)
-      return
-    }
-
-    const next = {
-      messages,
-      input,
-      open,
-    }
-
-    if (
-      draft &&
-      draft.open === next.open &&
-      draft.input === next.input &&
-      draft.messages.length === next.messages.length &&
-      draft.messages.every(
-        (message, index) =>
-          message.id === next.messages[index]?.id &&
-          message.role === next.messages[index]?.role &&
-          message.content === next.messages[index]?.content,
-      )
-    ) {
-      return
-    }
-
-    setDraftAiChat(noteId, next)
+    void $draftAiChatStore[noteId]?.messages
+    void $draftAiChatStore[noteId]?.loading
+    if ($draftAiChatStore[noteId]?.open) queueMicrotask(scrollToBottom)
   })
 
   const providerButtonLabel = $derived(activeProvider?.name?.trim() || t('aiProviderSelect'))
@@ -172,14 +117,6 @@
     const key = getApiKeyById(activeApiKeyId)
     return key?.label?.trim() || t('aiApiKeyNoneLabel')
   })
-
-  function buildSystemPrompt(): string {
-    const settings = getAiChatSettings()
-    return renderSystemPrompt(settings.systemPrompt, {
-      noteTitle: noteTitle,
-      noteContent: noteContent,
-    })
-  }
 
   function scrollToBottom() {
     if (!messagesEl) return
@@ -198,7 +135,7 @@
     configured = isAiChatConfigured()
     settingsSaved = hasAiChatSettingsSaved()
     toolbarTick += 1
-    error = null
+    patchDraftAiChat(noteId, { error: null })
   }
 
   function closeModal() {
@@ -237,17 +174,17 @@
     try {
       const plainValue = await decryptApiKeyValue(key, payload.code)
       setUnlockedApiKey(apiKeyId, plainValue)
-      error = null
+      patchDraftAiChat(noteId, { error: null })
       toolbarTick += 1
 
       const queuedPrompt = pendingSendPrompt
       pendingSendPrompt = null
       if (queuedPrompt) {
-        input = queuedPrompt
+        patchDraftAiChat(noteId, { input: queuedPrompt })
         await sendMessage()
       }
     } catch {
-      error = t('wrongPasscode')
+      patchDraftAiChat(noteId, { error: t('wrongPasscode') })
       pendingSendPrompt = null
     }
   }
@@ -258,100 +195,24 @@
 
     if (requiresApiKeyUnlock()) {
       openUnlockModalForActiveKey(prompt)
-      input = ''
+      patchDraftAiChat(noteId, { input: '' })
       return
     }
 
-    const userMessage: AiChatUiMessage = {
-      id: crypto.randomUUID(),
-      role: 'user',
-      content: prompt,
-    }
-
-    messages = [...messages, userMessage]
-    input = ''
-    loading = true
-    error = null
-    queueMicrotask(scrollToBottom)
-
-    const controller = new AbortController()
-    abortController = controller
-
-    const apiMessages: ChatMessage[] = [
-      { role: 'system', content: buildSystemPrompt() },
-      ...messages.map((message) => ({
-        role: message.role,
-        content: message.content,
-      })),
-    ]
-
-    const streamResponse = getAiChatSettings().stream
-    const assistantId = crypto.randomUUID()
-
-    if (streamResponse) {
-      messages = [...messages, { id: assistantId, role: 'assistant', content: '' }]
-      queueMicrotask(scrollToBottom)
-    }
-
-    try {
-      const reply = await chatCompletion(apiMessages, {
-        signal: controller.signal,
-        onChunk: streamResponse
-          ? (content) => {
-              messages = messages.map((message) =>
-                message.id === assistantId ? { ...message, content } : message,
-              )
-              queueMicrotask(scrollToBottom)
-            }
-          : undefined,
-      })
-
-      if (streamResponse) {
-        messages = messages.map((message) =>
-          message.id === assistantId ? { ...message, content: reply } : message,
-        )
-      } else {
-        messages = [
-          ...messages,
-          {
-            id: assistantId,
-            role: 'assistant',
-            content: reply,
-          },
-        ]
-      }
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        if (streamResponse) {
-          messages = messages.filter(
-            (message) => message.id !== assistantId || message.content.trim(),
-          )
-        }
-        return
-      }
-      error = err instanceof Error ? err.message : t('aiChatError')
-      messages = messages.filter(
-        (message) => message.id !== userMessage.id && message.id !== assistantId,
-      )
-      input = prompt
-    } finally {
-      loading = false
-      abortController = null
-      queueMicrotask(scrollToBottom)
-    }
+    await sendNoteAiChatMessage(noteId, {
+      prompt,
+      noteTitle,
+      noteContent,
+      errorMessage: t('aiChatError'),
+    })
   }
 
   function stopGeneration() {
-    abortController?.abort()
-    loading = false
-    abortController = null
+    stopNoteAiChatGeneration(noteId)
   }
 
   function clearChat() {
     if (loading) stopGeneration()
-    messages = []
-    error = null
-    input = ''
     clearDraftAiChat(noteId)
     clearUnlockedApiKey()
     toolbarTick += 1
@@ -393,7 +254,7 @@
 
   function toggleOpen() {
     const wasOpen = open
-    open = !open
+    patchDraftAiChat(noteId, { open: !wasOpen })
     if (wasOpen) {
       clearUnlockedApiKey()
       toolbarTick += 1
@@ -401,6 +262,10 @@
       refreshConfiguredState()
       queueMicrotask(scrollToBottom)
     }
+  }
+
+  function setInput(value: string) {
+    patchDraftAiChat(noteId, { input: value })
   }
 </script>
 
@@ -460,10 +325,11 @@
         {#if configured}
           <textarea
             class="ai-chat-input"
-            bind:value={input}
+            value={input}
             placeholder={t('aiChatPlaceholder')}
             rows="2"
             disabled={loading || disabled}
+            oninput={(event) => setInput(event.currentTarget.value)}
             onkeydown={handleKeydown}
           ></textarea>
         {/if}
