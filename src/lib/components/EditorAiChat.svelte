@@ -195,20 +195,54 @@
       })),
     ]
 
+    const streamResponse = getAiChatSettings().stream
+    const assistantId = crypto.randomUUID()
+
+    if (streamResponse) {
+      messages = [...messages, { id: assistantId, role: 'assistant', content: '' }]
+      queueMicrotask(scrollToBottom)
+    }
+
     try {
-      const reply = await chatCompletion(apiMessages, { signal: controller.signal })
-      messages = [
-        ...messages,
-        {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          content: reply,
-        },
-      ]
+      const reply = await chatCompletion(apiMessages, {
+        signal: controller.signal,
+        onChunk: streamResponse
+          ? (content) => {
+              messages = messages.map((message) =>
+                message.id === assistantId ? { ...message, content } : message,
+              )
+              queueMicrotask(scrollToBottom)
+            }
+          : undefined,
+      })
+
+      if (streamResponse) {
+        messages = messages.map((message) =>
+          message.id === assistantId ? { ...message, content: reply } : message,
+        )
+      } else {
+        messages = [
+          ...messages,
+          {
+            id: assistantId,
+            role: 'assistant',
+            content: reply,
+          },
+        ]
+      }
     } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') return
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        if (streamResponse) {
+          messages = messages.filter(
+            (message) => message.id !== assistantId || message.content.trim(),
+          )
+        }
+        return
+      }
       error = err instanceof Error ? err.message : t('aiChatError')
-      messages = messages.filter((message) => message.id !== userMessage.id)
+      messages = messages.filter(
+        (message) => message.id !== userMessage.id && message.id !== assistantId,
+      )
       input = prompt
     } finally {
       loading = false
