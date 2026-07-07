@@ -14,6 +14,7 @@ interface ImportMetaEnv {
   readonly VITE_DISABLE_FORGOT_PASSWORD?: string
   readonly VITE_DISABLE_CHANGE_EMAIL?: string
   readonly VITE_DISABLE_CHANGE_PASSWORD?: string
+  readonly VITE_DISABLE_AI_CHAT?: string
 }
 
 interface ImportMeta {

@@ -35,6 +35,18 @@
 - **Thùng rác** — xóa mềm; khôi phục, xóa vĩnh viễn, hoặc **Dọn thùng rác**; nút **↩ khôi phục** và **× xóa** nhanh trên từng ghi chú trong sidebar
 - **Giao diện mobile** — menu hamburger mở/đóng sidebar dạng overlay trên màn hình nhỏ
 
+### Trợ lý AI chat
+
+- **Hộp chat nổi** trong editor ghi chú — nhờ AI soạn thảo, chỉnh sửa hoặc tóm tắt nội dung hiện tại
+- **Không phụ thuộc nhà cung cấp** — dùng API chat-completions **tương thích OpenAI** (URL, model, header xác thực tùy chỉnh)
+- **Import từ cURL** — dán lệnh `curl` để tự điền endpoint, xác thực, model và tham số request
+- **Chỉ lưu trên trình duyệt** — API key và toàn bộ cài đặt AI trong `localStorage` (`notedata-ai-chat-settings`); không gửi lên Firebase
+- **Lưu không cần API key** — lưu endpoint và model trước, dán API key và lưu lại khi sẵn sàng
+- **Ngữ cảnh ghi chú** — mẫu system prompt hỗ trợ placeholder `{{noteTitle}}` và `{{noteContent}}`
+- **Chèn vào ghi chú** — thêm câu trả lời của trợ lý vào nội dung editor
+- **Ẩn khi ghi chú bị khóa** — không dùng chat khi ghi chú mã hóa chưa mở khóa
+- **Tắt qua env** — đặt `VITE_DISABLE_AI_CHAT=true` để ẩn chat box (mặc định `false`, bật)
+
 ### Thao tác hàng loạt
 
 - Checkbox chọn từng ghi chú và **Chọn tất cả** (các mục đang hiển thị)
@@ -267,6 +279,9 @@ VITE_DISABLE_SIGNUP_GOOGLE=false
 VITE_DISABLE_FORGOT_PASSWORD=false
 VITE_DISABLE_CHANGE_EMAIL=false
 VITE_DISABLE_CHANGE_PASSWORD=false
+
+# Tùy chọn — đặt true để ẩn hộp chat AI trong editor ghi chú
+VITE_DISABLE_AI_CHAT=false
 ```
 
 > **Lưu ý:** Các biến `VITE_*` được Vite nhúng vào frontend khi build. Không commit file `.env` lên git.
@@ -296,6 +311,14 @@ Ví dụ — đóng đăng ký và quên mật khẩu trên instance riêng:
 VITE_DISABLE_SIGNUP_EMAIL_PASSWORD=true
 VITE_DISABLE_SIGNUP_GOOGLE=true
 VITE_DISABLE_FORGOT_PASSWORD=true
+```
+
+#### Tắt AI chat (tùy chọn)
+
+Đặt `VITE_DISABLE_AI_CHAT=true` để ẩn nút **AI** trong editor ghi chú. Mặc định là `false` (bật chat). Đọc lúc build qua `src/lib/ai-features.ts`.
+
+```env
+VITE_DISABLE_AI_CHAT=true
 ```
 
 ### Bước 8: Liên kết Firebase CLI với project
@@ -355,6 +378,7 @@ Thử:
 5. Khi đăng ký, thử ô **nhập lại mật khẩu** và nút mắt **hiện/ẩn mật khẩu**
 6. Tạo và lưu ghi chú — thêm thẻ, tìm kiếm, sắp xếp, chuyển **TXT / MD / HTML**, thử **Hủy sửa** khi có thay đổi chưa lưu
 7. Mở **Cài đặt tài khoản** từ icon user trên topbar
+8. Mở một ghi chú và bấm **AI** — import cURL hoặc điền **Completions URL** + **Model**, lưu cài đặt, thêm API key rồi chat
 
 ### Bước 11: Deploy lên Firebase Hosting
 
@@ -429,6 +453,61 @@ Import cũng hỗ trợ:
 - Một object ghi chú đơn có `title` và `content` (tuỳ chọn `tags` dạng mảng hoặc chuỗi phân cách dấu phẩy)
 
 Ghi chú import sẽ được tạo mới trên Firebase (ID mới).
+
+---
+
+## Trợ lý AI chat
+
+### Bắt đầu nhanh
+
+1. Mở một ghi chú (không ở thùng rác; ghi chú mã hóa phải **mở khóa** trước)
+2. Bấm nút **AI** ở góc dưới phải editor
+3. Lần đầu dùng, mở **Cài đặt AI** (icon bánh răng) hoặc panel cài đặt tự mở
+4. Tùy chọn: mở **Import từ cURL**, dán lệnh `curl` chat-completions, bấm **Phân tích & áp dụng**
+5. Điền **Completions URL** và **Model** (bắt buộc), chỉnh header xác thực và tham số sinh văn bản nếu cần
+6. Bấm **Lưu cài đặt** — có thể lưu **chưa cần API key**, thêm sau
+7. Dán **API key**, lưu lại, rồi gửi tin nhắn trong panel chat
+8. Dùng **Chèn vào ghi chú** trên câu trả lời để thêm vào nội dung ghi chú
+
+### Tổng quan cài đặt
+
+| Trường | Mô tả |
+|--------|-------|
+| Completions URL | Endpoint chat-completions đầy đủ (vd. `https://api.example.com/v1/chat/completions`) |
+| API key | Giá trị Bearer hoặc xác thực tùy chỉnh; chỉ lưu trên trình duyệt này |
+| Tên / tiền tố header xác thực | vd. `Authorization` + `Bearer `, hoặc `x-api-key` với prefix trống |
+| Model | Id model gửi trong JSON body |
+| Temperature, max tokens, top P, penalties | Tham số sinh văn bản tùy chọn (để trống = không gửi) |
+| Stream | Cờ `stream` trong request body |
+| System prompt | Mẫu với `{{noteTitle}}` và `{{noteContent}}` |
+| Header / body bổ sung | JSON object merge vào request cho tùy chọn riêng từng nhà cung cấp |
+
+### Import từ cURL
+
+Dán lệnh dạng:
+
+```bash
+curl https://api.example.com/v1/chat/completions \
+  -H "Authorization: Bearer $YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"your-model","messages":[{"role":"user","content":"Hello"}]}'
+```
+
+Parser điền URL, header xác thực, model và các trường body đã biết. Biến môi trường (vd. `$YOUR_API_KEY`) không được lưu — nhập key thật thủ công trước khi chat.
+
+### Lưu trữ
+
+| Dữ liệu | Key lưu trữ | Gửi lên Firebase? |
+|---------|-------------|-------------------|
+| Cài đặt AI + API key | `notedata-ai-chat-settings` | Không |
+
+### Tắt hộp chat
+
+```env
+VITE_DISABLE_AI_CHAT=true
+```
+
+Restart `npm run dev` hoặc build lại trước khi deploy. Code: `src/lib/ai-features.ts`.
 
 ---
 
@@ -557,6 +636,17 @@ Khi muốn dùng project Firebase mới, làm lần lượt:
 - Ghi chú khóa bằng **mã tự nhập** cần nhớ đúng mã đó
 - Nên dùng mã đã lưu trên cùng một thiết bị/trình duyệt
 
+### AI chat: không thấy nút AI
+
+- Kiểm tra `VITE_DISABLE_AI_CHAT` không phải `true` trong `.env`; build lại hoặc restart dev server sau khi đổi
+- Chat bị ẩn ở chế độ **chỉ đọc** (thùng rác) và ghi chú **mã hóa chưa mở khóa**
+
+### AI chat: gọi API thất bại hoặc lỗi CORS
+
+- Kiểm tra **Completions URL**, **Model** và **API key** trong cài đặt AI
+- Nhà cung cấp phải cho phép request từ origin của bạn (CORS), hoặc dùng proxy bạn kiểm soát
+- API key và cài đặt chỉ ở trình duyệt — NoteData không có backend xác thực key
+
 ### Deploy hosting xong nhưng vào URL bị trắng trang / 404
 
 - Chạy lại `npm run firebase:deploy:hosting`
@@ -572,6 +662,10 @@ src/
   lib/
     firebase.ts          # Khởi tạo Firebase từ biến môi trường
     auth-features.ts     # Các flag VITE_DISABLE_* cho auth
+    ai-features.ts       # Flag VITE_DISABLE_AI_CHAT
+    ai-settings.ts       # Cài đặt AI chat trong localStorage
+    ai-chat.ts           # Client chat-completions tương thích OpenAI
+    parse-curl-ai.ts     # Phân tích cURL thành cài đặt AI
     auth.svelte.ts       # Đăng nhập, đăng ký, xác minh, đổi mật khẩu/email, profile
     theme.svelte.ts      # Trạng thái dark/light và lưu preference
     i18n.svelte.ts       # Locale, hàm t(), format ngày
@@ -596,6 +690,8 @@ src/
       PasscodePad.svelte          # Nhập mã kèm bàn phím số
       UserAccountModal.svelte     # Tên hiển thị, email và mật khẩu
       EmailVerificationScreen.svelte  # Màn chờ xác minh email sau đăng ký
+      EditorAiChat.svelte           # Hộp chat AI nổi trong editor
+      EditorAiSettings.svelte       # Cài đặt AI và import cURL
       ...                # NotesApp, NoteEditor, NoteSidebar, TrashSidebar, ...
 scripts/
   run-manual-lint.sh     # Script oxlint + svelte-check

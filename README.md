@@ -35,6 +35,18 @@ A personal notes app built with **Svelte 5 + Vite**, using **Firebase Authentica
 - Soft delete via **Trash** — restore, permanently delete, or **Empty trash**; quick **↩ restore** and **× delete** buttons on each trashed note in the sidebar
 - **Mobile layout** — hamburger menu opens/closes the sidebar overlay on small screens
 
+### AI chat assistant
+
+- **Floating chat box** in the note editor — ask an AI to draft, edit, or summarize the current note
+- **Provider-agnostic** — works with any **OpenAI-compatible** chat-completions API (custom URL, model, auth headers)
+- **Import from cURL** — paste a `curl` command to auto-fill endpoint, authentication, model, and request params
+- **Browser-only credentials** — API key and all AI settings live in `localStorage` (`notedata-ai-chat-settings`); never sent to Firebase
+- **Save without API key** — store endpoint and model first, paste the API key and save again when ready
+- **Note context** — system prompt template supports `{{noteTitle}}` and `{{noteContent}}` placeholders
+- **Insert into note** — append the assistant reply to the editor content
+- **Hidden on encrypted lock** — chat is unavailable until the note is unlocked
+- **Disable via env** — set `VITE_DISABLE_AI_CHAT=true` to hide the chat box (default `false`, enabled)
+
 ### Bulk actions
 
 - Checkbox selection per note and **Select all** (visible items)
@@ -267,6 +279,9 @@ VITE_DISABLE_SIGNUP_GOOGLE=false
 VITE_DISABLE_FORGOT_PASSWORD=false
 VITE_DISABLE_CHANGE_EMAIL=false
 VITE_DISABLE_CHANGE_PASSWORD=false
+
+# Optional — set to true to hide the AI chat box in the note editor
+VITE_DISABLE_AI_CHAT=false
 ```
 
 > **Note:** `VITE_*` variables are embedded into the frontend at build time. Do not commit `.env` to git.
@@ -296,6 +311,14 @@ Example — close registration and forgot password on a private instance:
 VITE_DISABLE_SIGNUP_EMAIL_PASSWORD=true
 VITE_DISABLE_SIGNUP_GOOGLE=true
 VITE_DISABLE_FORGOT_PASSWORD=true
+```
+
+#### Disable AI chat (optional)
+
+Set `VITE_DISABLE_AI_CHAT=true` to hide the **AI** chat button in the note editor. Default is `false` (chat enabled). Read at build time via `src/lib/ai-features.ts`.
+
+```env
+VITE_DISABLE_AI_CHAT=true
 ```
 
 ### Step 8: Link Firebase CLI to your project
@@ -355,6 +378,7 @@ Try:
 5. On sign-up, try the **confirm password** field and the **show/hide password** eye icon
 6. Create and save a note — add tags, search, sort, switch **TXT / MD / HTML** preview, and try **Cancel edit** on unsaved changes
 7. Open **Account settings** from the top-bar user icon to set a display name or change email
+8. Open a note and click **AI** — import a cURL example or fill **Completions URL** + **Model**, save settings, then add your API key and chat
 
 ### Step 11: Deploy to Firebase Hosting
 
@@ -429,6 +453,61 @@ Import also accepts:
 - A single note object with `title` and `content` (optional `tags` array or comma-separated string)
 
 Imported notes are created as new entries in Firebase (new IDs).
+
+---
+
+## AI chat assistant
+
+### Quick start
+
+1. Open a note (not in trash; encrypted notes must be **unlocked** first)
+2. Click the **AI** button at the bottom-right of the editor
+3. On first use, open **AI settings** (gear icon) or the settings panel opens automatically
+4. Optional: expand **Import from cURL**, paste a chat-completions `curl` command, click **Parse & apply**
+5. Set **Completions URL** and **Model** (required), adjust auth headers and generation params if needed
+6. Click **Save settings** — you can save **without an API key** and add it later
+7. Paste your **API key**, save again, then send messages in the chat panel
+8. Use **Insert into note** on assistant replies to append text to the note
+
+### Settings overview
+
+| Field | Description |
+|-------|-------------|
+| Completions URL | Full chat-completions endpoint (e.g. `https://api.example.com/v1/chat/completions`) |
+| API key | Bearer or custom auth value; stored only in this browser |
+| Auth header name / prefix | e.g. `Authorization` + `Bearer `, or `x-api-key` with empty prefix |
+| Model | Model id sent in the JSON body |
+| Temperature, max tokens, top P, penalties | Optional generation params (omit field = not sent) |
+| Stream | `stream` flag in the request body |
+| System prompt | Template with `{{noteTitle}}` and `{{noteContent}}` |
+| Extra headers / body | JSON objects merged into the request for provider-specific options |
+
+### Import from cURL
+
+Paste a command like:
+
+```bash
+curl https://api.example.com/v1/chat/completions \
+  -H "Authorization: Bearer $YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"your-model","messages":[{"role":"user","content":"Hello"}]}'
+```
+
+The parser fills URL, auth header, model, and known body fields. Environment-variable placeholders (e.g. `$YOUR_API_KEY`) are not stored — enter the real key manually before chatting.
+
+### Storage
+
+| Data | Storage key | Sent to Firebase? |
+|------|-------------|-------------------|
+| AI settings + API key | `notedata-ai-chat-settings` | No |
+
+### Disable the chat box
+
+```env
+VITE_DISABLE_AI_CHAT=true
+```
+
+Restart `npm run dev` or rebuild before deploy. Implementation: `src/lib/ai-features.ts`.
 
 ---
 
@@ -557,6 +636,17 @@ To use a new Firebase project:
 - Notes locked with a **one-time passcode** require remembering that exact code
 - Export keys or use saved keys consistently on the same device
 
+### AI chat: button missing
+
+- Check `VITE_DISABLE_AI_CHAT` is not `true` in `.env`; rebuild or restart dev server after changes
+- Chat is hidden for **read-only** views (trash) and **locked encrypted** notes
+
+### AI chat: request fails or CORS error
+
+- Confirm **Completions URL**, **Model**, and **API key** in AI settings
+- The provider must allow browser requests from your origin (CORS), or use a proxy you control
+- API key and settings are browser-only — they are not validated by NoteData's backend
+
 ### Blank page or 404 after hosting deploy
 
 - Run `npm run firebase:deploy:hosting` again
@@ -572,6 +662,10 @@ src/
   lib/
     firebase.ts          # Initialize Firebase from env variables
     auth-features.ts     # VITE_DISABLE_* auth feature flags
+    ai-features.ts       # VITE_DISABLE_AI_CHAT feature flag
+    ai-settings.ts       # AI chat settings in localStorage
+    ai-chat.ts           # OpenAI-compatible chat-completions client
+    parse-curl-ai.ts     # Parse cURL into AI settings
     auth.svelte.ts       # Login, register, verification, password/email changes, profile
     theme.svelte.ts      # Dark/light theme state and persistence
     i18n.svelte.ts       # Locale state, t(), date formatting
@@ -596,6 +690,8 @@ src/
       PasscodePad.svelte          # Passcode entry with keypad
       UserAccountModal.svelte     # Display name, email, and password management
       EmailVerificationScreen.svelte  # Post-sign-up email verification gate
+      EditorAiChat.svelte           # Floating AI chat in the note editor
+      EditorAiSettings.svelte       # AI provider settings and cURL import
       ...                # NotesApp, NoteEditor, NoteSidebar, TrashSidebar, ...
 scripts/
   run-manual-lint.sh     # oxlint + svelte-check manual lint script

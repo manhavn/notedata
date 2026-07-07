@@ -5,11 +5,13 @@
     draftContentStore,
     setDraftContent,
   } from '../draft-content'
+  import { aiFeatures } from '../ai-features'
   import { formatAppDate, t } from '../i18n.svelte'
   import { renderHtml, renderMarkdown } from '../markdown'
   import { portal } from '../portal'
   import { normalizeTags } from '../notes'
   import type { Note } from '../types'
+  import EditorAiChat from './EditorAiChat.svelte'
   import KeySelectModal, { type PasscodeSubmit } from './KeySelectModal.svelte'
 
   interface SavePayload {
@@ -293,6 +295,14 @@
     tags = nextTags
     await saveTags()
   }
+
+  function insertAiContent(text: string) {
+    const trimmed = text.trim()
+    if (!trimmed) return
+
+    plainContent = plainContent.trim() ? `${plainContent.trimEnd()}\n\n${trimmed}` : trimmed
+    contentViewMode = 'txt'
+  }
 </script>
 
 <section class="editor">
@@ -559,6 +569,14 @@
         placeholder={t('noteContentPlaceholder')}
         readonly={readonly}
       ></textarea>
+    {/if}
+
+    {#if !aiFeatures.disableAiChat && !readonly && !showLockedState}
+      <EditorAiChat
+        noteTitle={title}
+        noteContent={plainContent}
+        onInsert={insertAiContent}
+      />
     {/if}
   {:else}
     <div class="placeholder">
