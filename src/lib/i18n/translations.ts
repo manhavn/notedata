@@ -599,7 +599,7 @@ export const translations = {
     aiChatAssistant: 'Trợ lý',
     aiChatTyping: 'Trợ lý đang nhập',
     aiChatInsert: 'Chèn vào ghi chú',
-    aiChatCopyAll: 'Sao chép tất cả',
+    aiChatCopyAll: 'Copy tất cả',
     aiChatInsertAll: 'Chèn tất cả',
     aiChatCopied: 'Đã sao chép đoạn chat',
     aiChatCopyFailed: 'Không thể sao chép đoạn chat',
