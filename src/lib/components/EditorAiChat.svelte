@@ -1,8 +1,11 @@
 <script lang="ts">
   import { chatCompletion, type ChatMessage } from '../ai-chat'
   import {
+    aiChatDraftPurgeTick,
     clearDraftAiChat,
     draftAiChatStore,
+    loadDraftAiChat,
+    setDraftAiChat,
     type AiChatUiMessage,
   } from '../draft-ai-chat'
   import { decryptApiKeyValue } from '../ai-api-keys'
@@ -25,7 +28,7 @@
   } from '../ai-settings'
   import { t } from '../i18n.svelte'
   import { toastError, toastSuccess } from '../toast.svelte'
-  import { isUserAiChatEnabled } from '../user-settings.svelte'
+  import { isUserAiChatEnabled, userSettingsState } from '../user-settings.svelte'
   import EditorAiSettings, { type AiSettingsModal } from './EditorAiSettings.svelte'
   import KeySelectModal, { type PasscodeSubmit } from './KeySelectModal.svelte'
 
@@ -77,24 +80,53 @@
   })
 
   $effect(() => {
-    if (noteId === lastLoadedNoteId) return
+    if ($aiChatDraftPurgeTick === 0 || noteId !== lastLoadedNoteId) return
 
     if (loading) stopGeneration()
+    messages = []
+    input = ''
+    open = false
     error = null
+  })
 
-    const draft = $draftAiChatStore[noteId]
-    if (draft) {
-      messages = [...draft.messages]
-      input = draft.input
-      open = draft.open
-    } else {
-      messages = []
-      input = ''
-      open = false
+  $effect(() => {
+    void userSettingsState.persistAiChatLocal
+
+    if (noteId !== lastLoadedNoteId) {
+      if (loading) stopGeneration()
+      error = null
+
+      const draft = loadDraftAiChat(noteId)
+      if (draft) {
+        messages = [...draft.messages]
+        input = draft.input
+        open = draft.open
+      } else {
+        messages = []
+        input = ''
+        open = false
+      }
+
+      lastLoadedNoteId = noteId
+      if (open) queueMicrotask(scrollToBottom)
+      return
     }
 
-    lastLoadedNoteId = noteId
-    if (open) queueMicrotask(scrollToBottom)
+    if (
+      userSettingsState.persistAiChatLocal &&
+      !($draftAiChatStore[noteId]) &&
+      messages.length === 0 &&
+      !input.trim() &&
+      !open
+    ) {
+      const draft = loadDraftAiChat(noteId)
+      if (draft) {
+        messages = [...draft.messages]
+        input = draft.input
+        open = draft.open
+        if (open) queueMicrotask(scrollToBottom)
+      }
+    }
   })
 
   $effect(() => {
@@ -129,14 +161,7 @@
       return
     }
 
-    draftAiChatStore.update((drafts) => ({
-      ...drafts,
-      [noteId]: {
-        messages: [...messages],
-        input,
-        open,
-      },
-    }))
+    setDraftAiChat(noteId, next)
   })
 
   const providerButtonLabel = $derived(activeProvider?.name?.trim() || t('aiProviderSelect'))

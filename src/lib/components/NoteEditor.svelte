@@ -3,8 +3,12 @@
   import {
     clearDraftContent,
     draftContentStore,
+    hasDraftContent,
+    loadDraftContent,
+    noteDraftPurgeTick,
     setDraftContent,
   } from '../draft-content'
+  import { userSettingsState } from '../user-settings.svelte'
   import { aiFeatures } from '../ai-features'
   import { isUserAiChatEnabled } from '../user-settings.svelte'
   import { formatAppDate, t } from '../i18n.svelte'
@@ -69,7 +73,11 @@
   const resolvedEmptyTitle = $derived(emptyTitle || t('selectOrCreateNote'))
   const resolvedEmptyDescription = $derived(emptyDescription || t('selectOrCreateNoteHint'))
   const noteIsEncrypted = $derived(note ? isNoteEncrypted(note) : false)
-  const hasDraft = $derived(note ? note.id in $draftContentStore : false)
+  const hasDraft = $derived.by(() => {
+    void userSettingsState.persistNoteDraftLocal
+    void $draftContentStore
+    return note ? hasDraftContent(note.id) : false
+  })
   const hasUnsavedChanges = $derived(hasDraft)
   const showLockedState = $derived(
     Boolean(note && noteIsEncrypted && !isUnlocked && !hasDraft),
@@ -110,6 +118,27 @@
   })
 
   $effect(() => {
+    if ($noteDraftPurgeTick === 0 || !note || note.id !== lastLoadedId || readonly) return
+
+    if (!isNoteEncrypted(note)) {
+      plainContent = note.content
+      savedPlainSnapshot = note.content
+      isUnlocked = true
+    } else if (savedPlainSnapshot !== null) {
+      plainContent = savedPlainSnapshot
+      isUnlocked = true
+    } else {
+      plainContent = ''
+      savedPlainSnapshot = null
+      isUnlocked = false
+    }
+    contentViewMode = 'txt'
+    decryptError = null
+  })
+
+  $effect(() => {
+    void userSettingsState.persistNoteDraftLocal
+
     if (!note) {
       title = ''
       tags = []
@@ -135,7 +164,7 @@
       contentViewMode = 'txt'
       headerCollapsed = false
 
-      const draft = $draftContentStore[note.id]
+      const draft = loadDraftContent(note.id)
       if (draft !== undefined) {
         plainContent = draft
         savedPlainSnapshot = null
@@ -148,6 +177,16 @@
         plainContent = ''
         savedPlainSnapshot = null
         isUnlocked = false
+      }
+      return
+    }
+
+    if (userSettingsState.persistNoteDraftLocal && $draftContentStore[note.id] === undefined) {
+      const draft = loadDraftContent(note.id)
+      if (draft !== undefined) {
+        plainContent = draft
+        savedPlainSnapshot = null
+        isUnlocked = true
       }
     }
   })

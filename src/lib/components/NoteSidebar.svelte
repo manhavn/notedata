@@ -1,6 +1,7 @@
 <script lang="ts">
   import { isNoteEncrypted } from '../crypto'
-  import { draftContentStore } from '../draft-content'
+  import { draftContentStore, hasDraftContent, peekDraftContent } from '../draft-content'
+  import { userSettingsState } from '../user-settings.svelte'
   import { formatAppDate, localeState, t } from '../i18n.svelte'
   import { sortNotes, type NoteSortOrder } from '../notes'
   import { PAGE_SIZE } from '../pagination'
@@ -91,9 +92,16 @@
   const someVisibleChecked = $derived(
     visibleNotes.some((note) => checkedIds.has(note.id)) && !allVisibleChecked,
   )
+  const draftNoteIds = $derived.by(() => {
+    void $draftContentStore
+    void userSettingsState.persistNoteDraftLocal
+    return new Set(notes.filter((note) => hasDraftContent(note.id)).map((note) => note.id))
+  })
 
   function preview(note: Note) {
-    const draft = $draftContentStore[note.id]
+    void $draftContentStore
+    void userSettingsState.persistNoteDraftLocal
+    const draft = peekDraftContent(note.id)
     if (draft !== undefined) {
       const text = draft.trim()
       return text.length > 80 ? `${text.slice(0, 80)}...` : text || t('noContent')
@@ -302,8 +310,8 @@
             />
           </div>
           <button type="button" class="note-btn" onclick={() => onSelect(note.id)}>
-            <span class="title" class:unsaved={note.id in $draftContentStore}>
-              {#if note.id in $draftContentStore}
+            <span class="title" class:unsaved={draftNoteIds.has(note.id)}>
+              {#if draftNoteIds.has(note.id)}
                 <span class="unsaved-dot" aria-hidden="true"></span>
               {/if}
               {note.title}

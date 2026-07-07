@@ -18,8 +18,16 @@
     userNeedsEmailVerification,
     userShowsEmailVerificationStatus,
   } from '../auth.svelte'
+  import { countAiChatDrafts, draftAiChatStore, purgeAllAiChatDrafts } from '../draft-ai-chat'
+  import { countNoteDrafts, draftContentStore, purgeAllNoteDrafts } from '../draft-content'
+  import { confirm } from '../dialog.svelte'
   import { t } from '../i18n.svelte'
-  import { saveUserDisableAiChat, userSettingsState } from '../user-settings.svelte'
+  import {
+    saveUserDisableAiChat,
+    saveUserPersistAiChatLocal,
+    saveUserPersistNoteDraftLocal,
+    userSettingsState,
+  } from '../user-settings.svelte'
   import { toastError, toastSuccess, toastWarning } from '../toast.svelte'
   import PasswordInput from './PasswordInput.svelte'
 
@@ -42,6 +50,12 @@
   let savingPassword = $state(false)
   let resendingVerification = $state(false)
   let savingAiChat = $state(false)
+  let savingAiChatHistoryLocal = $state(false)
+  let savingNoteDraftLocal = $state(false)
+  let clearingAiChatDrafts = $state(false)
+  let clearingNoteDrafts = $state(false)
+  let aiChatDraftCount = $state(0)
+  let noteDraftCount = $state(0)
   let aiChatSectionEl = $state<HTMLElement | undefined>(undefined)
   let aiChatSectionHighlight = $state(false)
 
@@ -56,6 +70,18 @@
     user ? userShowsEmailVerificationStatus(user) : false,
   )
   const topbarPreview = $derived(getUserDisplayLabel(user, authState.profileTick))
+
+  function refreshDraftCounts() {
+    aiChatDraftCount = countAiChatDrafts()
+    noteDraftCount = countNoteDrafts()
+  }
+
+  $effect(() => {
+    if (!open) return
+    void $draftAiChatStore
+    void $draftContentStore
+    refreshDraftCounts()
+  })
 
   $effect(() => {
     if (!open) return
@@ -173,6 +199,88 @@
       toastError(t('toastOperationFailed'))
     } finally {
       savingAiChat = false
+    }
+  }
+
+  async function handleTogglePersistAiChatLocal() {
+    savingAiChatHistoryLocal = true
+    const nextEnabled = !userSettingsState.persistAiChatLocal
+
+    try {
+      await saveUserPersistAiChatLocal(nextEnabled)
+      toastSuccess(
+        nextEnabled
+          ? t('accountAiChatHistoryLocalEnabledSaved')
+          : t('accountAiChatHistoryLocalDisabledSaved'),
+      )
+    } catch {
+      toastError(t('toastOperationFailed'))
+    } finally {
+      savingAiChatHistoryLocal = false
+    }
+  }
+
+  async function handleTogglePersistNoteDraftLocal() {
+    savingNoteDraftLocal = true
+    const nextEnabled = !userSettingsState.persistNoteDraftLocal
+
+    try {
+      await saveUserPersistNoteDraftLocal(nextEnabled)
+      toastSuccess(
+        nextEnabled
+          ? t('accountNoteDraftLocalEnabledSaved')
+          : t('accountNoteDraftLocalDisabledSaved'),
+      )
+    } catch {
+      toastError(t('toastOperationFailed'))
+    } finally {
+      savingNoteDraftLocal = false
+    }
+  }
+
+  async function handleClearAiChatDrafts() {
+    if (aiChatDraftCount === 0) return
+
+    if (!(await confirm({
+      message: t('accountAiChatHistoryClearConfirm', { count: aiChatDraftCount }),
+      variant: 'warning',
+      confirmLabel: t('accountAiChatHistoryClear'),
+    }))) {
+      return
+    }
+
+    clearingAiChatDrafts = true
+    try {
+      const cleared = purgeAllAiChatDrafts()
+      refreshDraftCounts()
+      toastSuccess(t('accountAiChatHistoryCleared', { count: cleared }))
+    } catch {
+      toastError(t('toastOperationFailed'))
+    } finally {
+      clearingAiChatDrafts = false
+    }
+  }
+
+  async function handleClearNoteDrafts() {
+    if (noteDraftCount === 0) return
+
+    if (!(await confirm({
+      message: t('accountNoteDraftClearConfirm', { count: noteDraftCount }),
+      variant: 'warning',
+      confirmLabel: t('accountNoteDraftClear'),
+    }))) {
+      return
+    }
+
+    clearingNoteDrafts = true
+    try {
+      const cleared = purgeAllNoteDrafts()
+      refreshDraftCounts()
+      toastSuccess(t('accountNoteDraftCleared', { count: cleared }))
+    } catch {
+      toastError(t('toastOperationFailed'))
+    } finally {
+      clearingNoteDrafts = false
     }
   }
 
@@ -378,8 +486,95 @@
             <span class="ai-toggle-thumb" aria-hidden="true"></span>
           </button>
         </label>
+        <label class="ai-toggle-row">
+          <span class="ai-toggle-copy">
+            <strong>
+              {userSettingsState.persistAiChatLocal
+                ? t('accountAiChatHistoryLocalOn')
+                : t('accountAiChatHistoryLocalOff')}
+            </strong>
+            <span>
+              {userSettingsState.persistAiChatLocal
+                ? t('accountAiChatHistoryLocalOnHint')
+                : t('accountAiChatHistoryLocalOffHint')}
+            </span>
+          </span>
+          <button
+            type="button"
+            class="ai-toggle-btn"
+            class:on={userSettingsState.persistAiChatLocal}
+            role="switch"
+            aria-checked={userSettingsState.persistAiChatLocal}
+            aria-label={userSettingsState.persistAiChatLocal
+              ? t('accountAiChatHistoryLocalDisable')
+              : t('accountAiChatHistoryLocalEnable')}
+            onclick={handleTogglePersistAiChatLocal}
+            disabled={savingAiChatHistoryLocal || !userSettingsState.loaded || userSettingsState.disableAiChat}
+          >
+            <span class="ai-toggle-thumb" aria-hidden="true"></span>
+          </button>
+        </label>
+        <div class="storage-cleanup-row">
+          <p class="storage-cleanup-meta">
+            {t('accountAiChatHistoryStorageCount', { count: aiChatDraftCount })}
+          </p>
+          <button
+            type="button"
+            class="secondary-btn storage-cleanup-btn"
+            onclick={handleClearAiChatDrafts}
+            disabled={clearingAiChatDrafts || aiChatDraftCount === 0}
+          >
+            {clearingAiChatDrafts ? t('processing') : t('accountAiChatHistoryClear')}
+          </button>
+        </div>
       </section>
     {/if}
+
+    <section class="section">
+      <h3>{t('accountNoteDraftSection')}</h3>
+      <p class="hint">{t('accountNoteDraftHint')}</p>
+      <label class="ai-toggle-row">
+        <span class="ai-toggle-copy">
+          <strong>
+            {userSettingsState.persistNoteDraftLocal
+              ? t('accountNoteDraftLocalOn')
+              : t('accountNoteDraftLocalOff')}
+          </strong>
+          <span>
+            {userSettingsState.persistNoteDraftLocal
+              ? t('accountNoteDraftLocalOnHint')
+              : t('accountNoteDraftLocalOffHint')}
+          </span>
+        </span>
+        <button
+          type="button"
+          class="ai-toggle-btn"
+          class:on={userSettingsState.persistNoteDraftLocal}
+          role="switch"
+          aria-checked={userSettingsState.persistNoteDraftLocal}
+          aria-label={userSettingsState.persistNoteDraftLocal
+            ? t('accountNoteDraftLocalDisable')
+            : t('accountNoteDraftLocalEnable')}
+          onclick={handleTogglePersistNoteDraftLocal}
+          disabled={savingNoteDraftLocal || !userSettingsState.loaded}
+        >
+          <span class="ai-toggle-thumb" aria-hidden="true"></span>
+        </button>
+      </label>
+      <div class="storage-cleanup-row">
+        <p class="storage-cleanup-meta">
+          {t('accountNoteDraftStorageCount', { count: noteDraftCount })}
+        </p>
+        <button
+          type="button"
+          class="secondary-btn storage-cleanup-btn"
+          onclick={handleClearNoteDrafts}
+          disabled={clearingNoteDrafts || noteDraftCount === 0}
+        >
+          {clearingNoteDrafts ? t('processing') : t('accountNoteDraftClear')}
+        </button>
+      </div>
+    </section>
 
     {#if !authFeatures.disableChangePassword}
       <section class="section">
@@ -838,6 +1033,39 @@
     background: #fff;
     box-shadow: 0 1px 3px rgba(15, 23, 42, 0.2);
     transition: transform 0.2s;
+  }
+
+  .storage-cleanup-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px dashed color-mix(in srgb, var(--border) 80%, transparent);
+  }
+
+  .storage-cleanup-meta {
+    margin: 0;
+    flex: 1;
+    min-width: 0;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    line-height: 1.45;
+  }
+
+  .storage-cleanup-btn {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 8.5rem;
+    border-color: var(--danger);
+    color: var(--text);
+  }
+
+  .storage-cleanup-btn:hover:not(:disabled) {
+    background: var(--bg);
+    border-color: var(--danger);
+    color: var(--text);
   }
 
   .ai-toggle-btn.on .ai-toggle-thumb {
