@@ -19,6 +19,7 @@
     updateNote,
   } from '../notes'
   import type { Note, NoteInput, TrashedNote } from '../types'
+  import { accountModalState, closeAccountSettings, openAccountSettings } from '../account-modal.svelte'
   import { confirm } from '../dialog.svelte'
   import { t } from '../i18n.svelte'
   import { toastError, toastSuccess } from '../toast.svelte'
@@ -37,7 +38,7 @@
   let saving = $state(false)
   let sidebarOpen = $state(false)
   let keyManagerOpen = $state(false)
-  let accountModalOpen = $state(false)
+
   let importInput = $state<HTMLInputElement | undefined>(undefined)
   let searchInput = $state('')
   let debouncedSearch = $state('')
@@ -604,7 +605,7 @@
       <button
         type="button"
         class="account-btn"
-        onclick={() => (accountModalOpen = true)}
+        onclick={() => openAccountSettings()}
         aria-label={t('userAccount')}
         title={t('userAccount')}
       >
@@ -712,9 +713,13 @@
   {/await}
 {/if}
 
-{#if accountModalOpen}
+{#if accountModalState.open}
   {#await import('./UserAccountModal.svelte') then { default: UserAccountModal }}
-    <UserAccountModal open={accountModalOpen} onClose={() => (accountModalOpen = false)} />
+    <UserAccountModal
+      open={accountModalState.open}
+      focusSection={accountModalState.focusSection}
+      onClose={closeAccountSettings}
+    />
   {/await}
 {/if}
 

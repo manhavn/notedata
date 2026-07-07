@@ -6,6 +6,7 @@
     setDraftContent,
   } from '../draft-content'
   import { aiFeatures } from '../ai-features'
+  import { isUserAiChatEnabled } from '../user-settings.svelte'
   import { formatAppDate, t } from '../i18n.svelte'
   import { renderHtml, renderMarkdown } from '../markdown'
   import { portal } from '../portal'
@@ -602,7 +603,7 @@
       ></textarea>
     {/if}
 
-    {#if !aiFeatures.disableAiChat && !readonly && !showLockedState}
+    {#if !aiFeatures.disableAiChat && isUserAiChatEnabled() && !readonly && !showLockedState}
       {#await import('./EditorAiChat.svelte') then { default: EditorAiChat }}
         <EditorAiChat
           noteTitle={title}

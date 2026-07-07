@@ -9,8 +9,11 @@
     validateAiChatSettings,
     type AiChatSettings,
   } from '../ai-settings'
+  import { openAccountSettings } from '../account-modal.svelte'
+  import { aiFeatures } from '../ai-features'
   import { parseCurlToAiSettings } from '../parse-curl-ai'
   import { t } from '../i18n.svelte'
+  import { isUserAiChatEnabled } from '../user-settings.svelte'
   import PasswordInput from './PasswordInput.svelte'
 
   interface Props {
@@ -111,6 +114,10 @@
     apiKeyDraft = ''
     error = null
     onSaved()
+  }
+
+  function openAiChatAccountSettings() {
+    openAccountSettings('aiChat')
   }
 </script>
 
@@ -290,22 +297,42 @@
     <p class="ai-settings-error">{error}</p>
   {/if}
 
-  <div class="ai-settings-actions">
-    <button type="button" class="primary" onclick={saveSettings}>
-      {t('aiSettingsSave')}
-    </button>
-    {#if canCancel && onCancel}
-      <button type="button" class="secondary" onclick={onCancel}>
-        {t('cancel')}
+  <footer class="ai-settings-actions">
+    {#if !aiFeatures.disableAiChat}
+      <button
+        type="button"
+        class="action-chip"
+        class:on={isUserAiChatEnabled()}
+        onclick={openAiChatAccountSettings}
+        title={t('aiSettingsToggleAccountHint')}
+      >
+        <span class="action-chip-dot" aria-hidden="true"></span>
+        <span class="action-chip-label">
+          {isUserAiChatEnabled() ? t('aiSettingsToggleAccountOn') : t('aiSettingsToggleAccountOff')}
+        </span>
       </button>
     {/if}
-    <button type="button" class="secondary" onclick={restoreDefaults}>
-      {t('aiSettingsRestoreDefaults')}
-    </button>
-    <button type="button" class="danger" onclick={clearStoredSettings}>
-      {t('aiSettingsClearStored')}
-    </button>
-  </div>
+
+    <div class="action-row action-row-main" class:single={!(canCancel && onCancel)}>
+      <button type="button" class="action-btn primary" onclick={saveSettings}>
+        {t('aiSettingsSave')}
+      </button>
+      {#if canCancel && onCancel}
+        <button type="button" class="action-btn" onclick={onCancel}>
+          {t('cancel')}
+        </button>
+      {/if}
+    </div>
+
+    <div class="action-row action-row-secondary">
+      <button type="button" class="action-btn" onclick={restoreDefaults}>
+        {t('aiSettingsRestoreDefaults')}
+      </button>
+      <button type="button" class="action-btn danger" onclick={clearStoredSettings}>
+        {t('aiSettingsClearStored')}
+      </button>
+    </div>
+  </footer>
 </div>
 
 <style>
@@ -456,40 +483,117 @@
 
   .ai-settings-actions {
     display: flex;
-    flex-wrap: wrap;
-    gap: 0.45rem;
-    padding-top: 0.15rem;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding-top: 0.75rem;
+    margin-top: 0.1rem;
+    border-top: 1px solid var(--border);
   }
 
-  .ai-settings-actions button {
-    padding: 0.45rem 0.8rem;
+  .action-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.45rem;
+  }
+
+  .action-row.single {
+    grid-template-columns: 1fr;
+  }
+
+  .action-btn,
+  .action-chip {
+    min-height: 2.35rem;
     border-radius: 8px;
     border: 1px solid var(--border);
     background: var(--bg);
-    color: var(--text-muted);
+    color: var(--text);
+    font: inherit;
     font-size: 0.8rem;
     font-weight: 600;
     cursor: pointer;
+    transition:
+      border-color 0.2s,
+      background 0.2s,
+      color 0.2s,
+      opacity 0.2s;
   }
 
-  .ai-settings-actions .primary {
+  .action-btn {
+    width: 100%;
+    padding: 0.55rem 0.65rem;
+    line-height: 1.25;
+    text-align: center;
+  }
+
+  .action-btn:hover {
+    border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+    background: var(--surface);
+  }
+
+  .action-btn.primary {
     background: var(--accent);
     border-color: var(--accent);
-    color: white;
+    color: #fff;
   }
 
-  .ai-settings-actions .danger {
+  .action-btn.primary:hover {
+    background: color-mix(in srgb, var(--accent) 88%, #000);
+    border-color: color-mix(in srgb, var(--accent) 88%, #000);
+    color: #fff;
+  }
+
+  .action-btn.danger {
     color: var(--danger);
     border-color: color-mix(in srgb, var(--danger) 35%, var(--border));
     background: var(--danger-bg);
   }
 
-  .ai-settings-actions button:hover {
+  .action-btn.danger:hover {
+    border-color: color-mix(in srgb, var(--danger) 55%, var(--border));
+    background: color-mix(in srgb, var(--danger) 10%, var(--danger-bg));
+    color: var(--danger);
+  }
+
+  .action-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.55rem 0.75rem;
+    color: var(--text-muted);
+    text-align: left;
+  }
+
+  .action-chip:hover {
+    border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+    color: var(--text);
+    background: var(--surface);
+  }
+
+  .action-chip.on {
+    border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+    background: color-mix(in srgb, var(--accent) 8%, var(--bg));
     color: var(--text);
   }
 
-  .ai-settings-actions .primary:hover {
-    color: white;
+  .action-chip-dot {
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 999px;
+    background: var(--text-muted);
+    flex-shrink: 0;
+  }
+
+  .action-chip.on .action-chip-dot {
+    background: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+
+  .action-chip-label {
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   @media (max-width: 480px) {

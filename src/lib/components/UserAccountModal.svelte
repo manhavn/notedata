@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { untrack } from 'svelte'
+  import { tick, untrack } from 'svelte'
+  import { aiFeatures } from '../ai-features'
+  import type { AccountModalFocusSection } from '../account-modal.svelte'
   import {
     addAccountPassword,
     authFeatures,
@@ -17,15 +19,17 @@
     userShowsEmailVerificationStatus,
   } from '../auth.svelte'
   import { t } from '../i18n.svelte'
+  import { saveUserDisableAiChat, userSettingsState } from '../user-settings.svelte'
   import { toastError, toastSuccess, toastWarning } from '../toast.svelte'
   import PasswordInput from './PasswordInput.svelte'
 
   interface Props {
     open: boolean
+    focusSection?: AccountModalFocusSection
     onClose: () => void
   }
 
-  let { open, onClose }: Props = $props()
+  let { open, focusSection = null, onClose }: Props = $props()
 
   let displayName = $state('')
   let newEmail = $state('')
@@ -37,6 +41,9 @@
   let savingEmail = $state(false)
   let savingPassword = $state(false)
   let resendingVerification = $state(false)
+  let savingAiChat = $state(false)
+  let aiChatSectionEl = $state<HTMLElement | undefined>(undefined)
+  let aiChatSectionHighlight = $state(false)
 
   const user = $derived(authState.user)
   const hasPassword = $derived(user ? userHasPasswordProvider(user) : false)
@@ -60,6 +67,19 @@
       newPassword = ''
       confirmPassword = ''
     })
+  })
+
+  $effect(() => {
+    if (!open || focusSection !== 'aiChat' || aiFeatures.disableAiChat) return
+
+    void (async () => {
+      await tick()
+      aiChatSectionEl?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      aiChatSectionHighlight = true
+      window.setTimeout(() => {
+        aiChatSectionHighlight = false
+      }, 1800)
+    })()
   })
 
   function handleClose() {
@@ -139,6 +159,20 @@
       toastError(authState.error ?? t('authErrorGeneric'))
     } finally {
       savingEmail = false
+    }
+  }
+
+  async function handleToggleAiChat() {
+    savingAiChat = true
+    const nextDisabled = !userSettingsState.disableAiChat
+
+    try {
+      await saveUserDisableAiChat(nextDisabled)
+      toastSuccess(nextDisabled ? t('accountAiChatDisabledSaved') : t('accountAiChatEnabledSaved'))
+    } catch {
+      toastError(t('toastOperationFailed'))
+    } finally {
+      savingAiChat = false
     }
   }
 
@@ -314,6 +348,36 @@
         >
           {savingEmail ? t('processing') : t('changeEmail')}
         </button>
+      </section>
+    {/if}
+
+    {#if !aiFeatures.disableAiChat}
+      <section
+        id="account-ai-chat-settings"
+        class="section"
+        class:section-highlight={aiChatSectionHighlight}
+        bind:this={aiChatSectionEl}
+      >
+        <h3>{t('accountAiChatSection')}</h3>
+        <p class="hint">{t('accountAiChatHint')}</p>
+        <label class="ai-toggle-row">
+          <span class="ai-toggle-copy">
+            <strong>{userSettingsState.disableAiChat ? t('accountAiChatOff') : t('accountAiChatOn')}</strong>
+            <span>{userSettingsState.disableAiChat ? t('accountAiChatOffHint') : t('accountAiChatOnHint')}</span>
+          </span>
+          <button
+            type="button"
+            class="ai-toggle-btn"
+            class:on={!userSettingsState.disableAiChat}
+            role="switch"
+            aria-checked={!userSettingsState.disableAiChat}
+            aria-label={userSettingsState.disableAiChat ? t('accountAiChatEnable') : t('accountAiChatDisable')}
+            onclick={handleToggleAiChat}
+            disabled={savingAiChat || !userSettingsState.loaded}
+          >
+            <span class="ai-toggle-thumb" aria-hidden="true"></span>
+          </button>
+        </label>
       </section>
     {/if}
 
@@ -704,5 +768,79 @@
   .source-link:hover {
     color: var(--accent);
     text-decoration: underline;
+  }
+
+  .section-highlight {
+    border-radius: 14px;
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.35);
+    transition: box-shadow 0.3s ease;
+  }
+
+  .ai-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg);
+    cursor: pointer;
+  }
+
+  .ai-toggle-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+  }
+
+  .ai-toggle-copy strong {
+    font-size: 0.92rem;
+    color: var(--text);
+  }
+
+  .ai-toggle-copy span {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    line-height: 1.45;
+  }
+
+  .ai-toggle-btn {
+    position: relative;
+    width: 46px;
+    height: 26px;
+    padding: 0;
+    border: none;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.45);
+    cursor: pointer;
+    transition: background 0.2s;
+    flex-shrink: 0;
+  }
+
+  .ai-toggle-btn.on {
+    background: var(--accent);
+  }
+
+  .ai-toggle-btn:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+  }
+
+  .ai-toggle-thumb {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 20px;
+    height: 20px;
+    border-radius: 999px;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.2);
+    transition: transform 0.2s;
+  }
+
+  .ai-toggle-btn.on .ai-toggle-thumb {
+    transform: translateX(20px);
   }
 </style>

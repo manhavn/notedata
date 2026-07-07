@@ -13,6 +13,14 @@
           "$noteId": {
             ".validate": "newData.hasChildren(['title', 'content', 'createdAt', 'updatedAt', 'deletedAt']) && newData.child('title').isString() && newData.child('content').isString() && newData.child('createdAt').isNumber() && newData.child('updatedAt').isNumber() && newData.child('deletedAt').isNumber() && (!newData.hasChild('encrypted') || newData.child('encrypted').isBoolean()) && (!newData.hasChild('keyId') || newData.child('keyId').isString()) && (!newData.hasChild('tags') || newData.child('tags').isString())"
           }
+        },
+        "settings": {
+          "disableAiChat": {
+            ".validate": "newData.isBoolean()"
+          },
+          "$other": {
+            ".validate": false
+          }
         }
       }
     }
