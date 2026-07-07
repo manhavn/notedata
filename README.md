@@ -41,9 +41,11 @@ A personal notes app built with **Svelte 5 + Vite**, using **Firebase Authentica
 - **Provider-agnostic** — works with any **OpenAI-compatible** chat-completions API (custom URL, model, auth headers)
 - **Multiple providers** — manage several AI endpoints; provider settings sync via Firebase Realtime Database
 - **Shared model library** — models are a global list (not tied to one provider); pick an active model for chat
-- **API key vault** — labeled API keys stored only in this browser (`notedata-ai-api-keys`); reuse across providers; **No API key** option for local providers
+- **API key vault** — labeled API keys encrypted with your passcode (same AES-GCM as note content) and stored in Firebase (`users/{uid}/settings/aiChatSettings/apiKeys`); only ciphertext is synced — plaintext stays in memory after unlock
+- **API key unlock** — same passcode modal as encrypted notes (saved keys or manual entry); required on each new chat session, when switching keys, and when editing a saved key
+- **Active API key** — `activeApiKeyId` in Firebase (like `activeModelId` / `activeProviderId`); footer toolbar picks the key used for requests
 - **Popup settings** — pick providers, models, and API keys from list popups; Add/Edit opens a separate settings form
-- **Chat footer toolbar** — quick-switch provider, model, and API key (labels with ellipsis); gear icon links to account AI toggle
+- **Chat footer toolbar** — **Provider**, **Model**, and API key buttons (show active name or default label; ellipsis when long); gear icon links to account AI toggle
 - **Import from cURL** — paste a `curl` command to auto-fill endpoint, authentication, model, and request params
 - **Chat without API key** — local or open endpoints work when **No API key** is selected (no key required to send)
 - **Note context** — system prompt template supports `{{noteTitle}}` and `{{noteContent}}` placeholders
@@ -434,9 +436,10 @@ users/
         keyId?: string
     settings/
       disableAiChat?: boolean
-      aiProviderSettings/
+      aiChatSettings/
         activeProviderId: string | null
         activeModelId: string | null
+        activeApiKeyId: string | null
         providers/
           {providerId}/
             name: string
@@ -448,7 +451,6 @@ users/
             extraHeaders: string
             extraBody: string
             updatedAt: number
-            apiKeyId?: string | null
             temperature?: number | null
             maxTokens?: number | null
             topP?: number | null
@@ -459,6 +461,13 @@ users/
             label: string
             value: string
             updatedAt?: number
+        apiKeys/
+          {apiKeyId}/
+            label: string
+            value: string (enc:v1:... ciphertext)
+            keyId: string (encryption key id used for AES-GCM)
+            encrypted: true
+            updatedAt: number
 ```
 
 ---
@@ -509,10 +518,10 @@ Imported notes are created as new entries in Firebase (new IDs).
 
 | Item | Where it lives | Notes |
 |------|----------------|-------|
-| Providers | Firebase `users/{uid}/settings/aiProviderSettings/providers` | Endpoint URL, auth headers, system prompt, generation params; references an API key by id |
-| Models | Firebase `.../aiProviderSettings/models` | Global model library shared across providers; `activeModelId` picks the model used in chat |
-| API keys | `localStorage` (`notedata-ai-api-keys`) | Labeled keys; never sent to Firebase; reusable across providers |
-| Active selections | Firebase `activeProviderId`, `activeModelId` | Footer toolbar shows provider name, model label, and key label (or **No Key**) |
+| Providers | Firebase `users/{uid}/settings/aiChatSettings/providers` | Endpoint URL, auth headers, system prompt, generation params (no API key values) |
+| Models | Firebase `.../aiChatSettings/models` | Global model library shared across providers; `activeModelId` picks the model used in chat |
+| API keys | Firebase `users/{uid}/settings/aiChatSettings/apiKeys` | Labeled keys; **values encrypted** with passcode (`enc:v1:...`); reusable across providers |
+| Active selections | Firebase `.../aiChatSettings/activeProviderId`, `activeModelId`, `activeApiKeyId` | Footer shows provider name, model label, or default **Provider** / **Model** / key label (or **No Key**) |
 
 **Popup flow:** list popups for providers, models, and API keys → **Add** / **Edit** opens a separate settings form → **Delete** asks for confirmation. Selecting an item in the list popup activates it for chat (when opened from the editor).
 
@@ -527,7 +536,16 @@ Imported notes are created as new entries in Firebase (new IDs).
 | Temperature, max tokens, top P, penalties | Optional generation params (omit field = not sent) |
 | Stream | `stream` flag in the request body |
 | Extra headers / body | JSON objects merged into the request for provider-specific options |
-| API key | Pick a saved key or **No API key selected** (provider stores `apiKeyId` only) |
+
+### API key settings
+
+| Field | Description |
+|-------|-------------|
+| Label | Display name in the API key picker and footer toolbar |
+| Value | Plaintext API key — encrypted with your passcode before saving (same mechanism as note content) |
+| Encryption key | Saved passcode from **Manage keys** (or one-time passcode on create) used to derive AES-GCM key |
+
+**Unlock for chat:** after picking a key (or on first send), use the same `KeySelectModal` flow as notes — pick a saved encryption key, enter passcode manually, or create a one-time passcode when saving a new key. Plaintext stays in memory for the session only; closing the chat, clearing history, or switching keys clears it.
 
 ### Model settings
 
@@ -560,7 +578,7 @@ The parser fills URL, auth header, model, and known body fields. Environment-var
 
 ### Per-account AI toggle
 
-In **Account settings → AI assistant**, toggle AI on or off for your account. The setting is stored at `users/{uid}/settings/disableAiChat` on Firebase and syncs across devices. API keys remain browser-only.
+In **Account settings → AI assistant**, toggle AI on or off for your account. The setting is stored at `users/{uid}/settings/disableAiChat` on Firebase and syncs across devices. Encrypted API key records sync across devices too; you still need the passcode on each device/session to decrypt for chat.
 
 The gear icon in the chat footer opens Account settings focused on this section.
 
@@ -568,12 +586,10 @@ The gear icon in the chat footer opens Account settings focused on this section.
 
 | Data | Storage | Sent to Firebase? |
 |------|---------|-------------------|
-| Provider settings | `users/{uid}/settings/aiProviderSettings` | Yes (no API key values) |
+| AI chat settings | `users/{uid}/settings/aiChatSettings` | Yes — providers, models, `apiKeys`, and active selections (no API key plaintext) |
 | Per-account AI toggle | `users/{uid}/settings/disableAiChat` | Yes |
-| API keys | `notedata-ai-api-keys` | No |
-| Legacy AI settings | `notedata-ai-chat-settings` | No (migrated to Firebase on first load) |
-
-> After upgrading from an older version, legacy `localStorage` AI settings and API keys are migrated automatically into Firebase providers and the API key vault.
+| Passcodes for encryption | `notedata-encryption-keys` (browser) | No (hash only in localStorage) |
+| Unlocked API key plaintext | In-memory Svelte state | No |
 
 ### Disable the chat box
 
@@ -624,6 +640,31 @@ t('importSuccess', { count: 5 })
 2. Extend the `Locale` type and `translations` export
 3. Add a button in `src/lib/components/LocaleThemeControls.svelte`
 4. Update `setLocale()` / `initLocale()` to accept the new locale code
+
+---
+
+## Build & code splitting
+
+Production builds use **Vite 8** with manual chunk groups in `vite.config.ts` (`rolldownOptions.output.codeSplitting`):
+
+| Chunk | Source | Gzip (approx.) | When loaded |
+|-------|--------|----------------|-------------|
+| `firebase` | `node_modules/firebase` | ~74 KB | App boot (`modulepreload` in `index.html`) |
+| `markdown` | `marked` + `dompurify` | ~23 KB | First MD/HTML preview (`src/lib/markdown.ts` dynamic import) |
+| `index` | App shell, auth, dialogs, toasts | ~10 KB | App boot |
+| `i18n.svelte` | Translation strings | ~29 KB | App boot (`modulepreload`) |
+| `NotesApp` | Main notes UI | ~13 KB | After sign-in |
+| `AuthPage` | Login / register | ~3 KB | When signed out |
+| `EditorAiChat` | AI chat + provider settings UI | ~12 KB | When AI enabled in note editor |
+| Modal chunks | `KeySelectModal`, `KeyManagerModal`, `UserAccountModal`, … | 2–4 KB each | On demand |
+
+**Lazy-loaded entry points** (`{#await import(...)}`):
+
+- `App.svelte` → `AuthPage`, `EmailVerificationScreen`, `NotesApp`
+- `NotesApp.svelte` → `KeyManagerModal`, `UserAccountModal`
+- `NoteEditor.svelte` → `EditorAiChat`, `KeySelectModal`
+
+Heavy vendor libraries stay out of the main route chunk; AI and encryption modals load only when opened. Run `npm run build` to inspect chunk names and sizes in the build output.
 
 ---
 
@@ -719,13 +760,14 @@ To use a new Firebase project:
 ### AI chat: request fails or CORS error
 
 - Confirm the active **provider**, **model**, and **API key** in the chat footer toolbar
+- Unlock the API key with your passcode if prompted (new session or after switching keys)
 - For local providers, try **No API key selected** if the endpoint does not require authentication
 - The provider must allow browser requests from your origin (CORS), or use a proxy you control
-- API key values are browser-only — they are not validated by NoteData's backend
+- Only encrypted ciphertext is stored on Firebase — you must remember the passcode used when saving the key
 
 ### AI chat: cannot save provider settings
 
-- Deploy database rules: `npm run firebase:deploy:database` (rules must allow `users/{uid}/settings/aiProviderSettings`)
+- Deploy database rules: `npm run firebase:deploy:database` (rules must allow `users/{uid}/settings/aiChatSettings`)
 - User must be signed in
 
 ### Blank page or 404 after hosting deploy
@@ -745,9 +787,10 @@ src/
     auth-features.ts     # VITE_DISABLE_* auth feature flags
     ai-features.ts       # VITE_DISABLE_AI_CHAT feature flag
     ai-settings.ts       # Resolve active provider/model into chat settings
-    ai-providers.ts      # Multi-provider + model CRUD on Firebase
-    ai-providers.svelte.ts  # Realtime sync for AI provider settings
-    ai-api-keys.ts       # Labeled API key vault in localStorage
+    ai-providers.ts      # AI chat settings CRUD on Firebase (providers, models, apiKeys)
+    ai-providers.svelte.ts  # Realtime sync for aiChatSettings store
+    ai-api-keys.ts       # Encrypted API key read/write under aiChatSettings/apiKeys
+    ai-api-keys.svelte.ts  # In-memory API key unlock state (reads from aiChatSettings store)
     ai-chat.ts           # OpenAI-compatible chat-completions client
     parse-curl-ai.ts     # Parse cURL into AI settings
     user-settings.ts     # Per-account settings on Firebase (e.g. disableAiChat)

@@ -1,81 +1,107 @@
+import { get, onValue, ref, remove, set, type Unsubscribe } from 'firebase/database'
+import { decryptContent, encryptContent, isEncryptedContent } from './crypto'
+import { db } from './firebase'
+
 export interface StoredApiKey {
   id: string
   label: string
   value: string
+  keyId: string
+  encrypted: boolean
+  updatedAt: number
 }
 
 export interface ApiKeyStore {
   keys: Record<string, StoredApiKey>
 }
 
-const STORAGE_KEY = 'notedata-ai-api-keys'
-const LEGACY_SETTINGS_KEY = 'notedata-ai-chat-settings'
-const LEGACY_API_KEYS = ['notedata-legacy-api-key', 'notedata-poolside-api-key']
-
-function createId(): string {
-  return crypto.randomUUID()
+function apiKeysPath(userId: string) {
+  return `users/${userId}/settings/aiChatSettings/apiKeys`
 }
 
-function readStore(): ApiKeyStore {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return { keys: {} }
+export function parseStoredApiKey(id: string, raw: unknown): StoredApiKey | null {
+  if (!raw || typeof raw !== 'object') return null
+  const record = raw as Record<string, unknown>
+  const label = typeof record.label === 'string' ? record.label.trim() : ''
+  const value = typeof record.value === 'string' ? record.value.trim() : ''
+  const keyId = typeof record.keyId === 'string' ? record.keyId.trim() : ''
+  if (!label || !value || !keyId) return null
+  if (!isEncryptedContent(value)) return null
 
-    const parsed = JSON.parse(raw) as Partial<ApiKeyStore>
-    const keys = parsed.keys && typeof parsed.keys === 'object' ? parsed.keys : {}
-    const normalized: Record<string, StoredApiKey> = {}
-
-    for (const [id, key] of Object.entries(keys)) {
-      if (!key || typeof key !== 'object') continue
-      const label = typeof key.label === 'string' ? key.label.trim() : ''
-      const value = typeof key.value === 'string' ? key.value.trim() : ''
-      if (!label || !value) continue
-      normalized[id] = { id, label, value }
-    }
-
-    return { keys: normalized }
-  } catch {
-    return { keys: {} }
+  return {
+    id,
+    label,
+    value,
+    keyId,
+    encrypted: true,
+    updatedAt: typeof record.updatedAt === 'number' ? record.updatedAt : Date.now(),
   }
 }
 
-function writeStore(store: ApiKeyStore) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(store))
+function parseApiKeyStore(data: Record<string, unknown> | null | undefined): ApiKeyStore {
+  if (!data) return { keys: {} }
+
+  const keys: Record<string, StoredApiKey> = {}
+  for (const [id, raw] of Object.entries(data)) {
+    const parsed = parseStoredApiKey(id, raw)
+    if (parsed) keys[id] = parsed
+  }
+
+  return { keys }
 }
 
-export function listApiKeys(): StoredApiKey[] {
-  const store = readStore()
-  return Object.values(store.keys).sort((a, b) => a.label.localeCompare(b.label))
+function serializeApiKey(key: StoredApiKey): Record<string, unknown> {
+  return {
+    label: key.label.trim(),
+    value: key.value,
+    keyId: key.keyId,
+    encrypted: true,
+    updatedAt: key.updatedAt,
+  }
 }
 
-export function getApiKeyById(id: string | null | undefined): StoredApiKey | null {
-  if (!id) return null
-  return readStore().keys[id] ?? null
+export function subscribeToApiKeys(
+  userId: string,
+  callback: (store: ApiKeyStore) => void,
+): Unsubscribe {
+  const keysRef = ref(db, apiKeysPath(userId))
+
+  return onValue(keysRef, (snapshot) => {
+    callback(parseApiKeyStore(snapshot.val()))
+  })
 }
 
-export function getApiKeyValue(id: string | null | undefined): string {
-  return getApiKeyById(id)?.value ?? ''
+export async function getApiKeys(userId: string): Promise<ApiKeyStore> {
+  const snapshot = await get(ref(db, apiKeysPath(userId)))
+  return parseApiKeyStore(snapshot.val())
 }
 
-export function upsertApiKey(input: { id?: string; label: string; value: string }): StoredApiKey {
-  const label = input.label.trim()
-  const value = input.value.trim()
-  if (!label) throw new Error('AI_API_KEY_LABEL_REQUIRED')
-  if (!value) throw new Error('AI_API_KEY_VALUE_REQUIRED')
-
-  const store = readStore()
-  const id = input.id?.trim() || createId()
-  const next: StoredApiKey = { id, label, value }
-  store.keys[id] = next
-  writeStore(store)
+export async function saveApiKey(userId: string, key: StoredApiKey): Promise<StoredApiKey> {
+  const next: StoredApiKey = {
+    ...key,
+    label: key.label.trim(),
+    encrypted: true,
+    updatedAt: Date.now(),
+  }
+  await set(ref(db, `${apiKeysPath(userId)}/${next.id}`), serializeApiKey(next))
   return next
 }
 
-export function deleteApiKey(id: string) {
-  const store = readStore()
-  if (!(id in store.keys)) return
-  delete store.keys[id]
-  writeStore(store)
+export async function deleteApiKey(userId: string, id: string): Promise<void> {
+  await remove(ref(db, `${apiKeysPath(userId)}/${id}`))
+}
+
+export async function encryptApiKeyValue(
+  plainValue: string,
+  passcode: string,
+  encryptionKeyId: string,
+): Promise<string> {
+  return encryptContent(plainValue.trim(), passcode, encryptionKeyId)
+}
+
+export async function decryptApiKeyValue(key: StoredApiKey, passcode: string): Promise<string> {
+  if (!key.keyId) throw new Error('AI_API_KEY_MISSING_ENCRYPTION_KEY')
+  return decryptContent(key.value, passcode, key.keyId)
 }
 
 export function maskApiKey(apiKey: string): string {
@@ -85,34 +111,6 @@ export function maskApiKey(apiKey: string): string {
   return `${trimmed.slice(0, 4)}••••${trimmed.slice(-4)}`
 }
 
-export function migrateLegacyApiKeys(): StoredApiKey | null {
-  const store = readStore()
-  if (Object.keys(store.keys).length > 0) return null
-
-  let legacyValue = ''
-
-  try {
-    const settingsRaw = localStorage.getItem(LEGACY_SETTINGS_KEY)
-    if (settingsRaw) {
-      const parsed = JSON.parse(settingsRaw) as { apiKey?: string }
-      legacyValue = typeof parsed.apiKey === 'string' ? parsed.apiKey.trim() : ''
-    }
-  } catch {
-    legacyValue = ''
-  }
-
-  if (!legacyValue) {
-    for (const storageKey of LEGACY_API_KEYS) {
-      const legacy = localStorage.getItem(storageKey)?.trim()
-      if (legacy) {
-        legacyValue = legacy
-        localStorage.removeItem(storageKey)
-        break
-      }
-    }
-  }
-
-  if (!legacyValue) return null
-
-  return upsertApiKey({ label: 'Default', value: legacyValue })
+export function maskStoredApiKey(_key: StoredApiKey): string {
+  return '••••••••'
 }

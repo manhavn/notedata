@@ -63,8 +63,15 @@
     return item.meta ? `${item.label} · ${item.meta}` : item.label
   }
 
+  function pickerItemKey(item: PickerItem): string {
+    return item.id || '__picker-none__'
+  }
+
   function resetPagination() {
-    const selectedIndex = selectedId ? items.findIndex((item) => item.id === selectedId) : -1
+    const selectedIndex =
+      selectedId != null && selectedId !== ''
+        ? items.findIndex((item) => item.id === selectedId)
+        : -1
     displayLimit =
       selectedIndex >= 0 ? Math.max(PAGE_SIZE, selectedIndex + 1) : PAGE_SIZE
   }
@@ -143,7 +150,7 @@
       {:else}
         <div class="picker-wrap">
           <div class="picker-list" role="listbox" aria-label={title}>
-            {#each visibleItems as item (item.id)}
+            {#each visibleItems as item (pickerItemKey(item))}
               <div
                 class="picker-item"
                 class:selected={selectedId === item.id}

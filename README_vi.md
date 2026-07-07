@@ -41,9 +41,11 @@
 - **Không phụ thuộc nhà cung cấp** — dùng API chat-completions **tương thích OpenAI** (URL, model, header xác thực tùy chỉnh)
 - **Nhiều provider** — quản lý nhiều endpoint AI; cài đặt provider đồng bộ qua Firebase Realtime Database
 - **Thư viện model dùng chung** — danh sách model toàn cục (không gắn riêng từng provider); chọn model đang dùng cho chat
-- **Kho API key** — key có nhãn, chỉ lưu trên trình duyệt (`notedata-ai-api-keys`); tái sử dụng giữa các provider; tùy chọn **Chưa chọn API key** cho provider local
+- **Kho API key** — key có nhãn, mã hóa bằng mã khóa của bạn (AES-GCM giống nội dung ghi chú) và lưu trên Firebase (`users/{uid}/settings/aiChatSettings/apiKeys`); chỉ ciphertext đồng bộ — plaintext chỉ ở bộ nhớ sau khi mở khóa
+- **Mở khóa API key** — dùng popup mã giống ghi chú mã hóa (mã đã lưu hoặc nhập thủ công); bắt buộc mỗi phiên chat mới, khi đổi key, và khi sửa key đã lưu
+- **API key đang dùng** — `activeApiKeyId` trên Firebase (giống `activeModelId` / `activeProviderId`); toolbar footer chọn key gửi request
 - **Cài đặt dạng popup** — chọn provider, model và API key từ popup danh sách; Add/Edit mở form cài đặt riêng
-- **Toolbar footer chat** — đổi nhanh provider, model và API key (nhãn rút gọn bằng ellipsis); icon bánh răng mở cài đặt bật/tắt AI tài khoản
+- **Toolbar footer chat** — nút **Provider**, **Model** và API key (hiện tên đang chọn hoặc nhãn mặc định; ellipsis khi dài); icon bánh răng mở cài đặt bật/tắt AI tài khoản
 - **Import từ cURL** — dán lệnh `curl` để tự điền endpoint, xác thực, model và tham số request
 - **Chat không cần API key** — endpoint local/mở hoạt động khi chọn **Chưa chọn API key** (không bắt buộc key để gửi)
 - **Ngữ cảnh ghi chú** — mẫu system prompt hỗ trợ placeholder `{{noteTitle}}` và `{{noteContent}}`
@@ -434,9 +436,10 @@ users/
         keyId?: string
     settings/
       disableAiChat?: boolean
-      aiProviderSettings/
+      aiChatSettings/
         activeProviderId: string | null
         activeModelId: string | null
+        activeApiKeyId: string | null
         providers/
           {providerId}/
             name: string
@@ -448,7 +451,6 @@ users/
             extraHeaders: string
             extraBody: string
             updatedAt: number
-            apiKeyId?: string | null
             temperature?: number | null
             maxTokens?: number | null
             topP?: number | null
@@ -459,6 +461,13 @@ users/
             label: string
             value: string
             updatedAt?: number
+        apiKeys/
+          {apiKeyId}/
+            label: string
+            value: string (enc:v1:... ciphertext)
+            keyId: string (id mã khóa dùng cho AES-GCM)
+            encrypted: true
+            updatedAt: number
 ```
 
 ---
@@ -509,10 +518,10 @@ Ghi chú import sẽ được tạo mới trên Firebase (ID mới).
 
 | Mục | Lưu ở đâu | Ghi chú |
 |-----|-----------|---------|
-| Providers | Firebase `users/{uid}/settings/aiProviderSettings/providers` | URL endpoint, header xác thực, system prompt, tham số sinh văn bản; tham chiếu API key bằng id |
-| Models | Firebase `.../aiProviderSettings/models` | Thư viện model dùng chung; `activeModelId` chọn model dùng trong chat |
-| API keys | `localStorage` (`notedata-ai-api-keys`) | Key có nhãn; không gửi lên Firebase; tái sử dụng giữa các provider |
-| Lựa chọn đang active | Firebase `activeProviderId`, `activeModelId` | Toolbar footer hiện tên provider, nhãn model và nhãn key (hoặc **Không key**) |
+| Providers | Firebase `users/{uid}/settings/aiChatSettings/providers` | URL endpoint, header xác thực, system prompt, tham số sinh văn bản (không lưu giá trị API key) |
+| Models | Firebase `.../aiChatSettings/models` | Thư viện model dùng chung; `activeModelId` chọn model dùng trong chat |
+| API keys | Firebase `users/{uid}/settings/aiChatSettings/apiKeys` | Key có nhãn; **giá trị mã hóa** bằng mã khóa (`enc:v1:...`); tái sử dụng giữa các provider |
+| Lựa chọn đang active | Firebase `.../aiChatSettings/activeProviderId`, `activeModelId`, `activeApiKeyId` | Footer hiện tên provider, nhãn model, hoặc mặc định **Provider** / **Model** / nhãn key (hoặc **Không key**) |
 
 **Luồng popup:** popup danh sách cho provider, model và API key → **Add** / **Edit** mở form cài đặt riêng → **Delete** có xác nhận. Chọn một mục trong popup danh sách sẽ kích hoạt cho chat (khi mở từ editor).
 
@@ -527,7 +536,16 @@ Ghi chú import sẽ được tạo mới trên Firebase (ID mới).
 | Temperature, max tokens, top P, penalties | Tham số sinh văn bản tùy chọn (để trống = không gửi) |
 | Stream | Cờ `stream` trong request body |
 | Header / body bổ sung | JSON object merge vào request cho tùy chọn riêng từng nhà cung cấp |
-| API key | Chọn key đã lưu hoặc **Chưa chọn API key** (provider chỉ lưu `apiKeyId`) |
+
+### Cài đặt API key
+
+| Trường | Mô tả |
+|--------|-------|
+| Nhãn | Tên hiển thị trong picker API key và toolbar footer |
+| Giá trị | API key plaintext — mã hóa bằng mã khóa trước khi lưu (cùng cơ chế với nội dung ghi chú) |
+| Mã khóa mã hóa | Mã khóa đã lưu từ **Quản lý mã khóa** (hoặc mã một lần khi tạo) dùng để derive khóa AES-GCM |
+
+**Mở khóa để chat:** sau khi chọn key (hoặc lần gửi đầu), dùng luồng `KeySelectModal` giống ghi chú — chọn mã đã lưu, nhập mã thủ công, hoặc tạo mã một lần khi lưu key mới. Plaintext chỉ ở bộ nhớ phiên hiện tại; đóng chat, xóa lịch sử, hoặc đổi key sẽ xóa.
 
 ### Cài đặt model
 
@@ -560,7 +578,7 @@ Parser điền URL, header xác thực, model và các trường body đã biế
 
 ### Bật/tắt AI theo tài khoản
 
-Trong **Cài đặt tài khoản → Trợ lý AI**, bật hoặc tắt AI cho tài khoản. Cài đặt lưu tại `users/{uid}/settings/disableAiChat` trên Firebase và đồng bộ giữa các thiết bị. API key vẫn chỉ lưu trên trình duyệt.
+Trong **Cài đặt tài khoản → Trợ lý AI**, bật hoặc tắt AI cho tài khoản. Cài đặt lưu tại `users/{uid}/settings/disableAiChat` trên Firebase và đồng bộ giữa các thiết bị. Bản ghi API key đã mã hóa cũng đồng bộ giữa thiết bị; bạn vẫn cần mã khóa trên mỗi thiết bị/phiên để giải mã khi chat.
 
 Icon bánh răng trong footer chat mở Cài đặt tài khoản, tập trung vào mục này.
 
@@ -568,12 +586,10 @@ Icon bánh răng trong footer chat mở Cài đặt tài khoản, tập trung v�
 
 | Dữ liệu | Lưu trữ | Gửi lên Firebase? |
 |---------|---------|-------------------|
-| Cài đặt provider | `users/{uid}/settings/aiProviderSettings` | Có (không có giá trị API key) |
+| Cài đặt AI chat | `users/{uid}/settings/aiChatSettings` | Có — providers, models, `apiKeys` và lựa chọn đang active (không có plaintext API key) |
 | Bật/tắt AI tài khoản | `users/{uid}/settings/disableAiChat` | Có |
-| API keys | `notedata-ai-api-keys` | Không |
-| Cài đặt AI cũ | `notedata-ai-chat-settings` | Không (tự migrate lên Firebase khi tải lần đầu) |
-
-> Sau khi nâng cấp từ phiên bản cũ, cài đặt AI và API key trong `localStorage` sẽ tự migrate sang provider trên Firebase và kho API key.
+| Mã khóa mã hóa | `notedata-encryption-keys` (trình duyệt) | Không (chỉ hash trong localStorage) |
+| Plaintext API key đã mở khóa | Trạng thái Svelte trong bộ nhớ | Không |
 
 ### Tắt hộp chat
 
@@ -624,6 +640,31 @@ t('importSuccess', { count: 5 })
 2. Mở rộng type `Locale` và export `translations`
 3. Thêm nút trong `src/lib/components/LocaleThemeControls.svelte`
 4. Cập nhật `setLocale()` / `initLocale()` để nhận mã locale mới
+
+---
+
+## Build & tách chunk
+
+Build production dùng **Vite 8** với nhóm chunk thủ công trong `vite.config.ts` (`rolldownOptions.output.codeSplitting`):
+
+| Chunk | Nguồn | Gzip (xấp xỉ) | Khi nào tải |
+|-------|-------|---------------|-------------|
+| `firebase` | `node_modules/firebase` | ~74 KB | Khởi động app (`modulepreload` trong `index.html`) |
+| `markdown` | `marked` + `dompurify` | ~23 KB | Lần đầu xem MD/HTML (`dynamic import` trong `src/lib/markdown.ts`) |
+| `index` | Shell app, auth, dialog, toast | ~10 KB | Khởi động app |
+| `i18n.svelte` | Chuỗi dịch | ~29 KB | Khởi động app (`modulepreload`) |
+| `NotesApp` | Giao diện ghi chú chính | ~13 KB | Sau khi đăng nhập |
+| `AuthPage` | Đăng nhập / đăng ký | ~3 KB | Khi chưa đăng nhập |
+| `EditorAiChat` | Chat AI + UI cài đặt provider | ~12 KB | Khi bật AI trong editor ghi chú |
+| Chunk modal | `KeySelectModal`, `KeyManagerModal`, `UserAccountModal`, … | 2–4 KB mỗi cái | Theo nhu cầu |
+
+**Điểm vào lazy-load** (`{#await import(...)}`):
+
+- `App.svelte` → `AuthPage`, `EmailVerificationScreen`, `NotesApp`
+- `NotesApp.svelte` → `KeyManagerModal`, `UserAccountModal`
+- `NoteEditor.svelte` → `EditorAiChat`, `KeySelectModal`
+
+Thư viện nặng tách khỏi chunk route chính; modal AI và mã hóa chỉ tải khi mở. Chạy `npm run build` để xem tên và kích thước chunk trong output.
 
 ---
 
@@ -719,13 +760,14 @@ Khi muốn dùng project Firebase mới, làm lần lượt:
 ### AI chat: gọi API thất bại hoặc lỗi CORS
 
 - Kiểm tra **provider**, **model** và **API key** đang chọn trên toolbar footer chat
+- Mở khóa API key bằng mã khóa nếu được nhắc (phiên mới hoặc sau khi đổi key)
 - Với provider local, thử **Chưa chọn API key** nếu endpoint không yêu cầu xác thực
 - Nhà cung cấp phải cho phép request từ origin của bạn (CORS), hoặc dùng proxy bạn kiểm soát
-- Giá trị API key chỉ ở trình duyệt — NoteData không có backend xác thực key
+- Firebase chỉ lưu ciphertext — bạn phải nhớ mã khóa đã dùng khi lưu key
 
 ### AI chat: không lưu được cài đặt provider
 
-- Deploy database rules: `npm run firebase:deploy:database` (rules phải cho phép `users/{uid}/settings/aiProviderSettings`)
+- Deploy database rules: `npm run firebase:deploy:database` (rules phải cho phép `users/{uid}/settings/aiChatSettings`)
 - Người dùng phải đã đăng nhập
 
 ### Deploy hosting xong nhưng vào URL bị trắng trang / 404
@@ -745,9 +787,10 @@ src/
     auth-features.ts     # Các flag VITE_DISABLE_* cho auth
     ai-features.ts       # Flag VITE_DISABLE_AI_CHAT
     ai-settings.ts       # Ghép provider/model đang active thành cài đặt chat
-    ai-providers.ts      # CRUD multi-provider + model trên Firebase
-    ai-providers.svelte.ts  # Đồng bộ realtime cài đặt AI provider
-    ai-api-keys.ts       # Kho API key có nhãn trong localStorage
+    ai-providers.ts      # CRUD cài đặt AI chat trên Firebase (providers, models, apiKeys)
+    ai-providers.svelte.ts  # Đồng bộ realtime store aiChatSettings
+    ai-api-keys.ts       # Đọc/ghi API key mã hóa dưới aiChatSettings/apiKeys
+    ai-api-keys.svelte.ts  # Trạng thái mở khóa API key trong bộ nhớ (đọc từ store aiChatSettings)
     ai-chat.ts           # Client chat-completions tương thích OpenAI
     parse-curl-ai.ts     # Phân tích cURL thành cài đặt AI
     user-settings.ts     # Cài đặt theo tài khoản trên Firebase (vd. disableAiChat)

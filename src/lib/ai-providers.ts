@@ -1,8 +1,9 @@
 import { get, onValue, ref, remove, set, update, type Unsubscribe } from 'firebase/database'
+import { parseStoredApiKey, type StoredApiKey } from './ai-api-keys'
 import { DEFAULT_AI_SETTINGS, type AiChatSettings } from './ai-settings'
 import { db } from './firebase'
 
-export const AI_PROVIDER_SETTINGS_KEY = 'aiProviderSettings'
+export const AI_CHAT_SETTINGS_KEY = 'aiChatSettings'
 
 export interface AiProviderModel {
   id: string
@@ -26,26 +27,29 @@ export interface AiProvider {
   stream: boolean
   extraHeaders: string
   extraBody: string
-  apiKeyId: string | null
   updatedAt: number
 }
 
-export interface AiProviderSettings {
+export interface AiChatSettingsStore {
   activeProviderId: string | null
   activeModelId: string | null
+  activeApiKeyId: string | null
   providers: Record<string, AiProvider>
   models: Record<string, AiProviderModel>
+  apiKeys: Record<string, StoredApiKey>
 }
 
-const EMPTY_SETTINGS: AiProviderSettings = {
+const EMPTY_SETTINGS: AiChatSettingsStore = {
   activeProviderId: null,
   activeModelId: null,
+  activeApiKeyId: null,
   providers: {},
   models: {},
+  apiKeys: {},
 }
 
-function aiProviderSettingsPath(userId: string) {
-  return `users/${userId}/settings/${AI_PROVIDER_SETTINGS_KEY}`
+export function aiChatSettingsPath(userId: string) {
+  return `users/${userId}/settings/${AI_CHAT_SETTINGS_KEY}`
 }
 
 function parseOptionalNumber(value: unknown): number | null {
@@ -124,14 +128,13 @@ function parseProvider(
         typeof record.extraBody === 'string' && record.extraBody.trim()
           ? record.extraBody
           : DEFAULT_AI_SETTINGS.extraBody,
-      apiKeyId: typeof record.apiKeyId === 'string' ? record.apiKeyId : null,
       updatedAt: typeof record.updatedAt === 'number' ? record.updatedAt : Date.now(),
     },
     legacyActiveModelId,
   }
 }
 
-function parseAiProviderSettings(data: Record<string, unknown> | null | undefined): AiProviderSettings {
+function parseAiChatSettingsStore(data: Record<string, unknown> | null | undefined): AiChatSettingsStore {
   if (!data) return { ...EMPTY_SETTINGS }
 
   const models: Record<string, AiProviderModel> = {}
@@ -168,7 +171,22 @@ function parseAiProviderSettings(data: Record<string, unknown> | null | undefine
         ? legacyActiveModelId
         : Object.keys(models)[0] ?? null
 
-  return { activeProviderId, activeModelId, providers, models }
+  const apiKeys: Record<string, StoredApiKey> = {}
+  if (data.apiKeys && typeof data.apiKeys === 'object') {
+    for (const [id, raw] of Object.entries(data.apiKeys)) {
+      const parsed = parseStoredApiKey(id, raw)
+      if (parsed) apiKeys[id] = parsed
+    }
+  }
+
+  const activeApiKeyId =
+    typeof data.activeApiKeyId === 'string' &&
+    data.activeApiKeyId.trim() &&
+    data.activeApiKeyId.trim() in apiKeys
+      ? data.activeApiKeyId.trim()
+      : null
+
+  return { activeProviderId, activeModelId, activeApiKeyId, providers, models, apiKeys }
 }
 
 export function createProviderId(): string {
@@ -195,7 +213,6 @@ export function createDefaultProvider(name = 'New provider'): AiProvider {
     stream: false,
     extraHeaders: DEFAULT_AI_SETTINGS.extraHeaders,
     extraBody: DEFAULT_AI_SETTINGS.extraBody,
-    apiKeyId: null,
     updatedAt: Date.now(),
   }
 }
@@ -204,16 +221,16 @@ export function cloneAiProvider(provider: AiProvider): AiProvider {
   return { ...provider }
 }
 
-export function listProviders(settings: AiProviderSettings): AiProvider[] {
+export function listProviders(settings: AiChatSettingsStore): AiProvider[] {
   return Object.values(settings.providers).sort((a, b) => a.name.localeCompare(b.name))
 }
 
-export function listModels(settings: AiProviderSettings): AiProviderModel[] {
+export function listModels(settings: AiChatSettingsStore): AiProviderModel[] {
   return Object.values(settings.models).sort((a, b) => a.label.localeCompare(b.label))
 }
 
 export function getProviderById(
-  settings: AiProviderSettings,
+  settings: AiChatSettingsStore,
   id: string | null | undefined,
 ): AiProvider | null {
   if (!id) return null
@@ -221,18 +238,18 @@ export function getProviderById(
 }
 
 export function getModelById(
-  settings: AiProviderSettings,
+  settings: AiChatSettingsStore,
   id: string | null | undefined,
 ): AiProviderModel | null {
   if (!id) return null
   return settings.models[id] ?? null
 }
 
-export function getActiveProvider(settings: AiProviderSettings): AiProvider | null {
+export function getActiveProvider(settings: AiChatSettingsStore): AiProvider | null {
   return getProviderById(settings, settings.activeProviderId)
 }
 
-export function getActiveModel(settings: AiProviderSettings): AiProviderModel | null {
+export function getActiveModel(settings: AiChatSettingsStore): AiProviderModel | null {
   if (!settings.activeModelId) return null
   return settings.models[settings.activeModelId] ?? null
 }
@@ -240,7 +257,7 @@ export function getActiveModel(settings: AiProviderSettings): AiProviderModel | 
 export function providerToChatSettings(
   provider: AiProvider,
   apiKey: string,
-  settings: AiProviderSettings,
+  settings: AiChatSettingsStore,
   model?: AiProviderModel | null,
 ): AiChatSettings {
   const activeModel = model ?? getActiveModel(settings)
@@ -265,7 +282,7 @@ export function providerToChatSettings(
 export function applyChatSettingsToProvider(
   provider: AiProvider,
   settings: AiChatSettings,
-  allSettings: AiProviderSettings,
+  allSettings: AiChatSettingsStore,
 ): {
   provider: AiProvider
   models: Record<string, AiProviderModel>
@@ -306,44 +323,9 @@ export function applyChatSettingsToProvider(
   return { provider: next, models: nextModels, activeModelId }
 }
 
-export function buildProviderFromLegacySettings(
-  settings: AiChatSettings,
-  apiKeyId: string | null,
-  name = 'Imported provider',
-): { provider: AiProvider; model: AiProviderModel | null; activeModelId: string | null } {
-  const provider = createDefaultProvider(name)
-  provider.completionsUrl = settings.completionsUrl
-  provider.authHeaderName = settings.authHeaderName
-  provider.authHeaderPrefix = settings.authHeaderPrefix
-  provider.systemPrompt = settings.systemPrompt
-  provider.temperature = settings.temperature
-  provider.maxTokens = settings.maxTokens
-  provider.topP = settings.topP
-  provider.frequencyPenalty = settings.frequencyPenalty
-  provider.presencePenalty = settings.presencePenalty
-  provider.stream = settings.stream
-  provider.extraHeaders = settings.extraHeaders
-  provider.extraBody = settings.extraBody
-  provider.apiKeyId = apiKeyId
-
-  let model: AiProviderModel | null = null
-  let activeModelId: string | null = null
-  if (settings.model.trim()) {
-    const modelId = createModelId()
-    model = {
-      id: modelId,
-      label: settings.model.trim(),
-      value: settings.model.trim(),
-    }
-    activeModelId = modelId
-  }
-
-  return { provider, model, activeModelId }
-}
-
 export function validateAiProvider(
   provider: AiProvider,
-  settings: AiProviderSettings,
+  settings: AiChatSettingsStore,
 ): string | null {
   if (!provider.name.trim()) return 'AI_PROVIDER_NAME_REQUIRED'
   if (!provider.completionsUrl.trim()) return 'AI_SETTINGS_COMPLETIONS_URL_REQUIRED'
@@ -384,7 +366,6 @@ function serializeProvider(provider: AiProvider): Record<string, unknown> {
     stream: provider.stream,
     extraHeaders: provider.extraHeaders,
     extraBody: provider.extraBody,
-    apiKeyId: provider.apiKeyId,
     updatedAt: provider.updatedAt,
   }
 }
@@ -397,20 +378,20 @@ function serializeModel(model: AiProviderModel): Record<string, unknown> {
   }
 }
 
-export function subscribeToAiProviderSettings(
+export function subscribeToAiChatSettingsStore(
   userId: string,
-  callback: (settings: AiProviderSettings) => void,
+  callback: (settings: AiChatSettingsStore) => void,
 ): Unsubscribe {
-  const settingsRef = ref(db, aiProviderSettingsPath(userId))
+  const settingsRef = ref(db, aiChatSettingsPath(userId))
 
   return onValue(settingsRef, (snapshot) => {
-    callback(parseAiProviderSettings(snapshot.val()))
+    callback(parseAiChatSettingsStore(snapshot.val()))
   })
 }
 
-export async function getAiProviderSettings(userId: string): Promise<AiProviderSettings> {
-  const snapshot = await get(ref(db, aiProviderSettingsPath(userId)))
-  return parseAiProviderSettings(snapshot.val())
+export async function getAiChatSettingsStore(userId: string): Promise<AiChatSettingsStore> {
+  const snapshot = await get(ref(db, aiChatSettingsPath(userId)))
+  return parseAiChatSettingsStore(snapshot.val())
 }
 
 export async function saveAiProvider(userId: string, provider: AiProvider): Promise<void> {
@@ -418,63 +399,52 @@ export async function saveAiProvider(userId: string, provider: AiProvider): Prom
     ...serializeProvider(provider),
     updatedAt: Date.now(),
   }
-  await set(ref(db, `${aiProviderSettingsPath(userId)}/providers/${provider.id}`), next)
+  await set(ref(db, `${aiChatSettingsPath(userId)}/providers/${provider.id}`), next)
 }
 
 export async function saveAiModel(userId: string, model: AiProviderModel): Promise<void> {
-  await set(ref(db, `${aiProviderSettingsPath(userId)}/models/${model.id}`), serializeModel(model))
+  await set(ref(db, `${aiChatSettingsPath(userId)}/models/${model.id}`), serializeModel(model))
 }
 
 export async function deleteAiProvider(userId: string, providerId: string): Promise<void> {
-  await remove(ref(db, `${aiProviderSettingsPath(userId)}/providers/${providerId}`))
+  await remove(ref(db, `${aiChatSettingsPath(userId)}/providers/${providerId}`))
 
-  const settings = await getAiProviderSettings(userId)
+  const settings = await getAiChatSettingsStore(userId)
   if (settings.activeProviderId !== providerId) return
 
   const nextActiveId = Object.keys(settings.providers).find((id) => id !== providerId) ?? null
-  await update(ref(db, aiProviderSettingsPath(userId)), {
+  await update(ref(db, aiChatSettingsPath(userId)), {
     activeProviderId: nextActiveId,
   })
 }
 
 export async function deleteAiModel(userId: string, modelId: string): Promise<void> {
-  await remove(ref(db, `${aiProviderSettingsPath(userId)}/models/${modelId}`))
+  await remove(ref(db, `${aiChatSettingsPath(userId)}/models/${modelId}`))
 
-  const settings = await getAiProviderSettings(userId)
+  const settings = await getAiChatSettingsStore(userId)
   if (settings.activeModelId !== modelId) return
 
   const nextActiveModelId =
     Object.keys(settings.models).find((id) => id !== modelId) ?? null
-  await update(ref(db, aiProviderSettingsPath(userId)), {
+  await update(ref(db, aiChatSettingsPath(userId)), {
     activeModelId: nextActiveModelId,
   })
 }
 
 export async function setActiveAiProvider(userId: string, providerId: string): Promise<void> {
-  await update(ref(db, aiProviderSettingsPath(userId)), {
+  await update(ref(db, aiChatSettingsPath(userId)), {
     activeProviderId: providerId,
   })
 }
 
 export async function setActiveAiModel(userId: string, modelId: string): Promise<void> {
-  await update(ref(db, aiProviderSettingsPath(userId)), {
+  await update(ref(db, aiChatSettingsPath(userId)), {
     activeModelId: modelId,
   })
 }
 
-export async function migrateLegacyProviderSettings(
-  userId: string,
-  legacySettings: AiChatSettings,
-  apiKeyId: string | null,
-): Promise<AiProviderSettings> {
-  const { provider, model, activeModelId } = buildProviderFromLegacySettings(legacySettings, apiKeyId)
-  if (model) {
-    await saveAiModel(userId, model)
-  }
-  await saveAiProvider(userId, provider)
-  await update(ref(db, aiProviderSettingsPath(userId)), {
-    activeProviderId: provider.id,
-    activeModelId,
+export async function setActiveAiApiKey(userId: string, apiKeyId: string | null): Promise<void> {
+  await update(ref(db, aiChatSettingsPath(userId)), {
+    activeApiKeyId: apiKeyId,
   })
-  return getAiProviderSettings(userId)
 }

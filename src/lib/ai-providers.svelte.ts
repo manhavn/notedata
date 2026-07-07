@@ -1,84 +1,57 @@
 import { onAuthStateChanged } from 'firebase/auth'
-import { getLegacyAiChatSettingsFromStorage, resetAiChatSettings } from './ai-settings'
-import { migrateLegacyApiKeys } from './ai-api-keys'
 import { auth } from './firebase'
 import {
-  getAiProviderSettings,
-  migrateLegacyProviderSettings,
-  subscribeToAiProviderSettings,
-  type AiProviderSettings,
+  getAiChatSettingsStore,
+  subscribeToAiChatSettingsStore,
+  type AiChatSettingsStore,
 } from './ai-providers'
-import { bindAiProviderSettingsGetter } from './ai-settings'
+import { bindAiChatSettingsStoreGetter } from './ai-settings'
 
-const EMPTY_SETTINGS: AiProviderSettings = {
+const EMPTY_SETTINGS: AiChatSettingsStore = {
   activeProviderId: null,
   activeModelId: null,
+  activeApiKeyId: null,
   providers: {},
   models: {},
+  apiKeys: {},
 }
 
-export const aiProviderState = $state({
-  settings: { ...EMPTY_SETTINGS } as AiProviderSettings,
+export const aiChatSettingsState = $state({
+  settings: { ...EMPTY_SETTINGS } as AiChatSettingsStore,
   loaded: false,
-  migrating: false,
 })
 
 let unsubscribe: (() => void) | null = null
-let migrationStarted = false
 
-bindAiProviderSettingsGetter(() => aiProviderState.settings)
+bindAiChatSettingsStoreGetter(() => aiChatSettingsState.settings)
 
-function bindProviderSettings(userId: string | null) {
+function bindAiChatSettings(userId: string | null) {
   if (unsubscribe) {
     unsubscribe()
     unsubscribe = null
   }
 
   if (!userId) {
-    aiProviderState.settings = { ...EMPTY_SETTINGS }
-    aiProviderState.loaded = false
-    aiProviderState.migrating = false
-    migrationStarted = false
+    aiChatSettingsState.settings = { ...EMPTY_SETTINGS }
+    aiChatSettingsState.loaded = false
     return
   }
 
-  unsubscribe = subscribeToAiProviderSettings(userId, (settings) => {
-    aiProviderState.settings = settings
-    aiProviderState.loaded = true
-    void maybeMigrateLegacySettings(userId, settings)
+  unsubscribe = subscribeToAiChatSettingsStore(userId, (settings) => {
+    aiChatSettingsState.settings = settings
+    aiChatSettingsState.loaded = true
   })
 }
 
-async function maybeMigrateLegacySettings(userId: string, settings: AiProviderSettings) {
-  if (migrationStarted || Object.keys(settings.providers).length > 0) return
-  migrationStarted = true
-  aiProviderState.migrating = true
-
-  try {
-    const apiKey = migrateLegacyApiKeys()
-    const legacy = getLegacyAiChatSettingsFromStorage()
-    const hasLegacy =
-      legacy.completionsUrl.trim().length > 0 || legacy.model.trim().length > 0 || legacy.apiKey.trim()
-
-    if (!hasLegacy) return
-    await migrateLegacyProviderSettings(userId, legacy, apiKey?.id ?? null)
-    resetAiChatSettings()
-  } catch {
-    // Migration is best-effort; user can configure providers manually.
-  } finally {
-    aiProviderState.migrating = false
-  }
-}
-
 onAuthStateChanged(auth, (user) => {
-  bindProviderSettings(user?.uid ?? null)
+  bindAiChatSettings(user?.uid ?? null)
 })
 
-export function getAiProviderSettingsState(): AiProviderSettings {
-  return aiProviderState.settings
+export function getAiChatSettingsState(): AiChatSettingsStore {
+  return aiChatSettingsState.settings
 }
 
-export async function refreshAiProviderSettings(userId: string) {
-  aiProviderState.settings = await getAiProviderSettings(userId)
-  aiProviderState.loaded = true
+export async function refreshAiChatSettings(userId: string) {
+  aiChatSettingsState.settings = await getAiChatSettingsStore(userId)
+  aiChatSettingsState.loaded = true
 }

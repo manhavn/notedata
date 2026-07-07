@@ -1,12 +1,20 @@
 <script lang="ts">
   import { untrack } from 'svelte'
   import {
+    decryptApiKeyValue,
     deleteApiKey,
-    listApiKeys,
-    maskApiKey,
-    upsertApiKey,
+    encryptApiKeyValue,
+    maskStoredApiKey,
+    saveApiKey,
     type StoredApiKey,
   } from '../ai-api-keys'
+  import {
+    apiKeyState,
+    clearUnlockedApiKey,
+    getApiKeyById,
+    listApiKeys,
+    setUnlockedApiKey,
+  } from '../ai-api-keys.svelte'
   import {
     applyChatSettingsToProvider,
     cloneAiProvider,
@@ -20,29 +28,34 @@
     providerToChatSettings,
     saveAiModel,
     saveAiProvider,
+    setActiveAiApiKey,
     setActiveAiModel,
     setActiveAiProvider,
     validateAiProvider,
     type AiProvider,
     type AiProviderModel,
   } from '../ai-providers'
-  import { aiProviderState } from '../ai-providers.svelte'
+  import { aiChatSettingsState } from '../ai-providers.svelte'
   import { parseCurlToAiSettings } from '../parse-curl-ai'
   import { authState } from '../auth.svelte'
   import { confirm } from '../dialog.svelte'
   import { t } from '../i18n.svelte'
   import AiFormModal from './AiFormModal.svelte'
   import AiPickerModal, { type PickerItem } from './AiPickerModal.svelte'
+  import KeySelectModal, { type PasscodeSubmit } from './KeySelectModal.svelte'
   import PasswordInput from './PasswordInput.svelte'
 
   export type AiSettingsModal = 'provider' | 'apiKey' | 'model' | null
   type AiSettingsFormModal = AiSettingsModal
+
+  const NO_API_KEY_ID = '__none__'
 
   interface Props {
     openModal: AiSettingsModal
     activateOnSelect?: boolean
     onClose: () => void
     onChanged: () => void
+    onManageEncryptionKeys?: () => void
   }
 
   let {
@@ -50,6 +63,7 @@
     activateOnSelect = false,
     onClose,
     onChanged,
+    onManageEncryptionKeys,
   }: Props = $props()
 
   let draft = $state<AiProvider>(createDefaultProvider())
@@ -68,11 +82,17 @@
   let error = $state<string | null>(null)
   let saving = $state(false)
   let openSettingsForm = $state<AiSettingsFormModal>(null)
+  let keyModalOpen = $state(false)
+  let keyModalMode = $state<'encrypt-save' | 'decrypt-edit' | 'unlock-pick'>('encrypt-save')
+  let pendingPickApiKeyId = $state<string | null>(null)
+  let keyModalSuggestedKeyId = $state<string | null>(null)
+  let keyModalNoteKeyId = $state<string | null>(null)
 
-  const providers = $derived(listProviders(aiProviderState.settings))
-  const models = $derived(listModels(aiProviderState.settings))
-  const activeProviderId = $derived(aiProviderState.settings.activeProviderId)
-  const activeModelId = $derived(aiProviderState.settings.activeModelId)
+  const providers = $derived(listProviders(aiChatSettingsState.settings))
+  const models = $derived(listModels(aiChatSettingsState.settings))
+  const activeProviderId = $derived(aiChatSettingsState.settings.activeProviderId)
+  const activeModelId = $derived(aiChatSettingsState.settings.activeModelId)
+  const activeApiKeyId = $derived(aiChatSettingsState.settings.activeApiKeyId)
   const providerPickerItems = $derived<PickerItem[]>(
     providers.map((provider) => ({
       id: provider.id,
@@ -83,7 +103,7 @@
   )
 
   const providerFormTitle = $derived(
-    draft.id in aiProviderState.settings.providers ? draft.name : t('aiProviderAdd'),
+    draft.id in aiChatSettingsState.settings.providers ? draft.name : t('aiProviderAdd'),
   )
   const apiKeyFormTitle = $derived(
     editingApiKeyId ? t('aiApiKeyEditLabel') : t('aiApiKeyAdd'),
@@ -96,7 +116,7 @@
 
   const apiKeyPickerItems = $derived<PickerItem[]>([
     {
-      id: '',
+      id: NO_API_KEY_ID,
       label: t('aiProviderApiKeyNone'),
       meta: t('aiPickerNoApiKeyHint'),
       manageActions: false,
@@ -104,8 +124,8 @@
     ...apiKeys.map((key) => ({
       id: key.id,
       label: key.label,
-      meta: maskApiKey(key.value),
-      badge: key.id === draft.apiKeyId ? t('aiProviderActiveBadge') : undefined,
+      meta: maskStoredApiKey(key),
+      badge: key.id === activeApiKeyId ? t('aiProviderActiveBadge') : undefined,
     })),
   ])
 
@@ -120,6 +140,31 @@
 
   function refreshApiKeys() {
     apiKeys = listApiKeys()
+  }
+
+  function openEncryptSaveModal(suggestedKeyId: string | null = null) {
+    keyModalMode = 'encrypt-save'
+    keyModalSuggestedKeyId = suggestedKeyId
+    keyModalNoteKeyId = null
+    keyModalOpen = true
+  }
+
+  function openDecryptEditModal(key: StoredApiKey) {
+    keyModalMode = 'decrypt-edit'
+    keyModalSuggestedKeyId = key.keyId || null
+    keyModalNoteKeyId = key.keyId || null
+    keyModalOpen = true
+  }
+
+  function openUnlockPickModal(apiKeyId: string) {
+    const key = getApiKeyById(apiKeyId)
+    if (!key) return
+
+    keyModalMode = 'unlock-pick'
+    pendingPickApiKeyId = apiKeyId
+    keyModalSuggestedKeyId = key.keyId || null
+    keyModalNoteKeyId = key.keyId || null
+    keyModalOpen = true
   }
 
   function resetApiKeyDraft() {
@@ -141,11 +186,11 @@
   }
 
   $effect(() => {
-    if (!aiProviderState.loaded || draftReady) return
+    if (!aiChatSettingsState.loaded || draftReady) return
 
     untrack(() => {
       const active =
-        (activeProviderId && aiProviderState.settings.providers[activeProviderId]) ||
+        (activeProviderId && aiChatSettingsState.settings.providers[activeProviderId]) ||
         providers[0] ||
         null
       loadProvider(active)
@@ -199,17 +244,17 @@
       const currentSettings = providerToChatSettings(
         draft,
         '',
-        aiProviderState.settings,
-        getActiveModel(aiProviderState.settings),
+        aiChatSettingsState.settings,
+        getActiveModel(aiChatSettingsState.settings),
       )
       const result = parseCurlToAiSettings(curlInput, currentSettings)
-      const applied = applyChatSettingsToProvider(draft, result.settings, aiProviderState.settings)
+      const applied = applyChatSettingsToProvider(draft, result.settings, aiChatSettingsState.settings)
       draft = applied.provider
 
       const userId = authState.user?.uid
       if (userId) {
         for (const [id, model] of Object.entries(applied.models)) {
-          if (!(id in aiProviderState.settings.models)) {
+          if (!(id in aiChatSettingsState.settings.models)) {
             void saveAiModel(userId, model)
           }
         }
@@ -245,7 +290,7 @@
       return false
     }
 
-    const validationError = mapValidationError(validateAiProvider(draft, aiProviderState.settings))
+    const validationError = mapValidationError(validateAiProvider(draft, aiChatSettingsState.settings))
     if (validationError) {
       error = validationError
       return false
@@ -259,12 +304,12 @@
       await saveAiProvider(userId, draft)
 
       const shouldActivate =
-        makeActive || !activeProviderId || Object.keys(aiProviderState.settings.providers).length === 0
+        makeActive || !activeProviderId || Object.keys(aiChatSettingsState.settings.providers).length === 0
       if (shouldActivate) {
         await setActiveAiProvider(userId, draft.id)
       }
 
-      saveNotice = draft.apiKeyId ? t('aiProviderSaved') : t('aiSettingsSavedWithoutKey')
+      saveNotice = activeApiKeyId ? t('aiProviderSaved') : t('aiSettingsSavedWithoutKey')
       onChanged()
       closeSettingsForm()
       return true
@@ -285,9 +330,9 @@
 
   async function removeProviderById(providerId: string) {
     const userId = authState.user?.uid
-    if (!userId || !(providerId in aiProviderState.settings.providers)) return
+    if (!userId || !(providerId in aiChatSettingsState.settings.providers)) return
 
-    const provider = aiProviderState.settings.providers[providerId]
+    const provider = aiChatSettingsState.settings.providers[providerId]
     const accepted = await confirm({
       title: t('aiProviderDeleteTitle'),
       message: t('aiProviderDeleteMessage', { name: provider.name }),
@@ -301,9 +346,9 @@
 
     try {
       await deleteAiProvider(userId, providerId)
-      const remaining = listProviders(aiProviderState.settings)
+      const remaining = listProviders(aiChatSettingsState.settings)
       const next =
-        (activeProviderId && aiProviderState.settings.providers[activeProviderId]) ||
+        (activeProviderId && aiChatSettingsState.settings.providers[activeProviderId]) ||
         remaining[0] ||
         null
       loadProvider(next)
@@ -320,7 +365,7 @@
   }
 
   async function handleProviderPick(providerId: string) {
-    const provider = aiProviderState.settings.providers[providerId]
+    const provider = aiChatSettingsState.settings.providers[providerId]
     if (!provider) return
 
     loadProvider(provider)
@@ -343,7 +388,7 @@
   }
 
   function handleProviderEdit(providerId: string) {
-    const provider = aiProviderState.settings.providers[providerId]
+    const provider = aiChatSettingsState.settings.providers[providerId]
     if (!provider) return
     loadProvider(provider)
     saveNotice = null
@@ -351,25 +396,39 @@
     openSettingsForm = 'provider'
   }
 
+  async function applyPickedApiKey(apiKeyId: string | null) {
+    const userId = authState.user?.uid
+    if (!userId) return
+
+    saving = true
+    error = null
+
+    try {
+      await setActiveAiApiKey(userId, apiKeyId)
+      onChanged()
+      if (activateOnSelect) {
+        onClose()
+      }
+    } catch {
+      error = t('toastOperationFailed')
+    } finally {
+      saving = false
+    }
+  }
+
   async function handleApiKeyPick(apiKeyId: string) {
-    draft = { ...draft, apiKeyId: apiKeyId || null }
+    if (apiKeyId === NO_API_KEY_ID) {
+      clearUnlockedApiKey()
+      await applyPickedApiKey(null)
+      return
+    }
 
     if (activateOnSelect) {
-      const userId = authState.user?.uid
-      const provider = draft
-      if (userId && provider.id in aiProviderState.settings.providers) {
-        saving = true
-        try {
-          await saveAiProvider(userId, provider)
-          onChanged()
-          onClose()
-        } catch {
-          error = t('toastOperationFailed')
-        } finally {
-          saving = false
-        }
-      }
+      openUnlockPickModal(apiKeyId)
+      return
     }
+
+    await applyPickedApiKey(apiKeyId)
   }
 
   function openAddApiKey() {
@@ -382,16 +441,18 @@
   function handleApiKeyEdit(apiKeyId: string) {
     const key = apiKeys.find((item) => item.id === apiKeyId)
     if (!key) return
+
     editingApiKeyId = key.id
     apiKeyLabelDraft = key.label
-    apiKeyValueDraft = key.value
+    apiKeyValueDraft = ''
     saveNotice = null
     error = null
-    openSettingsForm = 'apiKey'
+
+    openDecryptEditModal(key)
   }
 
   async function handleModelPick(modelId: string) {
-    if (!(modelId in aiProviderState.settings.models)) return
+    if (!(modelId in aiChatSettingsState.settings.models)) return
 
     const userId = authState.user?.uid
     if (!userId) return
@@ -420,7 +481,7 @@
   }
 
   function handleModelEdit(modelId: string) {
-    const model = aiProviderState.settings.models[modelId]
+    const model = aiChatSettingsState.settings.models[modelId]
     if (!model) return
     editingModelId = model.id
     modelLabelDraft = model.label
@@ -430,35 +491,107 @@
     openSettingsForm = 'model'
   }
 
-  async function saveApiKeyEntry() {
+  function saveApiKeyEntry() {
+    error = null
+
+    const label = apiKeyLabelDraft.trim()
+    const value = apiKeyValueDraft.trim()
+    if (!label) {
+      error = t('aiApiKeyLabelRequired')
+      return
+    }
+    if (!value) {
+      error = t('aiApiKeyRequired')
+      return
+    }
+
+    const existing = editingApiKeyId ? getApiKeyById(editingApiKeyId) : null
+    openEncryptSaveModal(existing?.keyId ?? null)
+  }
+
+  async function persistEncryptedApiKey(payload: PasscodeSubmit) {
+    const userId = authState.user?.uid
+    if (!userId) {
+      error = t('toastOperationFailed')
+      return
+    }
+
+    const label = apiKeyLabelDraft.trim()
+    const value = apiKeyValueDraft.trim()
+    if (!label || !value) return
+
+    saving = true
     error = null
 
     try {
-      const saved = upsertApiKey({
-        id: editingApiKeyId ?? undefined,
-        label: apiKeyLabelDraft,
-        value: apiKeyValueDraft,
+      const encryptedValue = await encryptApiKeyValue(value, payload.code, payload.keyId)
+      const id = editingApiKeyId ?? crypto.randomUUID()
+      const saved = await saveApiKey(userId, {
+        id,
+        label,
+        value: encryptedValue,
+        keyId: payload.keyId,
+        encrypted: true,
+        updatedAt: Date.now(),
       })
+
       refreshApiKeys()
-      draft = { ...draft, apiKeyId: saved.id }
       resetApiKeyDraft()
 
-      const userId = authState.user?.uid
-      if (userId && draft.id in aiProviderState.settings.providers) {
-        saving = true
-        try {
-          await saveAiProvider(userId, draft)
-        } finally {
-          saving = false
-        }
+      if (!aiChatSettingsState.settings.activeApiKeyId || editingApiKeyId === aiChatSettingsState.settings.activeApiKeyId) {
+        await setActiveAiApiKey(userId, saved.id)
       }
 
       saveNotice = t('aiApiKeyEntrySaved')
       onChanged()
       closeSettingsForm()
     } catch (err) {
-      const code = err instanceof Error ? err.message : 'AI_API_KEY_VALUE_REQUIRED'
-      error = mapValidationError(code)
+      const message = err instanceof Error ? err.message : ''
+      if (message === 'AI_API_KEY_VALUE_REQUIRED') {
+        error = t('aiApiKeyRequired')
+      } else {
+        error = t('toastOperationFailed')
+      }
+    } finally {
+      saving = false
+    }
+  }
+
+  async function handleKeyModalSuccess(payload: PasscodeSubmit) {
+    keyModalOpen = false
+
+    if (keyModalMode === 'encrypt-save') {
+      await persistEncryptedApiKey(payload)
+      return
+    }
+
+    if (keyModalMode === 'decrypt-edit') {
+      const key = editingApiKeyId ? getApiKeyById(editingApiKeyId) : null
+      if (!key) return
+
+      try {
+        apiKeyValueDraft = await decryptApiKeyValue(key, payload.code)
+        openSettingsForm = 'apiKey'
+        error = null
+      } catch {
+        error = t('wrongPasscode')
+      }
+      return
+    }
+
+    if (keyModalMode === 'unlock-pick' && pendingPickApiKeyId) {
+      const key = getApiKeyById(pendingPickApiKeyId)
+      if (!key) return
+
+      try {
+        const plainValue = await decryptApiKeyValue(key, payload.code)
+        setUnlockedApiKey(pendingPickApiKeyId, plainValue)
+        await applyPickedApiKey(pendingPickApiKeyId)
+        pendingPickApiKeyId = null
+        error = null
+      } catch {
+        error = t('wrongPasscode')
+      }
     }
   }
 
@@ -471,10 +604,16 @@
     })
     if (!accepted) return
 
-    deleteApiKey(key.id)
+    const userId = authState.user?.uid
+    if (!userId) return
+
+    await deleteApiKey(userId, key.id)
+    if (apiKeyState.unlockedApiKeyId === key.id) {
+      clearUnlockedApiKey()
+    }
     refreshApiKeys()
-    if (draft.apiKeyId === key.id) {
-      draft = { ...draft, apiKeyId: null }
+    if (aiChatSettingsState.settings.activeApiKeyId === key.id) {
+      await setActiveAiApiKey(userId, null)
     }
     if (editingApiKeyId === key.id) {
       resetApiKeyDraft()
@@ -511,7 +650,7 @@
     try {
       await saveAiModel(userId, model)
 
-      if (!aiProviderState.settings.activeModelId) {
+      if (!aiChatSettingsState.settings.activeModelId) {
         await setActiveAiModel(userId, modelId)
       }
 
@@ -559,8 +698,31 @@
     }
   }
 
-  refreshApiKeys()
+  $effect(() => {
+    if (aiChatSettingsState.loaded) {
+      refreshApiKeys()
+    }
+  })
 </script>
+
+<KeySelectModal
+  open={keyModalOpen}
+  title={keyModalMode === 'encrypt-save'
+    ? t('selectKeyToEncryptApiKey')
+    : t('selectKeyToUnlockApiKey')}
+  subtitle={keyModalMode === 'encrypt-save'
+    ? t('aiApiKeyEncryptHint')
+    : t('aiApiKeyUnlockHint')}
+  suggestedKeyId={keyModalSuggestedKeyId}
+  noteKeyId={keyModalNoteKeyId}
+  customPasscodeConfirm={keyModalMode === 'encrypt-save'}
+  onClose={() => {
+    keyModalOpen = false
+    pendingPickApiKeyId = null
+  }}
+  onSuccess={handleKeyModalSuccess}
+  onManageKeys={onManageEncryptionKeys}
+/>
 
 {#if openModal === 'provider'}
   <AiPickerModal
@@ -585,7 +747,7 @@
     title={t('aiPickerManageApiKeys')}
     subtitle={t('aiPickerManageApiKeysHint')}
     items={apiKeyPickerItems}
-    selectedId={draft.apiKeyId ?? ''}
+    selectedId={activeApiKeyId ?? NO_API_KEY_ID}
     emptyLabel={t('aiApiKeyVaultEmpty')}
     addLabel={t('aiApiKeyAdd')}
     onClose={onClose}
@@ -612,7 +774,7 @@
     onAdd={openAddModel}
     onEdit={handleModelEdit}
     onDelete={async (id) => {
-      const model = aiProviderState.settings.models[id]
+      const model = aiChatSettingsState.settings.models[id]
       if (model) await removeModelEntry(model)
     }}
   />

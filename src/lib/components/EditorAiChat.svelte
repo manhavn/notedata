@@ -1,8 +1,15 @@
 <script lang="ts">
   import { chatCompletion, type ChatMessage } from '../ai-chat'
-  import { getApiKeyById } from '../ai-api-keys'
+  import { decryptApiKeyValue } from '../ai-api-keys'
+  import {
+    apiKeyState,
+    clearUnlockedApiKey,
+    getApiKeyById,
+    isApiKeyUnlocked,
+    setUnlockedApiKey,
+  } from '../ai-api-keys.svelte'
   import { getActiveModel, getActiveProvider } from '../ai-providers'
-  import { aiProviderState } from '../ai-providers.svelte'
+  import { aiChatSettingsState } from '../ai-providers.svelte'
   import { aiFeatures } from '../ai-features'
   import { openAccountSettings } from '../account-modal.svelte'
   import {
@@ -15,15 +22,23 @@
   import { toastError, toastSuccess } from '../toast.svelte'
   import { isUserAiChatEnabled } from '../user-settings.svelte'
   import EditorAiSettings, { type AiSettingsModal } from './EditorAiSettings.svelte'
+  import KeySelectModal, { type PasscodeSubmit } from './KeySelectModal.svelte'
 
   interface Props {
     noteTitle: string
     noteContent: string
     disabled?: boolean
     onInsert: (text: string) => void
+    onManageEncryptionKeys?: () => void
   }
 
-  let { noteTitle, noteContent, disabled = false, onInsert }: Props = $props()
+  let {
+    noteTitle,
+    noteContent,
+    disabled = false,
+    onInsert,
+    onManageEncryptionKeys,
+  }: Props = $props()
 
   interface UiMessage {
     id: string
@@ -42,17 +57,29 @@
   let abortController = $state<AbortController | null>(null)
   let messagesEl = $state<HTMLDivElement | undefined>(undefined)
   let toolbarTick = $state(0)
+  let unlockModalOpen = $state(false)
+  let pendingSendPrompt = $state<string | null>(null)
+  let unlockSuggestedKeyId = $state<string | null>(null)
+  let unlockNoteKeyId = $state<string | null>(null)
 
-  const activeProvider = $derived(getActiveProvider(aiProviderState.settings))
-  const activeModel = $derived(getActiveModel(aiProviderState.settings))
+  const activeProvider = $derived(getActiveProvider(aiChatSettingsState.settings))
+  const activeModel = $derived(getActiveModel(aiChatSettingsState.settings))
+  const activeApiKeyId = $derived(aiChatSettingsState.settings.activeApiKeyId)
+
+  $effect(() => {
+    const apiKeyId = activeApiKeyId ?? null
+    if (apiKeyState.unlockedApiKeyId && apiKeyState.unlockedApiKeyId !== apiKeyId) {
+      clearUnlockedApiKey()
+      toolbarTick += 1
+    }
+  })
 
   const providerButtonLabel = $derived(activeProvider?.name?.trim() || t('aiProviderSelect'))
   const modelButtonLabel = $derived(activeModel?.label?.trim() || t('aiProviderModelsSection'))
   const apiKeyButtonLabel = $derived.by(() => {
     void toolbarTick
-    if (!activeProvider) return t('aiApiKeyVaultSection')
-    if (!activeProvider.apiKeyId) return t('aiApiKeyNoneLabel')
-    const key = getApiKeyById(activeProvider.apiKeyId)
+    if (!activeApiKeyId) return t('aiApiKeyNoneLabel')
+    const key = getApiKeyById(activeApiKeyId)
     return key?.label?.trim() || t('aiApiKeyNoneLabel')
   })
 
@@ -92,9 +119,58 @@
     openAccountSettings('aiChat')
   }
 
+  function requiresApiKeyUnlock(): boolean {
+    return Boolean(activeApiKeyId) && !isApiKeyUnlocked(activeApiKeyId)
+  }
+
+  function openUnlockModalForActiveKey(prompt: string | null = null) {
+    const apiKeyId = activeApiKeyId
+    if (!apiKeyId) return
+
+    const key = getApiKeyById(apiKeyId)
+    if (!key) return
+
+    pendingSendPrompt = prompt
+    unlockSuggestedKeyId = key.keyId || null
+    unlockNoteKeyId = key.keyId || null
+    unlockModalOpen = true
+  }
+
+  async function handleUnlockSuccess(payload: PasscodeSubmit) {
+    unlockModalOpen = false
+    const apiKeyId = activeApiKeyId
+    if (!apiKeyId) return
+
+    const key = getApiKeyById(apiKeyId)
+    if (!key) return
+
+    try {
+      const plainValue = await decryptApiKeyValue(key, payload.code)
+      setUnlockedApiKey(apiKeyId, plainValue)
+      error = null
+      toolbarTick += 1
+
+      const queuedPrompt = pendingSendPrompt
+      pendingSendPrompt = null
+      if (queuedPrompt) {
+        input = queuedPrompt
+        await sendMessage()
+      }
+    } catch {
+      error = t('wrongPasscode')
+      pendingSendPrompt = null
+    }
+  }
+
   async function sendMessage() {
     const prompt = input.trim()
     if (!prompt || loading || disabled || !configured) return
+
+    if (requiresApiKeyUnlock()) {
+      openUnlockModalForActiveKey(prompt)
+      input = ''
+      return
+    }
 
     const userMessage: UiMessage = {
       id: crypto.randomUUID(),
@@ -152,6 +228,8 @@
     messages = []
     error = null
     input = ''
+    clearUnlockedApiKey()
+    toolbarTick += 1
   }
 
   function handleKeydown(event: KeyboardEvent) {
@@ -189,8 +267,12 @@
   }
 
   function toggleOpen() {
+    const wasOpen = open
     open = !open
-    if (open) {
+    if (wasOpen) {
+      clearUnlockedApiKey()
+      toolbarTick += 1
+    } else {
       refreshConfiguredState()
       queueMicrotask(scrollToBottom)
     }
@@ -383,6 +465,21 @@
   activateOnSelect={true}
   onClose={closeModal}
   onChanged={handleSettingsChanged}
+  onManageEncryptionKeys={onManageEncryptionKeys}
+/>
+
+<KeySelectModal
+  open={unlockModalOpen}
+  title={t('selectKeyToUnlockApiKey')}
+  subtitle={t('aiApiKeyUnlockHint')}
+  suggestedKeyId={unlockSuggestedKeyId}
+  noteKeyId={unlockNoteKeyId}
+  onClose={() => {
+    unlockModalOpen = false
+    pendingSendPrompt = null
+  }}
+  onSuccess={handleUnlockSuccess}
+  onManageKeys={onManageEncryptionKeys}
 />
 
 <style>

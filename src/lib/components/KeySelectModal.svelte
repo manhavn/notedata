@@ -3,6 +3,7 @@
   import { getEncryptionKeys, maskKeyCode, verifyEncryptionKeyCode } from '../encryption-keys'
   import { t } from '../i18n.svelte'
   import { PAGE_SIZE } from '../pagination'
+  import { portal } from '../portal'
   import type { EncryptionKey } from '../types'
   import PasscodePad from './PasscodePad.svelte'
 
@@ -19,6 +20,7 @@
     noteKeyId?: string | null
     allowCustomPasscode?: boolean
     customPasscodeConfirm?: boolean
+    verifySavedPasscode?: boolean
     onClose: () => void
     onSuccess: (payload: PasscodeSubmit) => void
     onManageKeys?: () => void
@@ -32,6 +34,7 @@
     noteKeyId = null,
     allowCustomPasscode = true,
     customPasscodeConfirm = false,
+    verifySavedPasscode = false,
     onClose,
     onSuccess,
     onManageKeys,
@@ -120,7 +123,7 @@
       : (noteKeyId ?? selectedKey.id)
     if (!keyId) return
 
-    if (customPasscodeConfirm) {
+    if (customPasscodeConfirm || verifySavedPasscode) {
       const valid = await verifyEncryptionKeyCode(selectedKey.id, code)
       if (!valid) {
         error = t('wrongPasscode')
@@ -203,6 +206,7 @@
 </script>
 
 {#if open}
+  <div class="key-select-layer" use:portal>
   <button
     type="button"
     class="overlay"
@@ -342,15 +346,21 @@
       </div>
     {/if}
   </div>
+  </div>
 {/if}
 
 <style>
+  .key-select-layer {
+    position: relative;
+    z-index: 54;
+  }
+
   .overlay {
     position: fixed;
     inset: 0;
     border: none;
     background: var(--overlay);
-    z-index: 50;
+    z-index: 54;
     cursor: pointer;
     pointer-events: none;
   }
@@ -372,7 +382,7 @@
     border-radius: 20px;
     background: var(--surface);
     box-shadow: var(--shadow-lg);
-    z-index: 51;
+    z-index: 55;
   }
 
   .modal-header {

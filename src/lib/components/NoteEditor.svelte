@@ -609,6 +609,7 @@
           noteTitle={title}
           noteContent={plainContent}
           onInsert={insertAiContent}
+          onManageEncryptionKeys={onManageKeys}
         />
       {/await}
     {/if}
@@ -1201,7 +1202,7 @@
 
   .key-modal-layer {
     position: relative;
-    z-index: 50;
+    z-index: 54;
   }
 
   .save-plain-floating {
@@ -1209,7 +1210,7 @@
     left: 50%;
     bottom: 1.5rem;
     transform: translateX(-50%);
-    z-index: 52;
+    z-index: 56;
     border: 1px solid var(--border);
     border-radius: 999px;
     padding: 0.65rem 1rem;

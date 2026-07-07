@@ -1,9 +1,9 @@
-import { getApiKeyValue } from './ai-api-keys'
+import { getUnlockedApiKeyValue } from './ai-api-keys.svelte'
 import {
   getActiveModel,
   getActiveProvider,
   providerToChatSettings,
-  type AiProviderSettings,
+  type AiChatSettingsStore,
 } from './ai-providers'
 
 export interface AiChatSettings {
@@ -23,26 +23,19 @@ export interface AiChatSettings {
   extraBody: string
 }
 
-type LegacyAiChatSettings = Partial<AiChatSettings> & {
-  providerName?: string
-  baseUrl?: string
-  completionsPath?: string
-}
-
-const STORAGE_KEY = 'notedata-ai-chat-settings'
-const LEGACY_API_KEYS = ['notedata-legacy-api-key', 'notedata-poolside-api-key']
-
-const EMPTY_PROVIDER_SETTINGS: AiProviderSettings = {
+const EMPTY_AI_CHAT_SETTINGS_STORE: AiChatSettingsStore = {
   activeProviderId: null,
   activeModelId: null,
+  activeApiKeyId: null,
   providers: {},
   models: {},
+  apiKeys: {},
 }
 
-let getProviderSettings: () => AiProviderSettings = () => EMPTY_PROVIDER_SETTINGS
+let getAiChatSettingsStore: () => AiChatSettingsStore = () => EMPTY_AI_CHAT_SETTINGS_STORE
 
-export function bindAiProviderSettingsGetter(getter: () => AiProviderSettings) {
-  getProviderSettings = getter
+export function bindAiChatSettingsStoreGetter(getter: () => AiChatSettingsStore) {
+  getAiChatSettingsStore = getter
 }
 
 export const DEFAULT_AI_SETTINGS: AiChatSettings = {
@@ -71,128 +64,26 @@ export const DEFAULT_AI_SETTINGS: AiChatSettings = {
   extraBody: '{}',
 }
 
-function parseOptionalNumber(value: unknown): number | null {
-  if (value === null || value === undefined || value === '') return null
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : null
-}
-
-function resolveCompletionsUrl(raw: LegacyAiChatSettings): string {
-  if (typeof raw.completionsUrl === 'string' && raw.completionsUrl.trim()) {
-    return raw.completionsUrl.trim()
-  }
-
-  const baseUrl = typeof raw.baseUrl === 'string' ? raw.baseUrl.trim().replace(/\/+$/, '') : ''
-  const completionsPath =
-    typeof raw.completionsPath === 'string' ? raw.completionsPath.trim() : ''
-
-  if (!baseUrl && !completionsPath) return ''
-  if (baseUrl && completionsPath) {
-    const path = completionsPath.startsWith('/') ? completionsPath : `/${completionsPath}`
-    return `${baseUrl}${path}`
-  }
-
-  return baseUrl || completionsPath
-}
-
-function normalizeLegacySettings(raw: LegacyAiChatSettings): AiChatSettings {
-  return {
-    completionsUrl: resolveCompletionsUrl(raw),
-    apiKey: typeof raw.apiKey === 'string' ? raw.apiKey.trim() : '',
-    authHeaderName:
-      typeof raw.authHeaderName === 'string' && raw.authHeaderName.trim()
-        ? raw.authHeaderName.trim()
-        : DEFAULT_AI_SETTINGS.authHeaderName,
-    authHeaderPrefix:
-      typeof raw.authHeaderPrefix === 'string'
-        ? raw.authHeaderPrefix
-        : DEFAULT_AI_SETTINGS.authHeaderPrefix,
-    model: typeof raw.model === 'string' ? raw.model.trim() : DEFAULT_AI_SETTINGS.model,
-    systemPrompt:
-      typeof raw.systemPrompt === 'string' && raw.systemPrompt.trim()
-        ? raw.systemPrompt
-        : DEFAULT_AI_SETTINGS.systemPrompt,
-    temperature: parseOptionalNumber(raw.temperature),
-    maxTokens: parseOptionalNumber(raw.maxTokens),
-    topP: parseOptionalNumber(raw.topP),
-    frequencyPenalty: parseOptionalNumber(raw.frequencyPenalty),
-    presencePenalty: parseOptionalNumber(raw.presencePenalty),
-    stream: Boolean(raw.stream),
-    extraHeaders:
-      typeof raw.extraHeaders === 'string' && raw.extraHeaders.trim()
-        ? raw.extraHeaders
-        : DEFAULT_AI_SETTINGS.extraHeaders,
-    extraBody:
-      typeof raw.extraBody === 'string' && raw.extraBody.trim()
-        ? raw.extraBody
-        : DEFAULT_AI_SETTINGS.extraBody,
-  }
-}
-
-function migrateLegacyApiKey(settings: AiChatSettings): AiChatSettings {
-  try {
-    if (settings.apiKey) return settings
-
-    for (const storageKey of LEGACY_API_KEYS) {
-      const legacy = localStorage.getItem(storageKey)?.trim()
-      if (!legacy) continue
-
-      localStorage.removeItem(storageKey)
-      return { ...settings, apiKey: legacy }
-    }
-
-    return settings
-  } catch {
-    return settings
-  }
-}
-
-function readLegacySettings(): AiChatSettings {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) {
-      return migrateLegacyApiKey(DEFAULT_AI_SETTINGS)
-    }
-
-    const parsed = JSON.parse(raw) as LegacyAiChatSettings
-    return migrateLegacyApiKey(normalizeLegacySettings(parsed))
-  } catch {
-    return migrateLegacyApiKey(DEFAULT_AI_SETTINGS)
-  }
-}
-
-export function getLegacyAiChatSettingsFromStorage(): AiChatSettings {
-  return readLegacySettings()
-}
-
 export function getAiChatSettings(): AiChatSettings {
-  const providerSettings = getProviderSettings()
-  const provider = getActiveProvider(providerSettings)
+  const settings = getAiChatSettingsStore()
+  const provider = getActiveProvider(settings)
 
   if (!provider) {
-    return readLegacySettings()
+    return { ...DEFAULT_AI_SETTINGS }
   }
 
-  const apiKey = getApiKeyValue(provider.apiKeyId)
-  return providerToChatSettings(provider, apiKey, providerSettings, getActiveModel(providerSettings))
-}
-
-export function resetAiChatSettings(): AiChatSettings {
-  localStorage.removeItem(STORAGE_KEY)
-  for (const storageKey of LEGACY_API_KEYS) {
-    localStorage.removeItem(storageKey)
-  }
-  return { ...DEFAULT_AI_SETTINGS }
+  const apiKey = getUnlockedApiKeyValue(settings.activeApiKeyId)
+  return providerToChatSettings(provider, apiKey, settings, getActiveModel(settings))
 }
 
 export function hasAiChatSettingsSaved(): boolean {
-  const providerSettings = getProviderSettings()
-  const provider = getActiveProvider(providerSettings)
+  const settings = getAiChatSettingsStore()
+  const provider = getActiveProvider(settings)
   if (!provider) return false
   return Boolean(
     provider.completionsUrl.trim() &&
-      providerSettings.activeModelId &&
-      providerSettings.models[providerSettings.activeModelId],
+      settings.activeModelId &&
+      settings.models[settings.activeModelId],
   )
 }
 
