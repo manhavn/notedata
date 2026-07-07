@@ -1,5 +1,10 @@
 <script lang="ts">
   import { chatCompletion, type ChatMessage } from '../ai-chat'
+  import {
+    clearDraftAiChat,
+    draftAiChatStore,
+    type AiChatUiMessage,
+  } from '../draft-ai-chat'
   import { decryptApiKeyValue } from '../ai-api-keys'
   import {
     apiKeyState,
@@ -25,6 +30,7 @@
   import KeySelectModal, { type PasscodeSubmit } from './KeySelectModal.svelte'
 
   interface Props {
+    noteId: string
     noteTitle: string
     noteContent: string
     disabled?: boolean
@@ -33,6 +39,7 @@
   }
 
   let {
+    noteId,
     noteTitle,
     noteContent,
     disabled = false,
@@ -40,18 +47,13 @@
     onManageEncryptionKeys,
   }: Props = $props()
 
-  interface UiMessage {
-    id: string
-    role: 'user' | 'assistant'
-    content: string
-  }
-
   let open = $state(false)
   let openModal = $state<AiSettingsModal>(null)
   let configured = $state(isAiChatConfigured())
   let settingsSaved = $state(hasAiChatSettingsSaved())
   let input = $state('')
-  let messages = $state<UiMessage[]>([])
+  let messages = $state<AiChatUiMessage[]>([])
+  let lastLoadedNoteId = $state<string | null>(null)
   let loading = $state(false)
   let error = $state<string | null>(null)
   let abortController = $state<AbortController | null>(null)
@@ -72,6 +74,69 @@
       clearUnlockedApiKey()
       toolbarTick += 1
     }
+  })
+
+  $effect(() => {
+    if (noteId === lastLoadedNoteId) return
+
+    if (loading) stopGeneration()
+    error = null
+
+    const draft = $draftAiChatStore[noteId]
+    if (draft) {
+      messages = [...draft.messages]
+      input = draft.input
+      open = draft.open
+    } else {
+      messages = []
+      input = ''
+      open = false
+    }
+
+    lastLoadedNoteId = noteId
+    if (open) queueMicrotask(scrollToBottom)
+  })
+
+  $effect(() => {
+    if (noteId !== lastLoadedNoteId) return
+
+    const draft = $draftAiChatStore[noteId]
+    const isEmpty = messages.length === 0 && !input.trim() && !open
+
+    if (isEmpty) {
+      if (draft) clearDraftAiChat(noteId)
+      return
+    }
+
+    const next = {
+      messages,
+      input,
+      open,
+    }
+
+    if (
+      draft &&
+      draft.open === next.open &&
+      draft.input === next.input &&
+      draft.messages.length === next.messages.length &&
+      draft.messages.every(
+        (message, index) =>
+          message.id === next.messages[index]?.id &&
+          message.role === next.messages[index]?.role &&
+          message.content === next.messages[index]?.content,
+      )
+    ) {
+      return
+    }
+
+    draftAiChatStore.update((drafts) => ({
+      ...drafts,
+      [noteId]: {
+        messages: [...messages],
+        input,
+        open,
+      },
+    }))
   })
 
   const providerButtonLabel = $derived(activeProvider?.name?.trim() || t('aiProviderSelect'))
@@ -172,7 +237,7 @@
       return
     }
 
-    const userMessage: UiMessage = {
+    const userMessage: AiChatUiMessage = {
       id: crypto.randomUUID(),
       role: 'user',
       content: prompt,
@@ -262,6 +327,7 @@
     messages = []
     error = null
     input = ''
+    clearDraftAiChat(noteId)
     clearUnlockedApiKey()
     toolbarTick += 1
   }
@@ -273,7 +339,7 @@
     }
   }
 
-  function formatChatMessage(message: UiMessage): string {
+  function formatChatMessage(message: AiChatUiMessage): string {
     const roleLabel = message.role === 'user' ? t('aiChatYou') : t('aiChatAssistant')
     return `${roleLabel}:\n${message.content.trim()}`
   }

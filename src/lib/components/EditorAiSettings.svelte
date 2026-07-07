@@ -77,7 +77,6 @@
   let editingModelId = $state<string | null>(null)
   let curlInput = $state('')
   let showCurlImport = $state(false)
-  let importNotice = $state<string | null>(null)
   let saveNotice = $state<string | null>(null)
   let error = $state<string | null>(null)
   let saving = $state(false)
@@ -237,7 +236,6 @@
   }
 
   function importFromCurl() {
-    importNotice = null
     error = null
 
     try {
@@ -257,11 +255,6 @@
         openSettingsForm = 'apiKey'
       }
 
-      const notices = [t('aiSettingsCurlImported')]
-      if (result.warnings.includes('AI_SETTINGS_CURL_ENV_KEY')) {
-        notices.push(t('aiSettingsCurlEnvKey'))
-      }
-      importNotice = notices.join(' ')
       curlInput = ''
       showCurlImport = false
     } catch (err) {
@@ -798,8 +791,6 @@
             {t('aiSettingsCurlApply')}
           </button>
         {/if}
-        {#if importNotice}<p class="notice success">{importNotice}</p>{/if}
-
         <label class="field">
           <span>{t('aiSettingsCompletionsUrl')}</span>
           <input type="url" bind:value={draft.completionsUrl} />
@@ -1038,11 +1029,6 @@
     margin: 0;
     font-size: 0.78rem;
     line-height: 1.45;
-  }
-
-  .notice.success {
-    color: var(--success);
-    font-weight: 600;
   }
 
   .notice.error {

@@ -606,6 +606,7 @@
     {#if !aiFeatures.disableAiChat && isUserAiChatEnabled() && !readonly && !showLockedState}
       {#await import('./EditorAiChat.svelte') then { default: EditorAiChat }}
         <EditorAiChat
+          noteId={note.id}
           noteTitle={title}
           noteContent={plainContent}
           onInsert={insertAiContent}

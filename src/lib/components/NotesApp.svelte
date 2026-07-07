@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte'
   import { authState, getUserDisplayLabel } from '../auth.svelte'
+  import { clearDraftAiChat, clearDraftAiChats } from '../draft-ai-chat'
   import { clearDraftContent, clearDraftContents } from '../draft-content'
   import { downloadNotesJson, readNotesFromFile } from '../note-io'
   import {
@@ -286,6 +287,7 @@
     try {
       await moveNoteToTrash(userId, note)
       clearDraftContent(id)
+      clearDraftAiChat(id)
       checkedIds.delete(id)
       checkedIds = new Set(checkedIds)
       if (selectedId === id) {
@@ -310,7 +312,9 @@
 
     try {
       await moveNotesToTrash(userId, selectedNotes)
-      clearDraftContents(selectedNotes.map((note) => note.id))
+      const trashedIds = selectedNotes.map((note) => note.id)
+      clearDraftContents(trashedIds)
+      clearDraftAiChats(trashedIds)
       clearSelection()
       if (selectedId && !notes.some((n) => n.id === selectedId)) {
         selectedId = notes[0]?.id ?? null
