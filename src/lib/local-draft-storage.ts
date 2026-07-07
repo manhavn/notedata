@@ -71,7 +71,7 @@ export function readChatDraftFromLocalStorage(noteId: string): NoteAiChatDraft |
   const draft = readJson<NoteAiChatDraft>(chatLocalStorageKey(noteId))
   if (!draft || !Array.isArray(draft.messages)) return undefined
 
-  return {
+  const normalized = {
     messages: draft.messages
       .filter(
         (message): message is NoteAiChatDraft['messages'][number] =>
@@ -86,6 +86,16 @@ export function readChatDraftFromLocalStorage(noteId: string): NoteAiChatDraft |
     loading: false,
     error: null,
   }
+
+  if (
+    normalized.messages.length === 0 &&
+    !normalized.input.trim()
+  ) {
+    removeChatDraftFromLocalStorage(noteId)
+    return undefined
+  }
+
+  return normalized
 }
 
 export function writeChatDraftToLocalStorage(noteId: string, draft: NoteAiChatDraft): void {

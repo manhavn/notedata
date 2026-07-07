@@ -82,6 +82,10 @@ function shouldClearDraft(draft: NoteAiChatDraft): boolean {
   )
 }
 
+function hasPersistableChatContent(draft: NoteAiChatDraft): boolean {
+  return draft.messages.length > 0 || !!draft.input.trim() || draft.loading
+}
+
 function persistDraftIfNeeded(noteId: string, draft: NoteAiChatDraft) {
   if (shouldClearDraft(draft)) {
     draftAiChatStore.update((drafts) => {
@@ -89,6 +93,11 @@ function persistDraftIfNeeded(noteId: string, draft: NoteAiChatDraft) {
       const { [noteId]: _removed, ...rest } = drafts
       return rest
     })
+    removeChatDraftFromLocalStorage(noteId)
+    return
+  }
+
+  if (!hasPersistableChatContent(draft)) {
     removeChatDraftFromLocalStorage(noteId)
     return
   }
@@ -321,7 +330,12 @@ export function getDraftAiChat(noteId: string): NoteAiChatDraft | undefined {
 }
 
 export function countAiChatDrafts(): number {
-  const noteIds = new Set(Object.keys(get(draftAiChatStore)))
+  const noteIds = new Set<string>()
+  for (const [noteId, draft] of Object.entries(get(draftAiChatStore))) {
+    if (hasPersistableChatContent(normalizeDraft(draft))) {
+      noteIds.add(noteId)
+    }
+  }
   for (const key of listLocalStorageKeysByPrefix(CHAT_DRAFT_LOCAL_PREFIX)) {
     noteIds.add(key.slice(CHAT_DRAFT_LOCAL_PREFIX.length))
   }
