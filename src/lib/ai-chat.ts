@@ -162,9 +162,13 @@ async function readErrorMessage(response: Response): Promise<string> {
 
 export async function chatCompletion(
   messages: ChatMessage[],
-  options?: { signal?: AbortSignal; onChunk?: (content: string) => void },
+  options?: {
+    signal?: AbortSignal
+    onChunk?: (content: string) => void
+    settings?: AiChatSettings
+  },
 ): Promise<string> {
-  const settings = getAiChatSettings()
+  const settings = options?.settings ?? getAiChatSettings()
 
   const response = await fetch(buildCompletionsUrl(settings), {
     method: 'POST',

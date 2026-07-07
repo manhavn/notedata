@@ -9,9 +9,9 @@
     type StoredApiKey,
   } from '../ai-api-keys'
   import {
-    apiKeyState,
     clearUnlockedApiKey,
     getApiKeyById,
+    isApiKeyUnlocked,
     listApiKeys,
     setUnlockedApiKey,
   } from '../ai-api-keys.svelte'
@@ -37,6 +37,7 @@
   } from '../ai-providers'
   import { aiChatSettingsState } from '../ai-providers.svelte'
   import { parseCurlToAiSettings } from '../parse-curl-ai'
+  import type { NoteAiActiveIds } from '../types'
   import { authState } from '../auth.svelte'
   import { confirm } from '../dialog.svelte'
   import { t } from '../i18n.svelte'
@@ -46,6 +47,7 @@
   import PasswordInput from './PasswordInput.svelte'
 
   export type AiSettingsModal = 'provider' | 'apiKey' | 'model' | null
+  export type AiSettingsScope = 'global' | 'note'
   type AiSettingsFormModal = AiSettingsModal
 
   const NO_API_KEY_ID = '__none__'
@@ -53,6 +55,11 @@
   interface Props {
     openModal: AiSettingsModal
     activateOnSelect?: boolean
+    scope?: AiSettingsScope
+    selectionProviderId?: string | null
+    selectionModelId?: string | null
+    selectionApiKeyId?: string | null
+    onSelectionChange?: (patch: Partial<NoteAiActiveIds>) => void | Promise<void>
     onClose: () => void
     onChanged: () => void
     onManageEncryptionKeys?: () => void
@@ -61,6 +68,11 @@
   let {
     openModal = $bindable(),
     activateOnSelect = false,
+    scope = 'global',
+    selectionProviderId = null,
+    selectionModelId = null,
+    selectionApiKeyId = null,
+    onSelectionChange,
     onClose,
     onChanged,
     onManageEncryptionKeys,
@@ -89,15 +101,18 @@
 
   const providers = $derived(listProviders(aiChatSettingsState.settings))
   const models = $derived(listModels(aiChatSettingsState.settings))
-  const activeProviderId = $derived(aiChatSettingsState.settings.activeProviderId)
-  const activeModelId = $derived(aiChatSettingsState.settings.activeModelId)
-  const activeApiKeyId = $derived(aiChatSettingsState.settings.activeApiKeyId)
+  const globalProviderId = $derived(aiChatSettingsState.settings.activeProviderId)
+  const globalModelId = $derived(aiChatSettingsState.settings.activeModelId)
+  const globalApiKeyId = $derived(aiChatSettingsState.settings.activeApiKeyId)
+  const displayProviderId = $derived(scope === 'note' ? selectionProviderId : globalProviderId)
+  const displayModelId = $derived(scope === 'note' ? selectionModelId : globalModelId)
+  const displayApiKeyId = $derived(scope === 'note' ? selectionApiKeyId : globalApiKeyId)
   const providerPickerItems = $derived<PickerItem[]>(
     providers.map((provider) => ({
       id: provider.id,
       label: provider.name,
       meta: provider.completionsUrl,
-      badge: provider.id === activeProviderId ? t('aiProviderActiveBadge') : undefined,
+      badge: provider.id === displayProviderId ? t('aiProviderActiveBadge') : undefined,
     })),
   )
 
@@ -124,7 +139,7 @@
       id: key.id,
       label: key.label,
       meta: maskStoredApiKey(key),
-      badge: key.id === activeApiKeyId ? t('aiProviderActiveBadge') : undefined,
+      badge: key.id === displayApiKeyId ? t('aiProviderActiveBadge') : undefined,
     })),
   ])
 
@@ -133,7 +148,7 @@
       id: model.id,
       label: model.label,
       meta: model.value,
-      badge: model.id === activeModelId ? t('aiProviderActiveBadge') : undefined,
+      badge: model.id === displayModelId ? t('aiProviderActiveBadge') : undefined,
     })),
   )
 
@@ -189,7 +204,7 @@
 
     untrack(() => {
       const active =
-        (activeProviderId && aiChatSettingsState.settings.providers[activeProviderId]) ||
+        (globalProviderId && aiChatSettingsState.settings.providers[globalProviderId]) ||
         providers[0] ||
         null
       loadProvider(active)
@@ -284,12 +299,12 @@
       await saveAiProvider(userId, draft)
 
       const shouldActivate =
-        makeActive || !activeProviderId || Object.keys(aiChatSettingsState.settings.providers).length === 0
+        makeActive || !globalProviderId || Object.keys(aiChatSettingsState.settings.providers).length === 0
       if (shouldActivate) {
         await setActiveAiProvider(userId, draft.id)
       }
 
-      saveNotice = activeApiKeyId ? t('aiProviderSaved') : t('aiSettingsSavedWithoutKey')
+      saveNotice = globalApiKeyId ? t('aiProviderSaved') : t('aiSettingsSavedWithoutKey')
       onChanged()
       closeSettingsForm()
       return true
@@ -328,7 +343,7 @@
       await deleteAiProvider(userId, providerId)
       const remaining = listProviders(aiChatSettingsState.settings)
       const next =
-        (activeProviderId && aiChatSettingsState.settings.providers[activeProviderId]) ||
+        (globalProviderId && aiChatSettingsState.settings.providers[globalProviderId]) ||
         remaining[0] ||
         null
       loadProvider(next)
@@ -344,6 +359,24 @@
     }
   }
 
+  async function persistScopedSelection(patch: Partial<NoteAiActiveIds>) {
+    if (scope !== 'note' || !onSelectionChange) return false
+
+    saving = true
+    error = null
+    try {
+      await onSelectionChange(patch)
+      onChanged()
+      if (activateOnSelect) onClose()
+      return true
+    } catch {
+      error = t('toastOperationFailed')
+      return false
+    } finally {
+      saving = false
+    }
+  }
+
   async function handleProviderPick(providerId: string) {
     const provider = aiChatSettingsState.settings.providers[providerId]
     if (!provider) return
@@ -351,6 +384,8 @@
     loadProvider(provider)
 
     if (activateOnSelect) {
+      if (await persistScopedSelection({ aiActiveProviderId: providerId })) return
+
       const userId = authState.user?.uid
       if (userId) {
         saving = true
@@ -377,6 +412,10 @@
   }
 
   async function applyPickedApiKey(apiKeyId: string | null) {
+    if (activateOnSelect && (await persistScopedSelection({ aiActiveApiKeyId: apiKeyId }))) {
+      return
+    }
+
     const userId = authState.user?.uid
     if (!userId) return
 
@@ -398,12 +437,16 @@
 
   async function handleApiKeyPick(apiKeyId: string) {
     if (apiKeyId === NO_API_KEY_ID) {
-      clearUnlockedApiKey()
       await applyPickedApiKey(null)
       return
     }
 
     if (activateOnSelect) {
+      if (isApiKeyUnlocked(apiKeyId)) {
+        await applyPickedApiKey(apiKeyId)
+        return
+      }
+
       openUnlockPickModal(apiKeyId)
       return
     }
@@ -433,6 +476,10 @@
 
   async function handleModelPick(modelId: string) {
     if (!(modelId in aiChatSettingsState.settings.models)) return
+
+    if (activateOnSelect && (await persistScopedSelection({ aiActiveModelId: modelId }))) {
+      return
+    }
 
     const userId = authState.user?.uid
     if (!userId) return
@@ -517,6 +564,7 @@
 
       refreshApiKeys()
       resetApiKeyDraft()
+      clearUnlockedApiKey(id)
 
       if (!aiChatSettingsState.settings.activeApiKeyId || editingApiKeyId === aiChatSettingsState.settings.activeApiKeyId) {
         await setActiveAiApiKey(userId, saved.id)
@@ -588,8 +636,8 @@
     if (!userId) return
 
     await deleteApiKey(userId, key.id)
-    if (apiKeyState.unlockedApiKeyId === key.id) {
-      clearUnlockedApiKey()
+    if (isApiKeyUnlocked(key.id)) {
+      clearUnlockedApiKey(key.id)
     }
     refreshApiKeys()
     if (aiChatSettingsState.settings.activeApiKeyId === key.id) {
@@ -711,7 +759,7 @@
     title={t('aiPickerManageProviders')}
     subtitle={t('aiPickerManageProvidersHint')}
     items={providerPickerItems}
-    selectedId={activeProviderId}
+    selectedId={displayProviderId}
     emptyLabel={t('aiPickerProvidersEmpty')}
     addLabel={t('aiProviderAdd')}
     onClose={onClose}
@@ -727,7 +775,7 @@
     title={t('aiPickerManageApiKeys')}
     subtitle={t('aiPickerManageApiKeysHint')}
     items={apiKeyPickerItems}
-    selectedId={activeApiKeyId ?? NO_API_KEY_ID}
+    selectedId={displayApiKeyId ?? NO_API_KEY_ID}
     emptyLabel={t('aiApiKeyVaultEmpty')}
     addLabel={t('aiApiKeyAdd')}
     onClose={onClose}
@@ -746,7 +794,7 @@
     title={t('aiPickerManageModels')}
     subtitle={t('aiPickerManageModelsHint')}
     items={modelPickerItems}
-    selectedId={activeModelId}
+    selectedId={displayModelId}
     emptyLabel={t('aiProviderModelsEmpty')}
     addLabel={t('aiProviderModelAdd')}
     onClose={onClose}

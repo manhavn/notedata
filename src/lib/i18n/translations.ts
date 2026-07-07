@@ -275,6 +275,11 @@ export const translations = {
     aiSettingsSave: 'Save settings',
     aiSettingsSavedWithoutKey: 'Settings saved. Add your API key when ready, then save again.',
     aiChatNeedApiKey: 'Add your API key in settings to start chatting.',
+    aiChatNeedGlobalDefaults:
+      'Set default provider, model, and API key in account settings before using AI chat.',
+    aiChatNeedNoteReselect:
+      'This note\'s AI provider, model, or API key is missing. Choose them again.',
+    aiChatOpenGlobalDefaults: 'Open default AI settings',
     aiSettingsRestoreDefaults: 'Restore defaults',
     aiSettingsClearStored: 'Clear stored settings',
     aiSettingsCurlImport: 'Import from cURL',
@@ -316,6 +321,10 @@ export const translations = {
     accountAiChatHistoryClear: 'Clear chat storage',
     accountAiChatHistoryClearConfirm: 'Delete all {count} saved chat draft(s) from memory and local storage on this browser?',
     accountAiChatHistoryCleared: 'Cleared {count} chat draft(s).',
+    accountAiChatDefaultsSection: 'Default AI selection',
+    accountAiChatDefaultsHint:
+      'New notes use these defaults until you pick different provider, model, or API key in that note\'s chat.',
+    accountAiChatDefaultsMissing: 'Choose a default provider and model to enable AI chat.',
     accountNoteDraftSection: 'Unsaved notes',
     accountNoteDraftHint: 'Keep unsaved note edits in this browser when you reload the page.',
     accountNoteDraftLocalOn: 'Unsaved edits saved locally',
@@ -670,6 +679,11 @@ export const translations = {
     aiSettingsSave: 'Lưu cài đặt',
     aiSettingsSavedWithoutKey: 'Đã lưu cài đặt. Thêm API key khi sẵn sàng, rồi lưu lại.',
     aiChatNeedApiKey: 'Thêm API key trong cài đặt để bắt đầu chat.',
+    aiChatNeedGlobalDefaults:
+      'Hãy đặt provider, model và API key mặc định trong cài đặt tài khoản trước khi dùng chat AI.',
+    aiChatNeedNoteReselect:
+      'Provider, model hoặc API key của ghi chú này không còn hợp lệ. Hãy chọn lại.',
+    aiChatOpenGlobalDefaults: 'Mở cài đặt AI mặc định',
     aiSettingsRestoreDefaults: 'Khôi phục mặc định',
     aiSettingsClearStored: 'Xóa cài đặt đã lưu',
     aiSettingsCurlImport: 'Import từ cURL',
@@ -711,6 +725,10 @@ export const translations = {
     accountAiChatHistoryClear: 'Dọn lịch sử chat',
     accountAiChatHistoryClearConfirm: 'Xóa tất cả {count} bản nháp chat khỏi bộ nhớ và local storage trên trình duyệt này?',
     accountAiChatHistoryCleared: 'Đã xóa {count} bản nháp chat.',
+    accountAiChatDefaultsSection: 'Lựa chọn AI mặc định',
+    accountAiChatDefaultsHint:
+      'Ghi chú mới dùng các giá trị mặc định này cho đến khi bạn chọn provider, model hoặc API key khác trong chat của ghi chú đó.',
+    accountAiChatDefaultsMissing: 'Chọn provider và model mặc định để bật chat AI.',
     accountNoteDraftSection: 'Ghi chú chưa lưu',
     accountNoteDraftHint: 'Giữ nội dung ghi chú đang sửa trên trình duyệt này khi tải lại trang.',
     accountNoteDraftLocalOn: 'Đã lưu bản nháp trên máy',

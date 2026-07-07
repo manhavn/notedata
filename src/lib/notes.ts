@@ -51,11 +51,31 @@ function serializeTags(tags?: string[]): string | null {
   return normalized.length > 0 ? normalized.join(',') : null
 }
 
+function parseOptionalAiActiveId(value: unknown): string | null | undefined {
+  if (value === null) return null
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function parseNoteAiActiveFields(raw: Record<string, unknown>) {
+  const aiActiveProviderId = parseOptionalAiActiveId(raw.aiActiveProviderId)
+  const aiActiveModelId = parseOptionalAiActiveId(raw.aiActiveModelId)
+  const aiActiveApiKeyId = parseOptionalAiActiveId(raw.aiActiveApiKeyId)
+
+  return {
+    ...(aiActiveProviderId !== undefined ? { aiActiveProviderId } : {}),
+    ...(aiActiveModelId !== undefined ? { aiActiveModelId } : {}),
+    ...(aiActiveApiKeyId !== undefined ? { aiActiveApiKeyId } : {}),
+  }
+}
+
 function parseNoteRecord(id: string, note: Omit<Note, 'id'> & { tags?: unknown }): Note {
   const { tags: rawTags, ...rest } = note
   const tags = parseTags(rawTags)
+  const aiFields = parseNoteAiActiveFields(rest as Record<string, unknown>)
 
-  return tags ? { id, ...rest, tags } : { id, ...rest }
+  return tags
+    ? { id, ...rest, ...aiFields, tags }
+    : { id, ...rest, ...aiFields }
 }
 
 export type NoteSortOrder =
@@ -140,6 +160,16 @@ function buildNotePayload(input: NoteInput, now: number) {
     payload.tags = tags
   }
 
+  if (input.aiActiveProviderId) {
+    payload.aiActiveProviderId = input.aiActiveProviderId
+  }
+  if (input.aiActiveModelId) {
+    payload.aiActiveModelId = input.aiActiveModelId
+  }
+  if (input.aiActiveApiKeyId) {
+    payload.aiActiveApiKeyId = input.aiActiveApiKeyId
+  }
+
   return payload
 }
 
@@ -166,6 +196,15 @@ function buildNoteUpdates(input: Partial<NoteInput>) {
   if (input.tags !== undefined) {
     const tags = serializeTags(input.tags)
     updates.tags = tags ?? null
+  }
+  if (input.aiActiveProviderId !== undefined) {
+    updates.aiActiveProviderId = input.aiActiveProviderId
+  }
+  if (input.aiActiveModelId !== undefined) {
+    updates.aiActiveModelId = input.aiActiveModelId
+  }
+  if (input.aiActiveApiKeyId !== undefined) {
+    updates.aiActiveApiKeyId = input.aiActiveApiKeyId
   }
 
   return updates
@@ -236,6 +275,9 @@ export async function moveNoteToTrash(userId: string, note: Note): Promise<void>
 
   const tags = serializeTags(note.tags)
   if (tags) payload.tags = tags
+  if (note.aiActiveProviderId) payload.aiActiveProviderId = note.aiActiveProviderId
+  if (note.aiActiveModelId) payload.aiActiveModelId = note.aiActiveModelId
+  if (note.aiActiveApiKeyId) payload.aiActiveApiKeyId = note.aiActiveApiKeyId
 
   await set(ref(db, `${trashPath(userId)}/${note.id}`), payload)
   await remove(ref(db, `${notesPath(userId)}/${note.id}`))
@@ -255,6 +297,9 @@ export async function restoreNoteFromTrash(userId: string, note: TrashedNote): P
 
   const tags = serializeTags(note.tags)
   if (tags) payload.tags = tags
+  if (note.aiActiveProviderId) payload.aiActiveProviderId = note.aiActiveProviderId
+  if (note.aiActiveModelId) payload.aiActiveModelId = note.aiActiveModelId
+  if (note.aiActiveApiKeyId) payload.aiActiveApiKeyId = note.aiActiveApiKeyId
 
   await set(ref(db, `${notesPath(userId)}/${note.id}`), payload)
   await remove(ref(db, `${trashPath(userId)}/${note.id}`))

@@ -162,14 +162,14 @@ function parseAiChatSettingsStore(data: Record<string, unknown> | null | undefin
   const activeProviderId =
     typeof data.activeProviderId === 'string' && data.activeProviderId in providers
       ? data.activeProviderId
-      : Object.keys(providers)[0] ?? null
+      : null
 
   const activeModelId =
     typeof data.activeModelId === 'string' && data.activeModelId in models
       ? data.activeModelId
       : legacyActiveModelId && legacyActiveModelId in models
         ? legacyActiveModelId
-        : Object.keys(models)[0] ?? null
+        : null
 
   const apiKeys: Record<string, StoredApiKey> = {}
   if (data.apiKeys && typeof data.apiKeys === 'object') {

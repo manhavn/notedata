@@ -4,8 +4,7 @@ import { getApiKeys, type StoredApiKey } from './ai-api-keys'
 import { auth } from './firebase'
 
 export const apiKeyState = $state({
-  unlockedApiKeyId: null as string | null,
-  unlockedValue: '',
+  unlockedKeys: {} as Record<string, string>,
 })
 
 onAuthStateChanged(auth, (user) => {
@@ -14,25 +13,35 @@ onAuthStateChanged(auth, (user) => {
   }
 })
 
-export function clearUnlockedApiKey() {
-  apiKeyState.unlockedApiKeyId = null
-  apiKeyState.unlockedValue = ''
+export function clearUnlockedApiKey(id?: string) {
+  if (!id) {
+    apiKeyState.unlockedKeys = {}
+    return
+  }
+
+  if (!(id in apiKeyState.unlockedKeys)) return
+
+  const { [id]: _removed, ...rest } = apiKeyState.unlockedKeys
+  apiKeyState.unlockedKeys = rest
 }
 
 export function setUnlockedApiKey(id: string, value: string) {
-  apiKeyState.unlockedApiKeyId = id
-  apiKeyState.unlockedValue = value.trim()
+  apiKeyState.unlockedKeys = {
+    ...apiKeyState.unlockedKeys,
+    [id]: value.trim(),
+  }
 }
 
 export function isApiKeyUnlocked(id: string | null | undefined): boolean {
   if (!id) return true
-  return apiKeyState.unlockedApiKeyId === id && apiKeyState.unlockedValue.length > 0
+  const value = apiKeyState.unlockedKeys[id]
+  return typeof value === 'string' && value.length > 0
 }
 
 export function getUnlockedApiKeyValue(id: string | null | undefined): string {
   if (!id) return ''
   if (!isApiKeyUnlocked(id)) return ''
-  return apiKeyState.unlockedValue
+  return apiKeyState.unlockedKeys[id]
 }
 
 export function listApiKeys(): StoredApiKey[] {

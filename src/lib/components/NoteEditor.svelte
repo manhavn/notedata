@@ -15,7 +15,7 @@
   import { renderHtml, renderMarkdown } from '../markdown'
   import { portal } from '../portal'
   import { normalizeTags } from '../notes'
-  import type { Note } from '../types'
+  import type { Note, NoteAiActiveIds } from '../types'
   import type { PasscodeSubmit } from './KeySelectModal.svelte'
 
   interface SavePayload {
@@ -31,6 +31,10 @@
     onSave: (payload: SavePayload) => void | Promise<void>
     onSaveTitle?: (noteId: string, title: string) => void | Promise<void>
     onSaveTags?: (tags: string[]) => void | Promise<void>
+    onSaveNoteAiActive?: (
+      noteId: string,
+      patch: Partial<NoteAiActiveIds>,
+    ) => void | Promise<void>
     saving: boolean
     readonly?: boolean
     deletedAt?: number
@@ -47,6 +51,7 @@
     onSave,
     onSaveTitle,
     onSaveTags,
+    onSaveNoteAiActive,
     saving,
     readonly = false,
     deletedAt,
@@ -705,7 +710,11 @@
           noteId={note.id}
           noteTitle={title}
           noteContent={plainContent}
+          noteAiActiveProviderId={note.aiActiveProviderId}
+          noteAiActiveModelId={note.aiActiveModelId}
+          noteAiActiveApiKeyId={note.aiActiveApiKeyId}
           onInsert={insertAiContent}
+          onSaveNoteAiActive={(patch) => onSaveNoteAiActive?.(note.id, patch)}
           onManageEncryptionKeys={onManageKeys}
         />
       {/await}

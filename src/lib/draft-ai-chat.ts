@@ -1,6 +1,8 @@
 import { get, writable } from 'svelte/store'
 import { chatCompletion, type ChatMessage } from './ai-chat'
-import { getAiChatSettings, renderSystemPrompt } from './ai-settings'
+import { aiChatSettingsState } from './ai-providers.svelte'
+import { getAiChatSettingsForSelection, renderSystemPrompt } from './ai-settings'
+import type { AiActiveSelection } from './note-ai-selection'
 import {
   CHAT_DRAFT_LOCAL_PREFIX,
   clearLocalStorageByPrefix,
@@ -186,6 +188,7 @@ export async function sendNoteAiChatMessage(
     noteTitle: string
     noteContent: string
     errorMessage: string
+    activeSelection: AiActiveSelection
   },
 ) {
   const prompt = options.prompt.trim()
@@ -211,7 +214,10 @@ export async function sendNoteAiChatMessage(
   const controller = new AbortController()
   abortControllers.set(noteId, controller)
 
-  const settings = getAiChatSettings()
+  const settings = getAiChatSettingsForSelection(
+    aiChatSettingsState.settings,
+    options.activeSelection,
+  )
   const apiMessages: ChatMessage[] = [
     {
       role: 'system',
@@ -238,6 +244,7 @@ export async function sendNoteAiChatMessage(
   try {
     const reply = await chatCompletion(apiMessages, {
       signal: controller.signal,
+      settings,
       onChunk: streamResponse
         ? (content) => {
             patchDraftAiChat(noteId, (draft) => ({

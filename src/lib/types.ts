@@ -1,4 +1,10 @@
-export interface Note {
+export interface NoteAiActiveIds {
+  aiActiveProviderId?: string | null
+  aiActiveModelId?: string | null
+  aiActiveApiKeyId?: string | null
+}
+
+export interface Note extends NoteAiActiveIds {
   id: string
   title: string
   content: string
@@ -13,7 +19,7 @@ export interface TrashedNote extends Note {
   deletedAt: number
 }
 
-export interface NoteInput {
+export interface NoteInput extends NoteAiActiveIds {
   title: string
   content: string
   tags?: string[]

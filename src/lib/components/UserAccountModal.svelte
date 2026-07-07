@@ -18,10 +18,15 @@
     userNeedsEmailVerification,
     userShowsEmailVerificationStatus,
   } from '../auth.svelte'
+  import { getApiKeyById } from '../ai-api-keys.svelte'
+  import { getActiveModel, getActiveProvider } from '../ai-providers'
+  import { aiChatSettingsState } from '../ai-providers.svelte'
+  import { hasAiChatSettingsSaved } from '../ai-settings'
   import { countAiChatDrafts, draftAiChatStore, purgeAllAiChatDrafts } from '../draft-ai-chat'
   import { countNoteDrafts, draftContentStore, purgeAllNoteDrafts } from '../draft-content'
   import { confirm } from '../dialog.svelte'
   import { t } from '../i18n.svelte'
+  import EditorAiSettings, { type AiSettingsModal } from './EditorAiSettings.svelte'
   import {
     saveUserDisableAiChat,
     saveUserPersistAiChatLocal,
@@ -58,6 +63,25 @@
   let noteDraftCount = $state(0)
   let aiChatSectionEl = $state<HTMLElement | undefined>(undefined)
   let aiChatSectionHighlight = $state(false)
+  let globalAiModal = $state<AiSettingsModal>(null)
+  let globalAiToolbarTick = $state(0)
+
+  const globalActiveProvider = $derived(getActiveProvider(aiChatSettingsState.settings))
+  const globalActiveModel = $derived(getActiveModel(aiChatSettingsState.settings))
+  const globalActiveApiKeyId = $derived(aiChatSettingsState.settings.activeApiKeyId)
+  const globalDefaultsConfigured = $derived(hasAiChatSettingsSaved())
+  const globalProviderButtonLabel = $derived(
+    globalActiveProvider?.name?.trim() || t('aiProviderSelect'),
+  )
+  const globalModelButtonLabel = $derived(
+    globalActiveModel?.label?.trim() || t('aiProviderModelsSection'),
+  )
+  const globalApiKeyButtonLabel = $derived.by(() => {
+    void globalAiToolbarTick
+    if (!globalActiveApiKeyId) return t('aiApiKeyNoneLabel')
+    const key = getApiKeyById(globalActiveApiKeyId)
+    return key?.label?.trim() || t('aiApiKeyNoneLabel')
+  })
 
   const user = $derived(authState.user)
   const hasPassword = $derived(user ? userHasPasswordProvider(user) : false)
@@ -102,6 +126,9 @@
       await tick()
       aiChatSectionEl?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       aiChatSectionHighlight = true
+      if (!globalDefaultsConfigured) {
+        globalAiModal = 'provider'
+      }
       window.setTimeout(() => {
         aiChatSectionHighlight = false
       }, 1800)
@@ -527,6 +554,42 @@
             {clearingAiChatDrafts ? t('processing') : t('accountAiChatHistoryClear')}
           </button>
         </div>
+
+        {#if !userSettingsState.disableAiChat}
+          <div class="ai-defaults-block">
+            <h4>{t('accountAiChatDefaultsSection')}</h4>
+            <p class="hint">{t('accountAiChatDefaultsHint')}</p>
+            {#if !globalDefaultsConfigured}
+              <p class="ai-defaults-warning">{t('accountAiChatDefaultsMissing')}</p>
+            {/if}
+            <div class="ai-defaults-toolbar">
+              <button
+                type="button"
+                class="ai-defaults-btn"
+                onclick={() => (globalAiModal = 'provider')}
+                title={globalProviderButtonLabel}
+              >
+                <span class="ai-defaults-btn-label">{globalProviderButtonLabel}</span>
+              </button>
+              <button
+                type="button"
+                class="ai-defaults-btn"
+                onclick={() => (globalAiModal = 'model')}
+                title={globalModelButtonLabel}
+              >
+                <span class="ai-defaults-btn-label">{globalModelButtonLabel}</span>
+              </button>
+              <button
+                type="button"
+                class="ai-defaults-btn"
+                onclick={() => (globalAiModal = 'apiKey')}
+                title={globalApiKeyButtonLabel}
+              >
+                <span class="ai-defaults-btn-label">{globalApiKeyButtonLabel}</span>
+              </button>
+            </div>
+          </div>
+        {/if}
       </section>
     {/if}
 
@@ -634,6 +697,18 @@
       {t('sourceCode')}
     </a>
   </div>
+{/if}
+
+{#if !aiFeatures.disableAiChat}
+  <EditorAiSettings
+    bind:openModal={globalAiModal}
+    activateOnSelect={true}
+    scope="global"
+    onClose={() => (globalAiModal = null)}
+    onChanged={() => {
+      globalAiToolbarTick += 1
+    }}
+  />
 {/if}
 
 <style>
@@ -1043,6 +1118,58 @@
     margin-top: 0.75rem;
     padding-top: 0.75rem;
     border-top: 1px dashed color-mix(in srgb, var(--border) 80%, transparent);
+  }
+
+  .ai-defaults-block {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px dashed color-mix(in srgb, var(--border) 80%, transparent);
+  }
+
+  .ai-defaults-block h4 {
+    margin: 0 0 0.35rem;
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .ai-defaults-warning {
+    margin: 0.5rem 0 0;
+    font-size: 0.82rem;
+    color: var(--danger);
+  }
+
+  .ai-defaults-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-top: 0.65rem;
+    flex-wrap: wrap;
+  }
+
+  .ai-defaults-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0.45rem 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .ai-defaults-btn-label {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .ai-defaults-btn:hover {
+    color: var(--text);
+    border-color: var(--accent);
   }
 
   .storage-cleanup-meta {

@@ -12,22 +12,28 @@
   } from '../draft-ai-chat'
   import { decryptApiKeyValue } from '../ai-api-keys'
   import {
-    apiKeyState,
-    clearUnlockedApiKey,
     getApiKeyById,
     isApiKeyUnlocked,
     setUnlockedApiKey,
   } from '../ai-api-keys.svelte'
-  import { getActiveModel, getActiveProvider } from '../ai-providers'
+  import {
+    getActiveModel,
+    getActiveProvider,
+    type AiChatSettingsStore,
+  } from '../ai-providers'
   import { aiChatSettingsState } from '../ai-providers.svelte'
   import { aiFeatures } from '../ai-features'
   import { openAccountSettings } from '../account-modal.svelte'
-  import {
-    hasAiChatSettingsSaved,
-    isAiChatConfigured,
-  } from '../ai-settings'
   import { t } from '../i18n.svelte'
+  import {
+    aiActiveSelectionToNotePatch,
+    noteAiActivePersistNeeded,
+    resolveNoteAiSelection,
+    withStoreActiveSelection,
+    type AiActiveSelection,
+  } from '../note-ai-selection'
   import { toastError, toastSuccess } from '../toast.svelte'
+  import type { NoteAiActiveIds } from '../types'
   import { isUserAiChatEnabled, userSettingsState } from '../user-settings.svelte'
   import EditorAiSettings, { type AiSettingsModal } from './EditorAiSettings.svelte'
   import KeySelectModal, { type PasscodeSubmit } from './KeySelectModal.svelte'
@@ -36,8 +42,12 @@
     noteId: string
     noteTitle: string
     noteContent: string
+    noteAiActiveProviderId?: string | null
+    noteAiActiveModelId?: string | null
+    noteAiActiveApiKeyId?: string | null
     disabled?: boolean
     onInsert: (text: string) => void
+    onSaveNoteAiActive?: (patch: Partial<NoteAiActiveIds>) => void | Promise<void>
     onManageEncryptionKeys?: () => void
   }
 
@@ -45,14 +55,16 @@
     noteId,
     noteTitle,
     noteContent,
+    noteAiActiveProviderId,
+    noteAiActiveModelId,
+    noteAiActiveApiKeyId,
     disabled = false,
     onInsert,
+    onSaveNoteAiActive,
     onManageEncryptionKeys,
   }: Props = $props()
 
   let openModal = $state<AiSettingsModal>(null)
-  let configured = $state(isAiChatConfigured())
-  let settingsSaved = $state(hasAiChatSettingsSaved())
   let messagesEl = $state<HTMLDivElement | undefined>(undefined)
   let toolbarTick = $state(0)
   let unlockModalOpen = $state(false)
@@ -60,6 +72,7 @@
   let unlockSuggestedKeyId = $state<string | null>(null)
   let unlockNoteKeyId = $state<string | null>(null)
   let activeNoteId = $state<string | null>(null)
+  let localNoteAiPatch = $state<Partial<NoteAiActiveIds>>({})
 
   const session = $derived($draftAiChatStore[noteId] ?? createEmptyAiChatDraft())
   const messages = $derived(session.messages)
@@ -68,17 +81,40 @@
   const loading = $derived(session.loading)
   const error = $derived(session.error)
 
-  const activeProvider = $derived(getActiveProvider(aiChatSettingsState.settings))
-  const activeModel = $derived(getActiveModel(aiChatSettingsState.settings))
-  const activeApiKeyId = $derived(aiChatSettingsState.settings.activeApiKeyId)
-
-  $effect(() => {
-    const apiKeyId = activeApiKeyId ?? null
-    if (apiKeyState.unlockedApiKeyId && apiKeyState.unlockedApiKeyId !== apiKeyId) {
-      clearUnlockedApiKey()
-      toolbarTick += 1
-    }
+  const noteAiSource = $derived<NoteAiActiveIds>({
+    aiActiveProviderId:
+      localNoteAiPatch.aiActiveProviderId !== undefined
+        ? localNoteAiPatch.aiActiveProviderId
+        : noteAiActiveProviderId,
+    aiActiveModelId:
+      localNoteAiPatch.aiActiveModelId !== undefined
+        ? localNoteAiPatch.aiActiveModelId
+        : noteAiActiveModelId,
+    aiActiveApiKeyId:
+      localNoteAiPatch.aiActiveApiKeyId !== undefined
+        ? localNoteAiPatch.aiActiveApiKeyId
+        : noteAiActiveApiKeyId,
   })
+
+  const resolvedSelection = $derived(
+    resolveNoteAiSelection(noteAiSource, aiChatSettingsState.settings),
+  )
+
+  const configured = $derived(resolvedSelection.status === 'ready')
+  const needsGlobalDefaults = $derived(resolvedSelection.status === 'needs_global')
+  const needsNoteReselect = $derived(resolvedSelection.status === 'needs_note')
+
+  const selectionStore = $derived(
+    withStoreActiveSelection(aiChatSettingsState.settings, {
+      providerId: resolvedSelection.providerId,
+      modelId: resolvedSelection.modelId,
+      apiKeyId: resolvedSelection.apiKeyId,
+    }),
+  )
+
+  const activeProvider = $derived(getActiveProvider(selectionStore))
+  const activeModel = $derived(getActiveModel(selectionStore))
+  const activeApiKeyId = $derived(resolvedSelection.apiKeyId)
 
   $effect(() => {
     void $aiChatDraftPurgeTick
@@ -99,6 +135,7 @@
     }
 
     activeNoteId = noteId
+    localNoteAiPatch = {}
     const draft = loadDraftAiChat(noteId)
     if (draft?.open) queueMicrotask(scrollToBottom)
   })
@@ -123,19 +160,85 @@
     messagesEl.scrollTop = messagesEl.scrollHeight
   }
 
+  function getFirstInvalidPicker(
+    selection: AiActiveSelection,
+    store: AiChatSettingsStore,
+  ): AiSettingsModal {
+    if (!selection.providerId || !(selection.providerId in store.providers)) return 'provider'
+
+    const provider = store.providers[selection.providerId]
+    if (!provider?.completionsUrl.trim()) return 'provider'
+    if (!selection.modelId || !(selection.modelId in store.models)) return 'model'
+    if (selection.apiKeyId && !(selection.apiKeyId in store.apiKeys)) return 'apiKey'
+
+    return 'provider'
+  }
+
   function refreshConfiguredState() {
-    configured = isAiChatConfigured()
-    settingsSaved = hasAiChatSettingsSaved()
-    if (!settingsSaved) {
-      openModal = 'provider'
+    if (needsGlobalDefaults) return
+
+    if (needsNoteReselect) {
+      openModal = getFirstInvalidPicker(resolvedSelection, aiChatSettingsState.settings)
     }
   }
 
   function handleSettingsChanged() {
-    configured = isAiChatConfigured()
-    settingsSaved = hasAiChatSettingsSaved()
     toolbarTick += 1
     patchDraftAiChat(noteId, { error: null })
+  }
+
+  function getPersistedNoteAiSource(): NoteAiActiveIds {
+    return {
+      aiActiveProviderId:
+        localNoteAiPatch.aiActiveProviderId !== undefined
+          ? localNoteAiPatch.aiActiveProviderId
+          : noteAiActiveProviderId,
+      aiActiveModelId:
+        localNoteAiPatch.aiActiveModelId !== undefined
+          ? localNoteAiPatch.aiActiveModelId
+          : noteAiActiveModelId,
+      aiActiveApiKeyId:
+        localNoteAiPatch.aiActiveApiKeyId !== undefined
+          ? localNoteAiPatch.aiActiveApiKeyId
+          : noteAiActiveApiKeyId,
+    }
+  }
+
+  function getDbNoteAiSource(): NoteAiActiveIds {
+    return {
+      aiActiveProviderId: noteAiActiveProviderId,
+      aiActiveModelId: noteAiActiveModelId,
+      aiActiveApiKeyId: noteAiActiveApiKeyId,
+    }
+  }
+
+  async function persistResolvedNoteAiActive(selection: AiActiveSelection) {
+    if (!onSaveNoteAiActive || !noteAiActivePersistNeeded(getDbNoteAiSource(), selection)) return
+
+    const fullPatch = aiActiveSelectionToNotePatch(selection)
+    localNoteAiPatch = { ...localNoteAiPatch, ...fullPatch }
+    await onSaveNoteAiActive(fullPatch)
+  }
+
+  async function handleNoteSelectionChange(patch: Partial<NoteAiActiveIds>) {
+    localNoteAiPatch = { ...localNoteAiPatch, ...patch }
+    toolbarTick += 1
+    patchDraftAiChat(noteId, { error: null })
+
+    const nextSource = getPersistedNoteAiSource()
+    const nextResolved = resolveNoteAiSelection(nextSource, aiChatSettingsState.settings)
+    if (nextResolved.status !== 'ready') return
+
+    await persistResolvedNoteAiActive(nextResolved)
+  }
+
+  function openPicker(modal: AiSettingsModal) {
+    if (needsGlobalDefaults) {
+      openAiChatAccountSettings()
+      return
+    }
+
+    openModal = modal
   }
 
   function closeModal() {
@@ -199,11 +302,22 @@
       return
     }
 
+    await persistResolvedNoteAiActive({
+      providerId: resolvedSelection.providerId,
+      modelId: resolvedSelection.modelId,
+      apiKeyId: resolvedSelection.apiKeyId,
+    })
+
     await sendNoteAiChatMessage(noteId, {
       prompt,
       noteTitle,
       noteContent,
       errorMessage: t('aiChatError'),
+      activeSelection: {
+        providerId: resolvedSelection.providerId,
+        modelId: resolvedSelection.modelId,
+        apiKeyId: resolvedSelection.apiKeyId,
+      },
     })
   }
 
@@ -214,7 +328,6 @@
   function clearChat() {
     if (loading) stopGeneration()
     clearDraftAiChat(noteId)
-    clearUnlockedApiKey()
     toolbarTick += 1
   }
 
@@ -255,10 +368,7 @@
   function toggleOpen() {
     const wasOpen = open
     patchDraftAiChat(noteId, { open: !wasOpen })
-    if (wasOpen) {
-      clearUnlockedApiKey()
-      toolbarTick += 1
-    } else {
+    if (!wasOpen) {
       refreshConfiguredState()
       queueMicrotask(scrollToBottom)
     }
@@ -274,14 +384,31 @@
     <section class="ai-chat-panel" aria-label={t('aiChat')}>
       {#if !configured}
         <div class="ai-chat-messages">
-          <p class="ai-chat-empty">{t('aiChatNeedApiKey')}</p>
+          <p class="ai-chat-empty">
+            {#if needsGlobalDefaults}
+              {t('aiChatNeedGlobalDefaults')}
+            {:else if needsNoteReselect}
+              {t('aiChatNeedNoteReselect')}
+            {:else}
+              {t('aiChatNeedApiKey')}
+            {/if}
+          </p>
           <div class="ai-chat-setup-actions">
-            <button type="button" class="ai-chat-setup-btn" onclick={() => (openModal = 'provider')}>
-              {t('aiPickerManageProviders')}
-            </button>
-            <button type="button" class="ai-chat-setup-btn" onclick={() => (openModal = 'apiKey')}>
-              {t('aiPickerManageApiKeys')}
-            </button>
+            {#if needsGlobalDefaults}
+              <button type="button" class="ai-chat-setup-btn" onclick={openAiChatAccountSettings}>
+                {t('aiChatOpenGlobalDefaults')}
+              </button>
+            {:else}
+              <button type="button" class="ai-chat-setup-btn" onclick={() => openPicker('provider')}>
+                {t('aiPickerManageProviders')}
+              </button>
+              <button type="button" class="ai-chat-setup-btn" onclick={() => openPicker('model')}>
+                {t('aiProviderModelsSection')}
+              </button>
+              <button type="button" class="ai-chat-setup-btn" onclick={() => openPicker('apiKey')}>
+                {t('aiPickerManageApiKeys')}
+              </button>
+            {/if}
           </div>
         </div>
       {:else}
@@ -339,7 +466,7 @@
             <button
               type="button"
               class="ai-toolbar-btn ai-toolbar-picker"
-              onclick={() => (openModal = 'provider')}
+              onclick={() => openPicker('provider')}
               title={providerButtonLabel}
             >
               <span class="ai-toolbar-picker-label">{providerButtonLabel}</span>
@@ -347,7 +474,7 @@
             <button
               type="button"
               class="ai-toolbar-btn ai-toolbar-picker"
-              onclick={() => (openModal = 'model')}
+              onclick={() => openPicker('model')}
               title={modelButtonLabel}
             >
               <span class="ai-toolbar-picker-label">{modelButtonLabel}</span>
@@ -355,7 +482,7 @@
             <button
               type="button"
               class="ai-toolbar-btn ai-toolbar-picker"
-              onclick={() => (openModal = 'apiKey')}
+              onclick={() => openPicker('apiKey')}
               title={apiKeyButtonLabel}
             >
               <span class="ai-toolbar-picker-label">{apiKeyButtonLabel}</span>
@@ -453,6 +580,11 @@
 <EditorAiSettings
   bind:openModal
   activateOnSelect={true}
+  scope="note"
+  selectionProviderId={resolvedSelection.providerId}
+  selectionModelId={resolvedSelection.modelId}
+  selectionApiKeyId={resolvedSelection.apiKeyId}
+  onSelectionChange={handleNoteSelectionChange}
   onClose={closeModal}
   onChanged={handleSettingsChanged}
   onManageEncryptionKeys={onManageEncryptionKeys}

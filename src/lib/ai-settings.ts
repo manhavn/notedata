@@ -5,6 +5,11 @@ import {
   providerToChatSettings,
   type AiChatSettingsStore,
 } from './ai-providers'
+import {
+  isAiActiveSelectionValid,
+  type AiActiveSelection,
+  withStoreActiveSelection,
+} from './note-ai-selection'
 
 export interface AiChatSettings {
   completionsUrl: string
@@ -64,27 +69,44 @@ export const DEFAULT_AI_SETTINGS: AiChatSettings = {
   extraBody: '{}',
 }
 
-export function getAiChatSettings(): AiChatSettings {
-  const settings = getAiChatSettingsStore()
-  const provider = getActiveProvider(settings)
+export function getAiChatSettingsForSelection(
+  store: AiChatSettingsStore,
+  selection: AiActiveSelection,
+): AiChatSettings {
+  const scopedStore = withStoreActiveSelection(store, selection)
+  const provider = getActiveProvider(scopedStore)
 
   if (!provider) {
     return { ...DEFAULT_AI_SETTINGS }
   }
 
-  const apiKey = getUnlockedApiKeyValue(settings.activeApiKeyId)
-  return providerToChatSettings(provider, apiKey, settings, getActiveModel(settings))
+  const apiKey = getUnlockedApiKeyValue(selection.apiKeyId)
+  return providerToChatSettings(provider, apiKey, scopedStore, getActiveModel(scopedStore))
+}
+
+export function getAiChatSettings(): AiChatSettings {
+  const settings = getAiChatSettingsStore()
+  return getAiChatSettingsForSelection(settings, {
+    providerId: settings.activeProviderId,
+    modelId: settings.activeModelId,
+    apiKeyId: settings.activeApiKeyId,
+  })
+}
+
+export function hasAiChatSettingsForSelection(
+  store: AiChatSettingsStore,
+  selection: AiActiveSelection,
+): boolean {
+  return isAiActiveSelectionValid(store, selection)
 }
 
 export function hasAiChatSettingsSaved(): boolean {
   const settings = getAiChatSettingsStore()
-  const provider = getActiveProvider(settings)
-  if (!provider) return false
-  return Boolean(
-    provider.completionsUrl.trim() &&
-      settings.activeModelId &&
-      settings.models[settings.activeModelId],
-  )
+  return hasAiChatSettingsForSelection(settings, {
+    providerId: settings.activeProviderId,
+    modelId: settings.activeModelId,
+    apiKeyId: settings.activeApiKeyId,
+  })
 }
 
 export function isAiChatConfigured(): boolean {
