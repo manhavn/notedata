@@ -48,10 +48,25 @@
   let searchExpanded = $state(false)
   let searchInputEl = $state<HTMLInputElement | undefined>(undefined)
 
+  const SIDEBAR_COLLAPSED_KEY = 'notedata-sidebar-collapsed'
+
+  function loadSidebarCollapsed(): boolean {
+    return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1'
+  }
+
+  let sidebarCollapsed = $state(loadSidebarCollapsed())
+  let searchFocused = $state(false)
+
   let searchDebounceTimer: ReturnType<typeof setTimeout> | undefined
   let searchRequestId = 0
 
   const isSearchActive = $derived(view === 'notes' && debouncedSearch.trim().length > 0)
+
+  const sidebarSearchReveal = $derived(
+    sidebarCollapsed &&
+      view === 'notes' &&
+      (searchFocused || searchInput.trim().length > 0),
+  )
 
   const topbarUserLabel = $derived(
     getUserDisplayLabel(authState.user, authState.profileTick),
@@ -462,6 +477,11 @@
     selectedId = notes[0]?.id ?? null
     sidebarOpen = false
   }
+
+  function toggleSidebarCollapsed() {
+    sidebarCollapsed = !sidebarCollapsed
+    localStorage.setItem(SIDEBAR_COLLAPSED_KEY, sidebarCollapsed ? '1' : '0')
+  }
 </script>
 
 <input
@@ -482,7 +502,17 @@
     >
       ☰
     </button>
-    <span class="app-name topbar-main">{t('appName')}</span>
+    <button
+      type="button"
+      class="app-logo-btn topbar-main"
+      class:active={sidebarCollapsed}
+      onclick={toggleSidebarCollapsed}
+      aria-label={sidebarCollapsed ? t('expandSidebar') : t('collapseSidebar')}
+      title={sidebarCollapsed ? t('expandSidebar') : t('collapseSidebar')}
+    >
+      <span class="app-logo-mark" aria-hidden="true">N</span>
+      <span class="sr-only">{t('appName')}</span>
+    </button>
 
     {#if view === 'notes'}
       <div class="search-wrap">
@@ -494,6 +524,8 @@
           placeholder={t('searchNotesPlaceholder')}
           aria-label={t('searchNotes')}
           oninput={(event) => handleSearchInput(event.currentTarget.value)}
+          onfocus={() => (searchFocused = true)}
+          onblur={() => (searchFocused = false)}
         />
         {#if searching}
           <span class="search-status" aria-live="polite">{t('searching')}</span>
@@ -573,7 +605,13 @@
   </header>
 
   <div class="layout">
-    <div class="sidebar-wrap" class:open={sidebarOpen}>
+    <div class="sidebar-slot" class:collapsed={sidebarCollapsed}>
+    <div
+      class="sidebar-wrap"
+      class:open={sidebarOpen}
+      class:collapsed={sidebarCollapsed}
+      class:search-reveal={sidebarSearchReveal}
+    >
       {#if view === 'notes'}
         <NoteSidebar
           notes={displayedNotes}
@@ -611,6 +649,7 @@
           onBulkPermanentDelete={handleBulkPermanentDelete}
         />
       {/if}
+    </div>
     </div>
 
     {#if sidebarOpen}
@@ -686,11 +725,54 @@
     cursor: pointer;
   }
 
-  .app-name {
-    font-weight: 700;
-    font-size: 1.1rem;
-    color: var(--text);
+  .app-logo-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg);
+    cursor: pointer;
     flex-shrink: 0;
+    transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+  }
+
+  .app-logo-btn:hover {
+    background: var(--surface);
+    border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  }
+
+  .app-logo-btn.active {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--input-focus-ring);
+  }
+
+  .app-logo-mark {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, var(--accent), #f97316);
+    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 700;
+    display: grid;
+    place-items: center;
+    line-height: 1;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
 
   .search-wrap {
@@ -829,11 +911,127 @@
     position: relative;
   }
 
-  .sidebar-wrap {
+  .sidebar-slot {
+    position: relative;
     width: 320px;
     flex-shrink: 0;
     height: 100%;
+  }
+
+  .sidebar-slot.collapsed {
+    width: 52px;
+  }
+
+  .sidebar-wrap {
+    width: 100%;
+    height: 100%;
     z-index: 5;
+    transition: width 0.22s ease, box-shadow 0.22s ease;
+  }
+
+  .sidebar-wrap.collapsed {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 52px;
+    overflow: hidden;
+  }
+
+  .sidebar-wrap.collapsed:hover,
+  .sidebar-wrap.collapsed.search-reveal {
+    width: 320px;
+    overflow: hidden;
+    z-index: 6;
+    box-shadow: var(--shadow-lg);
+  }
+
+  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.sidebar-header h2),
+  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.header-text),
+  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.sort-wrap),
+  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.icon-btn),
+  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.bulk-bar),
+  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.select-all),
+  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.checkbox-wrap),
+  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.preview),
+  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.tags),
+  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.date),
+  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.load-more-info),
+  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.searching-hint),
+  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.empty),
+  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.load-more-wrap),
+  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.actions),
+  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.item-actions) {
+    display: none;
+  }
+
+  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.sidebar-header) {
+    justify-content: center;
+    padding: 0.4rem 0;
+    border-bottom: none;
+  }
+
+  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.header-actions) {
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.new-btn) {
+    width: 32px;
+    height: 32px;
+  }
+
+  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.back-btn) {
+    width: 32px;
+    height: 32px;
+    margin: 0 auto;
+  }
+
+  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.note-item) {
+    margin: 0 0.35rem 0.3rem;
+    border-radius: 8px;
+  }
+
+  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.note-btn) {
+    width: 100%;
+    padding: 0.45rem 0;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.title) {
+    display: block;
+    width: 1.25rem;
+    max-width: 1.25rem;
+    text-align: center;
+    font-size: 0;
+    line-height: 1.25rem;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.unsaved-dot) {
+    display: none;
+  }
+
+  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.title:not(:empty))::first-letter {
+    font-size: 0.82rem;
+    font-weight: 700;
+  }
+
+  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.title:empty)::before {
+    content: '·';
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-muted);
+  }
+
+  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.note-item.selected) {
+    background: rgba(245, 158, 11, 0.16);
+  }
+
+  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.note-item.selected .note-btn) {
+    box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent);
   }
 
   .main {
@@ -878,7 +1076,7 @@
       flex-shrink: 0;
     }
 
-    .app-name {
+    .app-logo-btn {
       display: none;
     }
 
@@ -951,13 +1149,33 @@
       display: none;
     }
 
+    .sidebar-slot {
+      position: static;
+      width: 0;
+      flex-shrink: 0;
+      overflow: visible;
+    }
+
+    .sidebar-slot.collapsed {
+      width: 0;
+    }
+
     .sidebar-wrap {
       position: absolute;
       left: 0;
       top: 0;
       bottom: 0;
+      width: 320px;
       transform: translateX(-100%);
       transition: transform 0.25s ease;
+      box-shadow: var(--shadow-lg);
+    }
+
+    .sidebar-wrap.collapsed,
+    .sidebar-wrap.collapsed:hover {
+      position: absolute;
+      width: 320px;
+      overflow: visible;
       box-shadow: var(--shadow-lg);
     }
 
