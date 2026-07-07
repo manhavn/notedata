@@ -393,7 +393,7 @@
 
   <div class="ai-chat-controls">
     {#if open}
-      {#if !aiFeatures.disableAiChat}
+      {#if !aiFeatures.disableAiChat && messages.length === 0}
         <button
           type="button"
           class="ai-toolbar-setup"
