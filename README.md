@@ -40,13 +40,13 @@ A personal notes app built with **Svelte 5 + Vite**, using **Firebase Authentica
 - **Floating chat box** in the note editor — ask an AI to draft, edit, or summarize the current note
 - **Provider-agnostic** — works with any **OpenAI-compatible** chat-completions API (custom URL, model, auth headers)
 - **Multiple providers** — manage several AI endpoints; provider settings sync via Firebase Realtime Database
-- **Shared model library** — models are a global list (not tied to one provider); pick an active model for chat
+- **Shared model library** — models are a global list, configured independently from providers; pick an active model for chat
 - **API key vault** — labeled API keys encrypted with your passcode (same AES-GCM as note content) and stored in Firebase (`users/{uid}/settings/aiChatSettings/apiKeys`); only ciphertext is synced — plaintext stays in memory after unlock
 - **API key unlock** — same passcode modal as encrypted notes (saved keys or manual entry); required on each new chat session, when switching keys, and when editing a saved key
 - **Active API key** — `activeApiKeyId` in Firebase (like `activeModelId` / `activeProviderId`); footer toolbar picks the key used for requests
 - **Popup settings** — pick providers, models, and API keys from list popups; Add/Edit opens a separate settings form
 - **Chat footer toolbar** — **Provider**, **Model**, and API key buttons (show active name or default label; ellipsis when long); gear icon links to account AI toggle
-- **Import from cURL** — paste a `curl` command to auto-fill endpoint, authentication, model, and request params
+- **Import from cURL** — paste a `curl` command to auto-fill provider fields (endpoint, auth, generation params); does not create or select a model
 - **Chat without API key** — local or open endpoints work when **No API key** is selected (no key required to send)
 - **Note context** — system prompt template supports `{{noteTitle}}` and `{{noteContent}}` placeholders
 - **Insert into note** — append any chat message (user or assistant) to the editor content
@@ -523,6 +523,8 @@ Imported notes are created as new entries in Firebase (new IDs).
 | API keys | Firebase `users/{uid}/settings/aiChatSettings/apiKeys` | Labeled keys; **values encrypted** with passcode (`enc:v1:...`); reusable across providers |
 | Active selections | Firebase `.../aiChatSettings/activeProviderId`, `activeModelId`, `activeApiKeyId` | Footer shows provider name, model label, or default **Provider** / **Model** / key label (or **No Key**) |
 
+**Independent configuration:** providers, models, and API keys are managed separately — saving a provider does not require a model, and the **Model** footer button stays enabled even without an active provider. Provider and model are only combined when sending a chat request (both must be active).
+
 **Popup flow:** list popups for providers, models, and API keys → **Add** / **Edit** opens a separate settings form → **Delete** asks for confirmation. Selecting an item in the list popup activates it for chat (when opened from the editor).
 
 ### Provider settings
@@ -565,7 +567,7 @@ curl https://api.example.com/v1/chat/completions \
   -d '{"model":"your-model","messages":[{"role":"user","content":"Hello"}]}'
 ```
 
-The parser fills URL, auth header, model, and known body fields. Environment-variable placeholders (e.g. `$YOUR_API_KEY`) are not stored — add the real key in the **API keys** vault or choose **No API key selected** for local endpoints.
+The parser fills URL, auth header, and known body fields into the **provider** form only (temperature, penalties, stream, extra headers/body). It does **not** create a model entry or set `activeModelId` — add models separately in the **Model** picker. Environment-variable placeholders (e.g. `$YOUR_API_KEY`) are not stored — add the real key in the **API keys** vault or choose **No API key selected** for local endpoints.
 
 ### Chat actions
 

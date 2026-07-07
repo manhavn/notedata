@@ -282,12 +282,7 @@ export function providerToChatSettings(
 export function applyChatSettingsToProvider(
   provider: AiProvider,
   settings: AiChatSettings,
-  allSettings: AiChatSettingsStore,
-): {
-  provider: AiProvider
-  models: Record<string, AiProviderModel>
-  activeModelId: string | null
-} {
+): AiProvider {
   const next = cloneAiProvider(provider)
   next.completionsUrl = settings.completionsUrl
   next.authHeaderName = settings.authHeaderName
@@ -301,32 +296,10 @@ export function applyChatSettingsToProvider(
   next.stream = settings.stream
   next.extraHeaders = settings.extraHeaders
   next.extraBody = settings.extraBody
-
-  const nextModels = { ...allSettings.models }
-  let activeModelId = allSettings.activeModelId
-
-  if (settings.model.trim()) {
-    const existing = Object.values(nextModels).find((model) => model.value === settings.model.trim())
-    if (existing) {
-      activeModelId = existing.id
-    } else {
-      const modelId = createModelId()
-      nextModels[modelId] = {
-        id: modelId,
-        label: settings.model.trim(),
-        value: settings.model.trim(),
-      }
-      activeModelId = modelId
-    }
-  }
-
-  return { provider: next, models: nextModels, activeModelId }
+  return next
 }
 
-export function validateAiProvider(
-  provider: AiProvider,
-  settings: AiChatSettingsStore,
-): string | null {
+export function validateAiProvider(provider: AiProvider): string | null {
   if (!provider.name.trim()) return 'AI_PROVIDER_NAME_REQUIRED'
   if (!provider.completionsUrl.trim()) return 'AI_SETTINGS_COMPLETIONS_URL_REQUIRED'
 
@@ -337,9 +310,6 @@ export function validateAiProvider(
   }
 
   if (!provider.authHeaderName.trim()) return 'AI_SETTINGS_AUTH_HEADER_REQUIRED'
-  if (!settings.activeModelId || !settings.models[settings.activeModelId]) {
-    return 'AI_PROVIDER_MODEL_REQUIRED'
-  }
 
   try {
     JSON.parse(provider.extraHeaders.trim() || '{}')

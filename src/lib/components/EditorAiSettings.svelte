@@ -220,7 +220,7 @@
     if (!code) return null
     const map: Record<string, string> = {
       AI_PROVIDER_NAME_REQUIRED: t('aiProviderNameRequired'),
-      AI_PROVIDER_MODEL_REQUIRED: t('aiProviderModelRequired'),
+
       AI_SETTINGS_COMPLETIONS_URL_REQUIRED: t('aiSettingsCompletionsUrlRequired'),
       AI_SETTINGS_COMPLETIONS_URL_INVALID: t('aiSettingsCompletionsUrlInvalid'),
       AI_SETTINGS_AUTH_HEADER_REQUIRED: t('aiSettingsAuthHeaderRequired'),
@@ -248,20 +248,7 @@
         getActiveModel(aiChatSettingsState.settings),
       )
       const result = parseCurlToAiSettings(curlInput, currentSettings)
-      const applied = applyChatSettingsToProvider(draft, result.settings, aiChatSettingsState.settings)
-      draft = applied.provider
-
-      const userId = authState.user?.uid
-      if (userId) {
-        for (const [id, model] of Object.entries(applied.models)) {
-          if (!(id in aiChatSettingsState.settings.models)) {
-            void saveAiModel(userId, model)
-          }
-        }
-        if (applied.activeModelId) {
-          void setActiveAiModel(userId, applied.activeModelId)
-        }
-      }
+      draft = applyChatSettingsToProvider(draft, result.settings)
 
       if (result.apiKeyDraft.trim()) {
         editingApiKeyId = null
@@ -290,7 +277,7 @@
       return false
     }
 
-    const validationError = mapValidationError(validateAiProvider(draft, aiChatSettingsState.settings))
+    const validationError = mapValidationError(validateAiProvider(draft))
     if (validationError) {
       error = validationError
       return false

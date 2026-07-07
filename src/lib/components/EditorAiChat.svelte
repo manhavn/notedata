@@ -357,7 +357,6 @@
               type="button"
               class="ai-toolbar-btn ai-toolbar-picker"
               onclick={() => (openModal = 'model')}
-              disabled={!activeProvider}
               title={modelButtonLabel}
             >
               <span class="ai-toolbar-picker-label">{modelButtonLabel}</span>

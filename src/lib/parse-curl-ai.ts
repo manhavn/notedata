@@ -234,18 +234,12 @@ export function parseCurlToAiSettings(
     }
   }
 
-  const model = typeof body.model === 'string' ? body.model.trim() : current.model
-  if (!model) {
-    throw new Error('AI_SETTINGS_CURL_NO_MODEL')
-  }
-
   const settings = cloneAiChatSettings({
     ...current,
     completionsUrl: url,
     authHeaderName,
     authHeaderPrefix,
     apiKey: apiKeyDraft || current.apiKey,
-    model,
     temperature: parseOptionalNumber(body.temperature),
     maxTokens: parseOptionalNumber(body.max_tokens),
     topP: parseOptionalNumber(body.top_p),

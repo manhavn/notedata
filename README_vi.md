@@ -40,13 +40,13 @@
 - **Hộp chat nổi** trong editor ghi chú — nhờ AI soạn thảo, chỉnh sửa hoặc tóm tắt nội dung hiện tại
 - **Không phụ thuộc nhà cung cấp** — dùng API chat-completions **tương thích OpenAI** (URL, model, header xác thực tùy chỉnh)
 - **Nhiều provider** — quản lý nhiều endpoint AI; cài đặt provider đồng bộ qua Firebase Realtime Database
-- **Thư viện model dùng chung** — danh sách model toàn cục (không gắn riêng từng provider); chọn model đang dùng cho chat
+- **Thư viện model dùng chung** — danh sách model toàn cục, cấu hình độc lập với provider; chọn model đang dùng cho chat
 - **Kho API key** — key có nhãn, mã hóa bằng mã khóa của bạn (AES-GCM giống nội dung ghi chú) và lưu trên Firebase (`users/{uid}/settings/aiChatSettings/apiKeys`); chỉ ciphertext đồng bộ — plaintext chỉ ở bộ nhớ sau khi mở khóa
 - **Mở khóa API key** — dùng popup mã giống ghi chú mã hóa (mã đã lưu hoặc nhập thủ công); bắt buộc mỗi phiên chat mới, khi đổi key, và khi sửa key đã lưu
 - **API key đang dùng** — `activeApiKeyId` trên Firebase (giống `activeModelId` / `activeProviderId`); toolbar footer chọn key gửi request
 - **Cài đặt dạng popup** — chọn provider, model và API key từ popup danh sách; Add/Edit mở form cài đặt riêng
 - **Toolbar footer chat** — nút **Provider**, **Model** và API key (hiện tên đang chọn hoặc nhãn mặc định; ellipsis khi dài); icon bánh răng mở cài đặt bật/tắt AI tài khoản
-- **Import từ cURL** — dán lệnh `curl` để tự điền endpoint, xác thực, model và tham số request
+- **Import từ cURL** — dán lệnh `curl` để tự điền các trường provider (endpoint, xác thực, tham số sinh văn bản); không tự tạo hoặc chọn model
 - **Chat không cần API key** — endpoint local/mở hoạt động khi chọn **Chưa chọn API key** (không bắt buộc key để gửi)
 - **Ngữ cảnh ghi chú** — mẫu system prompt hỗ trợ placeholder `{{noteTitle}}` và `{{noteContent}}`
 - **Chèn vào ghi chú** — thêm bất kỳ tin nhắn nào (người dùng hoặc trợ lý) vào nội dung editor
@@ -523,6 +523,8 @@ Ghi chú import sẽ được tạo mới trên Firebase (ID mới).
 | API keys | Firebase `users/{uid}/settings/aiChatSettings/apiKeys` | Key có nhãn; **giá trị mã hóa** bằng mã khóa (`enc:v1:...`); tái sử dụng giữa các provider |
 | Lựa chọn đang active | Firebase `.../aiChatSettings/activeProviderId`, `activeModelId`, `activeApiKeyId` | Footer hiện tên provider, nhãn model, hoặc mặc định **Provider** / **Model** / nhãn key (hoặc **Không key**) |
 
+**Cấu hình độc lập:** provider, model và API key được quản lý riêng — lưu provider không cần model, và nút **Model** trên footer luôn bấm được dù chưa chọn provider. Provider và model chỉ kết hợp khi gửi chat (cả hai phải được chọn).
+
 **Luồng popup:** popup danh sách cho provider, model và API key → **Add** / **Edit** mở form cài đặt riêng → **Delete** có xác nhận. Chọn một mục trong popup danh sách sẽ kích hoạt cho chat (khi mở từ editor).
 
 ### Cài đặt provider
@@ -565,7 +567,7 @@ curl https://api.example.com/v1/chat/completions \
   -d '{"model":"your-model","messages":[{"role":"user","content":"Hello"}]}'
 ```
 
-Parser điền URL, header xác thực, model và các trường body đã biết. Biến môi trường (vd. `$YOUR_API_KEY`) không được lưu — thêm key thật vào kho **API keys** hoặc chọn **Chưa chọn API key** cho endpoint local.
+Parser điền URL, header xác thực và các trường body đã biết vào form **provider** (temperature, penalties, stream, header/body bổ sung). **Không** tạo model hay đặt `activeModelId` — thêm model riêng trong picker **Model**. Biến môi trường (vd. `$YOUR_API_KEY`) không được lưu — thêm key thật vào kho **API keys** hoặc chọn **Chưa chọn API key** cho endpoint local.
 
 ### Thao tác chat
 
