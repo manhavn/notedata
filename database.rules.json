@@ -18,6 +18,24 @@
           "disableAiChat": {
             ".validate": "newData.isBoolean()"
           },
+          "aiProviderSettings": {
+            "activeProviderId": {
+              ".validate": "!newData.exists() || newData.val() == null || newData.isString()"
+            },
+            "activeModelId": {
+              ".validate": "!newData.exists() || newData.val() == null || newData.isString()"
+            },
+            "providers": {
+              "$providerId": {
+                ".validate": "newData.hasChildren(['name', 'completionsUrl', 'authHeaderName', 'authHeaderPrefix', 'systemPrompt', 'stream', 'extraHeaders', 'extraBody', 'updatedAt']) && newData.child('name').isString() && newData.child('completionsUrl').isString() && newData.child('authHeaderName').isString() && newData.child('authHeaderPrefix').isString() && newData.child('systemPrompt').isString() && newData.child('stream').isBoolean() && newData.child('extraHeaders').isString() && newData.child('extraBody').isString() && newData.child('updatedAt').isNumber() && (!newData.hasChild('apiKeyId') || newData.child('apiKeyId').val() == null || newData.child('apiKeyId').isString()) && (!newData.hasChild('temperature') || newData.child('temperature').val() == null || newData.child('temperature').isNumber()) && (!newData.hasChild('maxTokens') || newData.child('maxTokens').val() == null || newData.child('maxTokens').isNumber()) && (!newData.hasChild('topP') || newData.child('topP').val() == null || newData.child('topP').isNumber()) && (!newData.hasChild('frequencyPenalty') || newData.child('frequencyPenalty').val() == null || newData.child('frequencyPenalty').isNumber()) && (!newData.hasChild('presencePenalty') || newData.child('presencePenalty').val() == null || newData.child('presencePenalty').isNumber())"
+              }
+            },
+            "models": {
+              "$modelId": {
+                ".validate": "newData.hasChildren(['label', 'value']) && newData.child('label').isString() && newData.child('value').isString() && (!newData.hasChild('updatedAt') || newData.child('updatedAt').isNumber())"
+              }
+            }
+          },
           "$other": {
             ".validate": false
           }

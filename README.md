@@ -39,13 +39,19 @@ A personal notes app built with **Svelte 5 + Vite**, using **Firebase Authentica
 
 - **Floating chat box** in the note editor — ask an AI to draft, edit, or summarize the current note
 - **Provider-agnostic** — works with any **OpenAI-compatible** chat-completions API (custom URL, model, auth headers)
+- **Multiple providers** — manage several AI endpoints; provider settings sync via Firebase Realtime Database
+- **Shared model library** — models are a global list (not tied to one provider); pick an active model for chat
+- **API key vault** — labeled API keys stored only in this browser (`notedata-ai-api-keys`); reuse across providers; **No API key** option for local providers
+- **Popup settings** — pick providers, models, and API keys from list popups; Add/Edit opens a separate settings form
+- **Chat footer toolbar** — quick-switch provider, model, and API key (labels with ellipsis); gear icon links to account AI toggle
 - **Import from cURL** — paste a `curl` command to auto-fill endpoint, authentication, model, and request params
-- **Browser-only credentials** — API key and all AI settings live in `localStorage` (`notedata-ai-chat-settings`); never sent to Firebase
-- **Save without API key** — store endpoint and model first, paste the API key and save again when ready
+- **Chat without API key** — local or open endpoints work when **No API key** is selected (no key required to send)
 - **Note context** — system prompt template supports `{{noteTitle}}` and `{{noteContent}}` placeholders
-- **Insert into note** — append the assistant reply to the editor content
+- **Insert into note** — append any chat message (user or assistant) to the editor content
+- **Copy all / Insert all / Clear** — bulk actions next to the AI button when the chat is open and has messages
+- **Per-account AI toggle** — enable or disable the chat assistant in Account settings (`disableAiChat` on Firebase)
 - **Hidden on encrypted lock** — chat is unavailable until the note is unlocked
-- **Disable via env** — set `VITE_DISABLE_AI_CHAT=true` to hide the chat box (default `false`, enabled)
+- **Disable via env** — set `VITE_DISABLE_AI_CHAT=true` to hide the chat box entirely (default `false`, enabled)
 
 ### Bulk actions
 
@@ -214,6 +220,7 @@ After sign-in, open the **user icon** in the top bar (right side):
 | Change password | `reauthenticateWithCredential` + `updatePassword` | Email/password accounts only |
 | Add password | `linkWithCredential` | Google-only accounts can link email/password sign-in |
 | Resend verification | `sendEmailVerification` | Email/password accounts only, when not yet verified |
+| AI assistant toggle | `users/{uid}/settings/disableAiChat` | Enable or disable the AI chat button for your account (synced via Realtime Database) |
 
 Beyond enabling **Email/Password** and **Google**, customize the three templates above: **Password reset**, **Email address verification**, and **Email address change**.
 
@@ -353,9 +360,10 @@ The project includes `database.rules.json` so each user can only read/write thei
 
 ```
 users/{userId}/notes/{noteId}
+users/{userId}/settings/...
 ```
 
-Deploy the rules:
+Deploy the rules (required for notes, trash, and AI provider settings):
 
 ```bash
 npm run firebase:deploy:database
@@ -378,7 +386,8 @@ Try:
 5. On sign-up, try the **confirm password** field and the **show/hide password** eye icon
 6. Create and save a note — add tags, search, sort, switch **TXT / MD / HTML** preview, and try **Cancel edit** on unsaved changes
 7. Open **Account settings** from the top-bar user icon to set a display name or change email
-8. Open a note and click **AI** — import a cURL example or fill **Completions URL** + **Model**, save settings, then add your API key and chat
+8. Open a note and click **AI** — add a provider (or import cURL), pick a model and API key from the footer toolbar, then chat; try **Copy all** / **Insert all to note** when messages exist
+9. Open **Account settings** → **AI assistant** to toggle AI on or off for your account
 
 ### Step 11: Deploy to Firebase Hosting
 
@@ -423,6 +432,33 @@ users/
         deletedAt: number (timestamp)
         encrypted?: boolean
         keyId?: string
+    settings/
+      disableAiChat?: boolean
+      aiProviderSettings/
+        activeProviderId: string | null
+        activeModelId: string | null
+        providers/
+          {providerId}/
+            name: string
+            completionsUrl: string
+            authHeaderName: string
+            authHeaderPrefix: string
+            systemPrompt: string
+            stream: boolean
+            extraHeaders: string
+            extraBody: string
+            updatedAt: number
+            apiKeyId?: string | null
+            temperature?: number | null
+            maxTokens?: number | null
+            topP?: number | null
+            frequencyPenalty?: number | null
+            presencePenalty?: number | null
+        models/
+          {modelId}/
+            label: string
+            value: string
+            updatedAt?: number
 ```
 
 ---
@@ -462,25 +498,43 @@ Imported notes are created as new entries in Firebase (new IDs).
 
 1. Open a note (not in trash; encrypted notes must be **unlocked** first)
 2. Click the **AI** button at the bottom-right of the editor
-3. On first use, open **AI settings** (gear icon) or the settings panel opens automatically
-4. Optional: expand **Import from cURL**, paste a chat-completions `curl` command, click **Parse & apply**
-5. Set **Completions URL** and **Model** (required), adjust auth headers and generation params if needed
-6. Click **Save settings** — you can save **without an API key** and add it later
-7. Paste your **API key**, save again, then send messages in the chat panel
-8. Use **Insert into note** on assistant replies to append text to the note
+3. On first use, the **Providers** popup opens automatically — click **Add** to create a provider
+4. Optional: expand **Import from cURL** in the provider form, paste a chat-completions `curl` command, click **Parse & apply**
+5. Set **Completions URL** (required), adjust auth headers, system prompt, and generation params, then **Save**
+6. Use the footer toolbar to pick a **Model** (add one if needed) and an **API key** — choose **No API key selected** for local providers
+7. Send messages in the chat panel
+8. Use **Insert into note** on any message, or **Insert all to note** / **Copy all** next to the AI button when the chat has history
 
-### Settings overview
+### Providers, models, and API keys
+
+| Item | Where it lives | Notes |
+|------|----------------|-------|
+| Providers | Firebase `users/{uid}/settings/aiProviderSettings/providers` | Endpoint URL, auth headers, system prompt, generation params; references an API key by id |
+| Models | Firebase `.../aiProviderSettings/models` | Global model library shared across providers; `activeModelId` picks the model used in chat |
+| API keys | `localStorage` (`notedata-ai-api-keys`) | Labeled keys; never sent to Firebase; reusable across providers |
+| Active selections | Firebase `activeProviderId`, `activeModelId` | Footer toolbar shows provider name, model label, and key label (or **No Key**) |
+
+**Popup flow:** list popups for providers, models, and API keys → **Add** / **Edit** opens a separate settings form → **Delete** asks for confirmation. Selecting an item in the list popup activates it for chat (when opened from the editor).
+
+### Provider settings
 
 | Field | Description |
 |-------|-------------|
+| Name | Display name shown in the footer toolbar |
 | Completions URL | Full chat-completions endpoint (e.g. `https://api.example.com/v1/chat/completions`) |
-| API key | Bearer or custom auth value; stored only in this browser |
 | Auth header name / prefix | e.g. `Authorization` + `Bearer `, or `x-api-key` with empty prefix |
-| Model | Model id sent in the JSON body |
+| System prompt | Template with `{{noteTitle}}` and `{{noteContent}}` |
 | Temperature, max tokens, top P, penalties | Optional generation params (omit field = not sent) |
 | Stream | `stream` flag in the request body |
-| System prompt | Template with `{{noteTitle}}` and `{{noteContent}}` |
 | Extra headers / body | JSON objects merged into the request for provider-specific options |
+| API key | Pick a saved key or **No API key selected** (provider stores `apiKeyId` only) |
+
+### Model settings
+
+| Field | Description |
+|-------|-------------|
+| Label | Display name in the model picker and footer toolbar |
+| Value | Model id sent in the JSON request body |
 
 ### Import from cURL
 
@@ -493,13 +547,33 @@ curl https://api.example.com/v1/chat/completions \
   -d '{"model":"your-model","messages":[{"role":"user","content":"Hello"}]}'
 ```
 
-The parser fills URL, auth header, model, and known body fields. Environment-variable placeholders (e.g. `$YOUR_API_KEY`) are not stored — enter the real key manually before chatting.
+The parser fills URL, auth header, model, and known body fields. Environment-variable placeholders (e.g. `$YOUR_API_KEY`) are not stored — add the real key in the **API keys** vault or choose **No API key selected** for local endpoints.
+
+### Chat actions
+
+| Action | When visible | What it does |
+|--------|--------------|--------------|
+| Insert into note | Every chat message | Appends that message to the note |
+| Copy all | Chat open + has messages | Copies the full conversation (`You:` / `Assistant:` format) to clipboard |
+| Insert all to note | Chat open + has messages | Appends the full conversation to the note |
+| Clear | Chat open + has messages | Clears the chat history |
+
+### Per-account AI toggle
+
+In **Account settings → AI assistant**, toggle AI on or off for your account. The setting is stored at `users/{uid}/settings/disableAiChat` on Firebase and syncs across devices. API keys remain browser-only.
+
+The gear icon in the chat footer opens Account settings focused on this section.
 
 ### Storage
 
-| Data | Storage key | Sent to Firebase? |
-|------|-------------|-------------------|
-| AI settings + API key | `notedata-ai-chat-settings` | No |
+| Data | Storage | Sent to Firebase? |
+|------|---------|-------------------|
+| Provider settings | `users/{uid}/settings/aiProviderSettings` | Yes (no API key values) |
+| Per-account AI toggle | `users/{uid}/settings/disableAiChat` | Yes |
+| API keys | `notedata-ai-api-keys` | No |
+| Legacy AI settings | `notedata-ai-chat-settings` | No (migrated to Firebase on first load) |
+
+> After upgrading from an older version, legacy `localStorage` AI settings and API keys are migrated automatically into Firebase providers and the API key vault.
 
 ### Disable the chat box
 
@@ -507,7 +581,7 @@ The parser fills URL, auth header, model, and known body fields. Environment-var
 VITE_DISABLE_AI_CHAT=true
 ```
 
-Restart `npm run dev` or rebuild before deploy. Implementation: `src/lib/ai-features.ts`.
+Restart `npm run dev` or rebuild before deploy. Implementation: `src/lib/ai-features.ts`. This hides AI for all users regardless of the per-account toggle.
 
 ---
 
@@ -639,13 +713,20 @@ To use a new Firebase project:
 ### AI chat: button missing
 
 - Check `VITE_DISABLE_AI_CHAT` is not `true` in `.env`; rebuild or restart dev server after changes
+- Check **Account settings → AI assistant** is enabled (`disableAiChat` is not `true` on Firebase)
 - Chat is hidden for **read-only** views (trash) and **locked encrypted** notes
 
 ### AI chat: request fails or CORS error
 
-- Confirm **Completions URL**, **Model**, and **API key** in AI settings
+- Confirm the active **provider**, **model**, and **API key** in the chat footer toolbar
+- For local providers, try **No API key selected** if the endpoint does not require authentication
 - The provider must allow browser requests from your origin (CORS), or use a proxy you control
-- API key and settings are browser-only — they are not validated by NoteData's backend
+- API key values are browser-only — they are not validated by NoteData's backend
+
+### AI chat: cannot save provider settings
+
+- Deploy database rules: `npm run firebase:deploy:database` (rules must allow `users/{uid}/settings/aiProviderSettings`)
+- User must be signed in
 
 ### Blank page or 404 after hosting deploy
 
@@ -663,9 +744,14 @@ src/
     firebase.ts          # Initialize Firebase from env variables
     auth-features.ts     # VITE_DISABLE_* auth feature flags
     ai-features.ts       # VITE_DISABLE_AI_CHAT feature flag
-    ai-settings.ts       # AI chat settings in localStorage
+    ai-settings.ts       # Resolve active provider/model into chat settings
+    ai-providers.ts      # Multi-provider + model CRUD on Firebase
+    ai-providers.svelte.ts  # Realtime sync for AI provider settings
+    ai-api-keys.ts       # Labeled API key vault in localStorage
     ai-chat.ts           # OpenAI-compatible chat-completions client
     parse-curl-ai.ts     # Parse cURL into AI settings
+    user-settings.ts     # Per-account settings on Firebase (e.g. disableAiChat)
+    user-settings.svelte.ts  # Realtime sync for user settings
     auth.svelte.ts       # Login, register, verification, password/email changes, profile
     theme.svelte.ts      # Dark/light theme state and persistence
     i18n.svelte.ts       # Locale state, t(), date formatting
@@ -691,7 +777,9 @@ src/
       UserAccountModal.svelte     # Display name, email, and password management
       EmailVerificationScreen.svelte  # Post-sign-up email verification gate
       EditorAiChat.svelte           # Floating AI chat in the note editor
-      EditorAiSettings.svelte       # AI provider settings and cURL import
+      EditorAiSettings.svelte       # Provider/model/API key popups and forms
+      AiPickerModal.svelte          # List popup for providers, models, API keys
+      AiFormModal.svelte            # Add/Edit settings form (stacked above picker)
       ...                # NotesApp, NoteEditor, NoteSidebar, TrashSidebar, ...
 scripts/
   run-manual-lint.sh     # oxlint + svelte-check manual lint script

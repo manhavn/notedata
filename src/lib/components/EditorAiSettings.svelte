@@ -1,40 +1,170 @@
 <script lang="ts">
+  import { untrack } from 'svelte'
   import {
-    cloneAiChatSettings,
-    DEFAULT_AI_SETTINGS,
-    getAiChatSettings,
+    deleteApiKey,
+    listApiKeys,
     maskApiKey,
-    resetAiChatSettings,
-    saveAiChatSettings,
-    validateAiChatSettings,
-    type AiChatSettings,
-  } from '../ai-settings'
-  import { openAccountSettings } from '../account-modal.svelte'
-  import { aiFeatures } from '../ai-features'
+    upsertApiKey,
+    type StoredApiKey,
+  } from '../ai-api-keys'
+  import {
+    applyChatSettingsToProvider,
+    cloneAiProvider,
+    createDefaultProvider,
+    createModelId,
+    deleteAiModel,
+    deleteAiProvider,
+    getActiveModel,
+    listModels,
+    listProviders,
+    providerToChatSettings,
+    saveAiModel,
+    saveAiProvider,
+    setActiveAiModel,
+    setActiveAiProvider,
+    validateAiProvider,
+    type AiProvider,
+    type AiProviderModel,
+  } from '../ai-providers'
+  import { aiProviderState } from '../ai-providers.svelte'
   import { parseCurlToAiSettings } from '../parse-curl-ai'
+  import { authState } from '../auth.svelte'
+  import { confirm } from '../dialog.svelte'
   import { t } from '../i18n.svelte'
-  import { isUserAiChatEnabled } from '../user-settings.svelte'
+  import AiFormModal from './AiFormModal.svelte'
+  import AiPickerModal, { type PickerItem } from './AiPickerModal.svelte'
   import PasswordInput from './PasswordInput.svelte'
 
+  export type AiSettingsModal = 'provider' | 'apiKey' | 'model' | null
+  type AiSettingsFormModal = AiSettingsModal
+
   interface Props {
-    canCancel?: boolean
-    onSaved: () => void
-    onCancel?: () => void
+    openModal: AiSettingsModal
+    activateOnSelect?: boolean
+    onClose: () => void
+    onChanged: () => void
   }
 
-  let { canCancel = false, onSaved, onCancel }: Props = $props()
+  let {
+    openModal = $bindable(),
+    activateOnSelect = false,
+    onClose,
+    onChanged,
+  }: Props = $props()
 
-  let draft = $state<AiChatSettings>(cloneAiChatSettings(getAiChatSettings()))
-  let apiKeyDraft = $state('')
+  let draft = $state<AiProvider>(createDefaultProvider())
+  let draftReady = $state(false)
+  let apiKeys = $state<StoredApiKey[]>([])
+  let apiKeyLabelDraft = $state('')
+  let apiKeyValueDraft = $state('')
+  let editingApiKeyId = $state<string | null>(null)
+  let modelLabelDraft = $state('')
+  let modelValueDraft = $state('')
+  let editingModelId = $state<string | null>(null)
   let curlInput = $state('')
   let showCurlImport = $state(false)
   let importNotice = $state<string | null>(null)
   let saveNotice = $state<string | null>(null)
   let error = $state<string | null>(null)
+  let saving = $state(false)
+  let openSettingsForm = $state<AiSettingsFormModal>(null)
 
-  const savedApiKeyMask = $derived(maskApiKey(draft.apiKey))
+  const providers = $derived(listProviders(aiProviderState.settings))
+  const models = $derived(listModels(aiProviderState.settings))
+  const activeProviderId = $derived(aiProviderState.settings.activeProviderId)
+  const activeModelId = $derived(aiProviderState.settings.activeModelId)
+  const providerPickerItems = $derived<PickerItem[]>(
+    providers.map((provider) => ({
+      id: provider.id,
+      label: provider.name,
+      meta: provider.completionsUrl,
+      badge: provider.id === activeProviderId ? t('aiProviderActiveBadge') : undefined,
+    })),
+  )
 
-  function setNumberField(field: keyof AiChatSettings, value: string) {
+  const providerFormTitle = $derived(
+    draft.id in aiProviderState.settings.providers ? draft.name : t('aiProviderAdd'),
+  )
+  const apiKeyFormTitle = $derived(
+    editingApiKeyId ? t('aiApiKeyEditLabel') : t('aiApiKeyAdd'),
+  )
+  const modelFormTitle = $derived(
+    editingModelId && modelLabelDraft.trim()
+      ? modelLabelDraft.trim()
+      : t('aiProviderModelAdd'),
+  )
+
+  const apiKeyPickerItems = $derived<PickerItem[]>([
+    {
+      id: '',
+      label: t('aiProviderApiKeyNone'),
+      meta: t('aiPickerNoApiKeyHint'),
+      manageActions: false,
+    },
+    ...apiKeys.map((key) => ({
+      id: key.id,
+      label: key.label,
+      meta: maskApiKey(key.value),
+      badge: key.id === draft.apiKeyId ? t('aiProviderActiveBadge') : undefined,
+    })),
+  ])
+
+  const modelPickerItems = $derived<PickerItem[]>(
+    models.map((model) => ({
+      id: model.id,
+      label: model.label,
+      meta: model.value,
+      badge: model.id === activeModelId ? t('aiProviderActiveBadge') : undefined,
+    })),
+  )
+
+  function refreshApiKeys() {
+    apiKeys = listApiKeys()
+  }
+
+  function resetApiKeyDraft() {
+    apiKeyLabelDraft = ''
+    apiKeyValueDraft = ''
+    editingApiKeyId = null
+  }
+
+  function resetModelDraft() {
+    modelLabelDraft = ''
+    modelValueDraft = ''
+    editingModelId = null
+  }
+
+  function loadProvider(provider: AiProvider | null) {
+    draft = provider ? cloneAiProvider(provider) : createDefaultProvider()
+    resetModelDraft()
+    draftReady = true
+  }
+
+  $effect(() => {
+    if (!aiProviderState.loaded || draftReady) return
+
+    untrack(() => {
+      const active =
+        (activeProviderId && aiProviderState.settings.providers[activeProviderId]) ||
+        providers[0] ||
+        null
+      loadProvider(active)
+    })
+  })
+
+  $effect(() => {
+    if (!openModal) {
+      openSettingsForm = null
+    }
+  })
+
+  function closeSettingsForm() {
+    openSettingsForm = null
+    error = null
+    saveNotice = null
+  }
+
+  function setNumberField(field: keyof AiProvider, value: string) {
     draft = {
       ...draft,
       [field]: value.trim() === '' ? null : Number(value),
@@ -44,12 +174,14 @@
   function mapValidationError(code: string | null): string | null {
     if (!code) return null
     const map: Record<string, string> = {
+      AI_PROVIDER_NAME_REQUIRED: t('aiProviderNameRequired'),
+      AI_PROVIDER_MODEL_REQUIRED: t('aiProviderModelRequired'),
       AI_SETTINGS_COMPLETIONS_URL_REQUIRED: t('aiSettingsCompletionsUrlRequired'),
       AI_SETTINGS_COMPLETIONS_URL_INVALID: t('aiSettingsCompletionsUrlInvalid'),
-      AI_SETTINGS_MODEL_REQUIRED: t('aiSettingsModelRequired'),
-      AI_SETTINGS_API_KEY_REQUIRED: t('aiApiKeyRequired'),
       AI_SETTINGS_AUTH_HEADER_REQUIRED: t('aiSettingsAuthHeaderRequired'),
       AI_SETTINGS_INVALID_JSON: t('aiSettingsInvalidJson'),
+      AI_API_KEY_LABEL_REQUIRED: t('aiApiKeyLabelRequired'),
+      AI_API_KEY_VALUE_REQUIRED: t('aiApiKeyRequired'),
       AI_SETTINGS_CURL_INVALID: t('aiSettingsCurlInvalid'),
       AI_SETTINGS_CURL_NO_URL: t('aiSettingsCurlNoUrl'),
       AI_SETTINGS_CURL_NO_BODY: t('aiSettingsCurlNoBody'),
@@ -64,10 +196,33 @@
     error = null
 
     try {
-      const result = parseCurlToAiSettings(curlInput, draft)
-      draft = cloneAiChatSettings(result.settings)
-      if (result.apiKeyDraft) {
-        apiKeyDraft = result.apiKeyDraft
+      const currentSettings = providerToChatSettings(
+        draft,
+        '',
+        aiProviderState.settings,
+        getActiveModel(aiProviderState.settings),
+      )
+      const result = parseCurlToAiSettings(curlInput, currentSettings)
+      const applied = applyChatSettingsToProvider(draft, result.settings, aiProviderState.settings)
+      draft = applied.provider
+
+      const userId = authState.user?.uid
+      if (userId) {
+        for (const [id, model] of Object.entries(applied.models)) {
+          if (!(id in aiProviderState.settings.models)) {
+            void saveAiModel(userId, model)
+          }
+        }
+        if (applied.activeModelId) {
+          void setActiveAiModel(userId, applied.activeModelId)
+        }
+      }
+
+      if (result.apiKeyDraft.trim()) {
+        editingApiKeyId = null
+        apiKeyLabelDraft = ''
+        apiKeyValueDraft = result.apiKeyDraft
+        openSettingsForm = 'apiKey'
       }
 
       const notices = [t('aiSettingsCurlImported')]
@@ -83,451 +238,678 @@
     }
   }
 
-  function saveSettings() {
-    const next = cloneAiChatSettings(draft)
-    if (apiKeyDraft.trim()) {
-      next.apiKey = apiKeyDraft.trim()
+  async function saveProvider(makeActive = false) {
+    const userId = authState.user?.uid
+    if (!userId) {
+      error = t('toastOperationFailed')
+      return false
     }
 
-    const validationError = mapValidationError(validateAiChatSettings(next))
+    const validationError = mapValidationError(validateAiProvider(draft, aiProviderState.settings))
     if (validationError) {
       error = validationError
+      return false
+    }
+
+    saving = true
+    error = null
+    saveNotice = null
+
+    try {
+      await saveAiProvider(userId, draft)
+
+      const shouldActivate =
+        makeActive || !activeProviderId || Object.keys(aiProviderState.settings.providers).length === 0
+      if (shouldActivate) {
+        await setActiveAiProvider(userId, draft.id)
+      }
+
+      saveNotice = draft.apiKeyId ? t('aiProviderSaved') : t('aiSettingsSavedWithoutKey')
+      onChanged()
+      closeSettingsForm()
+      return true
+    } catch {
+      error = t('toastOperationFailed')
+      return false
+    } finally {
+      saving = false
+    }
+  }
+
+  function openAddProvider() {
+    loadProvider(createDefaultProvider(''))
+    saveNotice = null
+    error = null
+    openSettingsForm = 'provider'
+  }
+
+  async function removeProviderById(providerId: string) {
+    const userId = authState.user?.uid
+    if (!userId || !(providerId in aiProviderState.settings.providers)) return
+
+    const provider = aiProviderState.settings.providers[providerId]
+    const accepted = await confirm({
+      title: t('aiProviderDeleteTitle'),
+      message: t('aiProviderDeleteMessage', { name: provider.name }),
+      confirmLabel: t('delete'),
+      variant: 'danger',
+    })
+    if (!accepted) return
+
+    saving = true
+    error = null
+
+    try {
+      await deleteAiProvider(userId, providerId)
+      const remaining = listProviders(aiProviderState.settings)
+      const next =
+        (activeProviderId && aiProviderState.settings.providers[activeProviderId]) ||
+        remaining[0] ||
+        null
+      loadProvider(next)
+      if (openSettingsForm === 'provider') {
+        closeSettingsForm()
+      }
+      saveNotice = t('aiProviderDeleted')
+      onChanged()
+    } catch {
+      error = t('toastOperationFailed')
+    } finally {
+      saving = false
+    }
+  }
+
+  async function handleProviderPick(providerId: string) {
+    const provider = aiProviderState.settings.providers[providerId]
+    if (!provider) return
+
+    loadProvider(provider)
+
+    if (activateOnSelect) {
+      const userId = authState.user?.uid
+      if (userId) {
+        saving = true
+        try {
+          await setActiveAiProvider(userId, providerId)
+          onChanged()
+          onClose()
+        } catch {
+          error = t('toastOperationFailed')
+        } finally {
+          saving = false
+        }
+      }
+    }
+  }
+
+  function handleProviderEdit(providerId: string) {
+    const provider = aiProviderState.settings.providers[providerId]
+    if (!provider) return
+    loadProvider(provider)
+    saveNotice = null
+    error = null
+    openSettingsForm = 'provider'
+  }
+
+  async function handleApiKeyPick(apiKeyId: string) {
+    draft = { ...draft, apiKeyId: apiKeyId || null }
+
+    if (activateOnSelect) {
+      const userId = authState.user?.uid
+      const provider = draft
+      if (userId && provider.id in aiProviderState.settings.providers) {
+        saving = true
+        try {
+          await saveAiProvider(userId, provider)
+          onChanged()
+          onClose()
+        } catch {
+          error = t('toastOperationFailed')
+        } finally {
+          saving = false
+        }
+      }
+    }
+  }
+
+  function openAddApiKey() {
+    resetApiKeyDraft()
+    saveNotice = null
+    error = null
+    openSettingsForm = 'apiKey'
+  }
+
+  function handleApiKeyEdit(apiKeyId: string) {
+    const key = apiKeys.find((item) => item.id === apiKeyId)
+    if (!key) return
+    editingApiKeyId = key.id
+    apiKeyLabelDraft = key.label
+    apiKeyValueDraft = key.value
+    saveNotice = null
+    error = null
+    openSettingsForm = 'apiKey'
+  }
+
+  async function handleModelPick(modelId: string) {
+    if (!(modelId in aiProviderState.settings.models)) return
+
+    const userId = authState.user?.uid
+    if (!userId) return
+
+    saving = true
+    error = null
+
+    try {
+      await setActiveAiModel(userId, modelId)
+      onChanged()
+      if (activateOnSelect) {
+        onClose()
+      }
+    } catch {
+      error = t('toastOperationFailed')
+    } finally {
+      saving = false
+    }
+  }
+
+  function openAddModel() {
+    resetModelDraft()
+    saveNotice = null
+    error = null
+    openSettingsForm = 'model'
+  }
+
+  function handleModelEdit(modelId: string) {
+    const model = aiProviderState.settings.models[modelId]
+    if (!model) return
+    editingModelId = model.id
+    modelLabelDraft = model.label
+    modelValueDraft = model.value
+    saveNotice = null
+    error = null
+    openSettingsForm = 'model'
+  }
+
+  async function saveApiKeyEntry() {
+    error = null
+
+    try {
+      const saved = upsertApiKey({
+        id: editingApiKeyId ?? undefined,
+        label: apiKeyLabelDraft,
+        value: apiKeyValueDraft,
+      })
+      refreshApiKeys()
+      draft = { ...draft, apiKeyId: saved.id }
+      resetApiKeyDraft()
+
+      const userId = authState.user?.uid
+      if (userId && draft.id in aiProviderState.settings.providers) {
+        saving = true
+        try {
+          await saveAiProvider(userId, draft)
+        } finally {
+          saving = false
+        }
+      }
+
+      saveNotice = t('aiApiKeyEntrySaved')
+      onChanged()
+      closeSettingsForm()
+    } catch (err) {
+      const code = err instanceof Error ? err.message : 'AI_API_KEY_VALUE_REQUIRED'
+      error = mapValidationError(code)
+    }
+  }
+
+  async function removeApiKeyEntry(key: StoredApiKey) {
+    const accepted = await confirm({
+      title: t('aiApiKeyDeleteTitle'),
+      message: t('aiApiKeyDeleteMessage', { label: key.label }),
+      confirmLabel: t('delete'),
+      variant: 'danger',
+    })
+    if (!accepted) return
+
+    deleteApiKey(key.id)
+    refreshApiKeys()
+    if (draft.apiKeyId === key.id) {
+      draft = { ...draft, apiKeyId: null }
+    }
+    if (editingApiKeyId === key.id) {
+      resetApiKeyDraft()
+      if (openSettingsForm === 'apiKey') {
+        closeSettingsForm()
+      }
+    }
+    onChanged()
+  }
+
+  async function saveModelEntry() {
+    error = null
+    const label = modelLabelDraft.trim()
+    const value = modelValueDraft.trim()
+    if (!label) {
+      error = t('aiProviderModelLabelRequired')
+      return
+    }
+    if (!value) {
+      error = t('aiProviderModelValueRequired')
       return
     }
 
-    saveAiChatSettings(next)
-    draft = cloneAiChatSettings(next)
-    apiKeyDraft = ''
-    error = null
-    saveNotice = next.apiKey ? null : t('aiSettingsSavedWithoutKey')
-    onSaved()
+    const userId = authState.user?.uid
+    if (!userId) {
+      error = t('toastOperationFailed')
+      return
+    }
+
+    const modelId = editingModelId ?? createModelId()
+    const model: AiProviderModel = { id: modelId, label, value }
+
+    saving = true
+    try {
+      await saveAiModel(userId, model)
+
+      if (!aiProviderState.settings.activeModelId) {
+        await setActiveAiModel(userId, modelId)
+      }
+
+      resetModelDraft()
+      saveNotice = t('aiProviderModelSaved')
+      onChanged()
+      closeSettingsForm()
+    } catch {
+      error = t('toastOperationFailed')
+    } finally {
+      saving = false
+    }
   }
 
-  function restoreDefaults() {
-    draft = cloneAiChatSettings(DEFAULT_AI_SETTINGS)
-    apiKeyDraft = ''
+  async function removeModelEntry(model: AiProviderModel) {
+    const userId = authState.user?.uid
+    if (!userId) return
+
+    const accepted = await confirm({
+      title: t('aiProviderModelDeleteTitle'),
+      message: t('aiProviderModelDeleteMessage', { label: model.label }),
+      confirmLabel: t('delete'),
+      variant: 'danger',
+    })
+    if (!accepted) return
+
+    saving = true
     error = null
+
+    try {
+      await deleteAiModel(userId, model.id)
+
+      if (editingModelId === model.id) {
+        resetModelDraft()
+        if (openSettingsForm === 'model') {
+          closeSettingsForm()
+        }
+      }
+
+      onChanged()
+    } catch {
+      error = t('toastOperationFailed')
+    } finally {
+      saving = false
+    }
   }
 
-  function clearStoredSettings() {
-    draft = resetAiChatSettings()
-    apiKeyDraft = ''
-    error = null
-    onSaved()
-  }
-
-  function openAiChatAccountSettings() {
-    openAccountSettings('aiChat')
-  }
+  refreshApiKeys()
 </script>
 
-<div class="ai-settings">
-  <section class="ai-settings-section ai-settings-import">
-    <div class="ai-settings-import-head">
-      <h4>{t('aiSettingsCurlImport')}</h4>
-      <button
-        type="button"
-        class="ai-settings-import-toggle"
-        onclick={() => (showCurlImport = !showCurlImport)}
-      >
-        {showCurlImport ? t('aiSettingsCurlHide') : t('aiSettingsCurlShow')}
-      </button>
-    </div>
-    {#if showCurlImport}
-      <p class="ai-settings-hint">{t('aiSettingsCurlHint')}</p>
-      <label class="ai-settings-field">
-        <span>{t('aiSettingsCurlLabel')}</span>
-        <textarea
-          class="mono"
-          bind:value={curlInput}
-          rows="6"
-          spellcheck="false"
-          placeholder={t('aiSettingsCurlPlaceholder')}
-        ></textarea>
-      </label>
-      <button
-        type="button"
-        class="ai-settings-import-btn"
-        onclick={importFromCurl}
-        disabled={!curlInput.trim()}
-      >
-        {t('aiSettingsCurlApply')}
-      </button>
-    {/if}
-    {#if importNotice}
-      <p class="ai-settings-notice">{importNotice}</p>
-    {/if}
-  </section>
+{#if openModal === 'provider'}
+  <AiPickerModal
+    open={true}
+    manageMode
+    title={t('aiPickerManageProviders')}
+    subtitle={t('aiPickerManageProvidersHint')}
+    items={providerPickerItems}
+    selectedId={activeProviderId}
+    emptyLabel={t('aiPickerProvidersEmpty')}
+    addLabel={t('aiProviderAdd')}
+    onClose={onClose}
+    onSelect={handleProviderPick}
+    onAdd={openAddProvider}
+    onEdit={handleProviderEdit}
+    onDelete={removeProviderById}
+  />
+{:else if openModal === 'apiKey'}
+  <AiPickerModal
+    open={true}
+    manageMode
+    title={t('aiPickerManageApiKeys')}
+    subtitle={t('aiPickerManageApiKeysHint')}
+    items={apiKeyPickerItems}
+    selectedId={draft.apiKeyId ?? ''}
+    emptyLabel={t('aiApiKeyVaultEmpty')}
+    addLabel={t('aiApiKeyAdd')}
+    onClose={onClose}
+    onSelect={handleApiKeyPick}
+    onAdd={openAddApiKey}
+    onEdit={handleApiKeyEdit}
+    onDelete={async (id) => {
+      const key = apiKeys.find((item) => item.id === id)
+      if (key) await removeApiKeyEntry(key)
+    }}
+  />
+{:else if openModal === 'model'}
+  <AiPickerModal
+    open={true}
+    manageMode
+    title={t('aiPickerManageModels')}
+    subtitle={t('aiPickerManageModelsHint')}
+    items={modelPickerItems}
+    selectedId={activeModelId}
+    emptyLabel={t('aiProviderModelsEmpty')}
+    addLabel={t('aiProviderModelAdd')}
+    onClose={onClose}
+    onSelect={handleModelPick}
+    onAdd={openAddModel}
+    onEdit={handleModelEdit}
+    onDelete={async (id) => {
+      const model = aiProviderState.settings.models[id]
+      if (model) await removeModelEntry(model)
+    }}
+  />
+{/if}
 
-  <section class="ai-settings-section">
-    <h4>{t('aiSettingsEndpoint')}</h4>
-    <label class="ai-settings-field">
-      <span>{t('aiSettingsCompletionsUrl')}</span>
-      <input
-        type="url"
-        bind:value={draft.completionsUrl}
-        placeholder="https://inference.poolside.ai/v1/chat/completions"
-      />
-    </label>
-  </section>
+{#if openSettingsForm === 'provider'}
+  <AiFormModal
+    open={true}
+    large
+    title={providerFormTitle}
+    subtitle={t('aiPickerManageProvidersHint')}
+    onClose={closeSettingsForm}
+  >
+    {#snippet body()}
+      <div class="modal-form">
+        <label class="field">
+          <span>{t('aiProviderName')}</span>
+          <input type="text" bind:value={draft.name} maxlength="64" placeholder={t('aiProviderNamePlaceholder')} />
+        </label>
 
-  <section class="ai-settings-section">
-    <h4>{t('aiSettingsAuth')}</h4>
-    {#if savedApiKeyMask}
-      <p class="ai-settings-saved-key">{t('aiApiKeySaved', { mask: savedApiKeyMask })}</p>
-    {/if}
-    <label class="ai-settings-field">
-      <span>{apiKeyDraft || !draft.apiKey ? t('aiApiKeyLabel') : t('aiApiKeyReplace')}</span>
-      <PasswordInput
-        bind:value={apiKeyDraft}
-        placeholder={t('aiApiKeyPlaceholder')}
-        autocomplete="off"
-      />
-    </label>
-    <label class="ai-settings-field">
-      <span>{t('aiSettingsAuthHeaderName')}</span>
-      <input type="text" bind:value={draft.authHeaderName} placeholder="Authorization" />
-    </label>
-    <label class="ai-settings-field">
-      <span>{t('aiSettingsAuthHeaderPrefix')}</span>
-      <input type="text" bind:value={draft.authHeaderPrefix} placeholder="Bearer " />
-    </label>
-  </section>
+        <div class="import-head">
+          <h4>{t('aiSettingsCurlImport')}</h4>
+          <button type="button" class="mini-btn" onclick={() => (showCurlImport = !showCurlImport)}>
+            {showCurlImport ? t('aiSettingsCurlHide') : t('aiSettingsCurlShow')}
+          </button>
+        </div>
+        {#if showCurlImport}
+          <p class="hint">{t('aiSettingsCurlHint')}</p>
+          <label class="field">
+            <span>{t('aiSettingsCurlLabel')}</span>
+            <textarea class="mono" bind:value={curlInput} rows="5" spellcheck="false"></textarea>
+          </label>
+          <button type="button" class="mini-btn" onclick={importFromCurl} disabled={!curlInput.trim()}>
+            {t('aiSettingsCurlApply')}
+          </button>
+        {/if}
+        {#if importNotice}<p class="notice success">{importNotice}</p>{/if}
 
-  <section class="ai-settings-section">
-    <h4>{t('aiSettingsModelSection')}</h4>
-    <label class="ai-settings-field">
-      <span>{t('aiSettingsModel')}</span>
-      <input type="text" bind:value={draft.model} placeholder="poolside/laguna-m.1" />
-    </label>
-    <div class="ai-settings-grid">
-      <label class="ai-settings-field">
-        <span>{t('aiSettingsTemperature')}</span>
-        <input
-          type="number"
-          min="0"
-          max="2"
-          step="0.1"
-          value={draft.temperature ?? ''}
-          oninput={(event) => setNumberField('temperature', event.currentTarget.value)}
-          placeholder={t('aiSettingsOptional')}
-        />
-      </label>
-      <label class="ai-settings-field">
-        <span>{t('aiSettingsMaxTokens')}</span>
-        <input
-          type="number"
-          min="1"
-          step="1"
-          value={draft.maxTokens ?? ''}
-          oninput={(event) => setNumberField('maxTokens', event.currentTarget.value)}
-          placeholder={t('aiSettingsOptional')}
-        />
-      </label>
-      <label class="ai-settings-field">
-        <span>{t('aiSettingsTopP')}</span>
-        <input
-          type="number"
-          min="0"
-          max="1"
-          step="0.05"
-          value={draft.topP ?? ''}
-          oninput={(event) => setNumberField('topP', event.currentTarget.value)}
-          placeholder={t('aiSettingsOptional')}
-        />
-      </label>
-      <label class="ai-settings-field">
-        <span>{t('aiSettingsFrequencyPenalty')}</span>
-        <input
-          type="number"
-          min="-2"
-          max="2"
-          step="0.1"
-          value={draft.frequencyPenalty ?? ''}
-          oninput={(event) => setNumberField('frequencyPenalty', event.currentTarget.value)}
-          placeholder={t('aiSettingsOptional')}
-        />
-      </label>
-      <label class="ai-settings-field">
-        <span>{t('aiSettingsPresencePenalty')}</span>
-        <input
-          type="number"
-          min="-2"
-          max="2"
-          step="0.1"
-          value={draft.presencePenalty ?? ''}
-          oninput={(event) => setNumberField('presencePenalty', event.currentTarget.value)}
-          placeholder={t('aiSettingsOptional')}
-        />
-      </label>
-    </div>
-    <label class="ai-settings-checkbox">
-      <input type="checkbox" bind:checked={draft.stream} />
-      <span>{t('aiSettingsStream')}</span>
-    </label>
-  </section>
+        <label class="field">
+          <span>{t('aiSettingsCompletionsUrl')}</span>
+          <input type="url" bind:value={draft.completionsUrl} />
+        </label>
 
-  <section class="ai-settings-section">
-    <h4>{t('aiSettingsPromptSection')}</h4>
-    <p class="ai-settings-hint">{t('aiSettingsPromptHint')}</p>
-    <label class="ai-settings-field">
-      <span>{t('aiSettingsSystemPrompt')}</span>
-      <textarea bind:value={draft.systemPrompt} rows="7"></textarea>
-    </label>
-  </section>
+        <label class="field">
+          <span>{t('aiSettingsAuthHeaderName')}</span>
+          <input type="text" bind:value={draft.authHeaderName} />
+        </label>
+        <label class="field">
+          <span>{t('aiSettingsAuthHeaderPrefix')}</span>
+          <input type="text" bind:value={draft.authHeaderPrefix} />
+        </label>
 
-  <section class="ai-settings-section">
-    <h4>{t('aiSettingsAdvanced')}</h4>
-    <p class="ai-settings-hint">{t('aiSettingsAdvancedHint')}</p>
-    <label class="ai-settings-field">
-      <span>{t('aiSettingsExtraHeaders')}</span>
-      <textarea class="mono" bind:value={draft.extraHeaders} rows="4" spellcheck="false"></textarea>
-    </label>
-    <label class="ai-settings-field">
-      <span>{t('aiSettingsExtraBody')}</span>
-      <textarea class="mono" bind:value={draft.extraBody} rows="4" spellcheck="false"></textarea>
-    </label>
-  </section>
+        <div class="field-grid">
+          <label class="field">
+            <span>{t('aiSettingsTemperature')}</span>
+            <input
+              type="number"
+              value={draft.temperature ?? ''}
+              oninput={(e) => setNumberField('temperature', e.currentTarget.value)}
+              placeholder={t('aiSettingsOptional')}
+            />
+          </label>
+          <label class="field">
+            <span>{t('aiSettingsMaxTokens')}</span>
+            <input
+              type="number"
+              value={draft.maxTokens ?? ''}
+              oninput={(e) => setNumberField('maxTokens', e.currentTarget.value)}
+              placeholder={t('aiSettingsOptional')}
+            />
+          </label>
+          <label class="field">
+            <span>{t('aiSettingsTopP')}</span>
+            <input
+              type="number"
+              value={draft.topP ?? ''}
+              oninput={(e) => setNumberField('topP', e.currentTarget.value)}
+              placeholder={t('aiSettingsOptional')}
+            />
+          </label>
+          <label class="field">
+            <span>{t('aiSettingsFrequencyPenalty')}</span>
+            <input
+              type="number"
+              value={draft.frequencyPenalty ?? ''}
+              oninput={(e) => setNumberField('frequencyPenalty', e.currentTarget.value)}
+              placeholder={t('aiSettingsOptional')}
+            />
+          </label>
+          <label class="field">
+            <span>{t('aiSettingsPresencePenalty')}</span>
+            <input
+              type="number"
+              value={draft.presencePenalty ?? ''}
+              oninput={(e) => setNumberField('presencePenalty', e.currentTarget.value)}
+              placeholder={t('aiSettingsOptional')}
+            />
+          </label>
+        </div>
 
-  {#if saveNotice}
-    <p class="ai-settings-notice">{saveNotice}</p>
-  {/if}
+        <label class="checkbox">
+          <input type="checkbox" bind:checked={draft.stream} />
+          <span>{t('aiSettingsStream')}</span>
+        </label>
 
-  {#if error}
-    <p class="ai-settings-error">{error}</p>
-  {/if}
+        <label class="field">
+          <span>{t('aiSettingsSystemPrompt')}</span>
+          <textarea bind:value={draft.systemPrompt} rows="5"></textarea>
+        </label>
 
-  <footer class="ai-settings-actions">
-    {#if !aiFeatures.disableAiChat}
-      <button
-        type="button"
-        class="action-chip"
-        class:on={isUserAiChatEnabled()}
-        onclick={openAiChatAccountSettings}
-        title={t('aiSettingsToggleAccountHint')}
-      >
-        <span class="action-chip-dot" aria-hidden="true"></span>
-        <span class="action-chip-label">
-          {isUserAiChatEnabled() ? t('aiSettingsToggleAccountOn') : t('aiSettingsToggleAccountOff')}
-        </span>
-      </button>
-    {/if}
+        <label class="field">
+          <span>{t('aiSettingsExtraHeaders')}</span>
+          <textarea class="mono" bind:value={draft.extraHeaders} rows="3" spellcheck="false"></textarea>
+        </label>
+        <label class="field">
+          <span>{t('aiSettingsExtraBody')}</span>
+          <textarea class="mono" bind:value={draft.extraBody} rows="3" spellcheck="false"></textarea>
+        </label>
 
-    <div class="action-row action-row-main" class:single={!(canCancel && onCancel)}>
-      <button type="button" class="action-btn primary" onclick={saveSettings}>
-        {t('aiSettingsSave')}
-      </button>
-      {#if canCancel && onCancel}
-        <button type="button" class="action-btn" onclick={onCancel}>
+        {#if error}<p class="notice error">{error}</p>{/if}
+      </div>
+    {/snippet}
+
+    {#snippet footer()}
+      <div class="modal-actions">
+        <button type="button" class="action-btn primary" onclick={() => saveProvider(false)} disabled={saving}>
+          {saving ? t('saving') : t('aiProviderSave')}
+        </button>
+        <button type="button" class="action-btn" onclick={closeSettingsForm} disabled={saving}>
           {t('cancel')}
         </button>
-      {/if}
-    </div>
+      </div>
+    {/snippet}
+  </AiFormModal>
+{:else if openSettingsForm === 'apiKey'}
+  <AiFormModal
+    open={true}
+    title={apiKeyFormTitle}
+    subtitle={t('aiApiKeyVaultHint')}
+    onClose={closeSettingsForm}
+  >
+    {#snippet body()}
+      <div class="modal-form">
+        <label class="field">
+          <span>{t('aiApiKeyLabelName')}</span>
+          <input type="text" bind:value={apiKeyLabelDraft} placeholder={t('aiApiKeyLabelPlaceholder')} />
+        </label>
+        <label class="field">
+          <span>{editingApiKeyId ? t('aiApiKeyReplace') : t('aiApiKeyLabel')}</span>
+          <PasswordInput bind:value={apiKeyValueDraft} placeholder={t('aiApiKeyPlaceholder')} autocomplete="off" />
+        </label>
+        {#if error}<p class="notice error">{error}</p>{/if}
+      </div>
+    {/snippet}
 
-    <div class="action-row action-row-secondary">
-      <button type="button" class="action-btn" onclick={restoreDefaults}>
-        {t('aiSettingsRestoreDefaults')}
-      </button>
-      <button type="button" class="action-btn danger" onclick={clearStoredSettings}>
-        {t('aiSettingsClearStored')}
-      </button>
-    </div>
-  </footer>
-</div>
+    {#snippet footer()}
+      <div class="modal-actions">
+        <button type="button" class="action-btn primary" onclick={saveApiKeyEntry} disabled={saving}>
+          {saving ? t('saving') : editingApiKeyId ? t('aiApiKeySave') : t('aiApiKeyAdd')}
+        </button>
+        <button type="button" class="action-btn" onclick={closeSettingsForm}>
+          {t('cancel')}
+        </button>
+      </div>
+    {/snippet}
+  </AiFormModal>
+{:else if openSettingsForm === 'model'}
+  <AiFormModal
+    open={true}
+    title={modelFormTitle}
+    subtitle={t('aiProviderModelsHint')}
+    onClose={closeSettingsForm}
+  >
+    {#snippet body()}
+      <div class="modal-form">
+        <label class="field">
+          <span>{t('aiProviderModelLabel')}</span>
+          <input type="text" bind:value={modelLabelDraft} placeholder={t('aiProviderModelLabelPlaceholder')} />
+        </label>
+        <label class="field">
+          <span>{t('aiProviderModelValue')}</span>
+          <input type="text" bind:value={modelValueDraft} placeholder={t('aiProviderModelValuePlaceholder')} />
+        </label>
+        {#if error}<p class="notice error">{error}</p>{/if}
+      </div>
+    {/snippet}
+
+    {#snippet footer()}
+      <div class="modal-actions">
+        <button type="button" class="action-btn primary" onclick={saveModelEntry} disabled={saving}>
+          {saving ? t('saving') : editingModelId ? t('save') : t('aiProviderModelAdd')}
+        </button>
+        <button type="button" class="action-btn" onclick={closeSettingsForm}>
+          {t('cancel')}
+        </button>
+      </div>
+    {/snippet}
+  </AiFormModal>
+{/if}
 
 <style>
-  .ai-settings {
-    display: flex;
-    flex-direction: column;
-    gap: 0.85rem;
-    padding: 0.85rem 1rem 1rem;
-    overflow-y: auto;
-    max-height: min(58vh, 460px);
-  }
-
-  .ai-settings-section {
+  .modal-form {
     display: flex;
     flex-direction: column;
     gap: 0.55rem;
-    padding-bottom: 0.75rem;
-    border-bottom: 1px solid var(--border);
   }
 
-  .ai-settings-section:last-of-type {
-    border-bottom: none;
-    padding-bottom: 0;
-  }
-
-  .ai-settings-section h4 {
-    margin: 0;
-    font-size: 0.8rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--text-muted);
-  }
-
-  .ai-settings-field {
+  .field {
     display: flex;
     flex-direction: column;
-    gap: 0.3rem;
+    gap: 0.28rem;
   }
 
-  .ai-settings-field span {
-    font-size: 0.78rem;
+  .field span {
+    font-size: 0.76rem;
     font-weight: 600;
     color: var(--text);
   }
 
-  .ai-settings-field input,
-  .ai-settings-field textarea {
+  .field input,
+  .field textarea {
     width: 100%;
-    padding: 0.55rem 0.65rem;
+    padding: 0.5rem 0.62rem;
     border: 1px solid var(--border);
     border-radius: 8px;
     background: var(--bg);
     color: var(--text);
     font: inherit;
-    font-size: 0.84rem;
-    line-height: 1.45;
+    font-size: 0.82rem;
   }
 
-  .ai-settings-field textarea {
-    resize: vertical;
-    min-height: 4.5rem;
-  }
-
-  .ai-settings-field textarea.mono {
+  .field textarea.mono {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 0.78rem;
+    font-size: 0.76rem;
   }
 
-  .ai-settings-field input:focus,
-  .ai-settings-field textarea:focus {
-    outline: none;
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--input-focus-ring);
-  }
-
-  .ai-settings-grid {
+  .field-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.55rem;
+    gap: 0.45rem;
   }
 
-  .ai-settings-checkbox {
+  .checkbox {
     display: inline-flex;
     align-items: center;
-    gap: 0.45rem;
-    font-size: 0.82rem;
-    color: var(--text);
-    cursor: pointer;
+    gap: 0.4rem;
+    font-size: 0.8rem;
   }
 
-  .ai-settings-hint,
-  .ai-settings-saved-key {
-    margin: 0;
-    font-size: 0.76rem;
-    line-height: 1.45;
-    color: var(--text-muted);
-  }
-
-  .ai-settings-saved-key {
-    color: var(--success);
-    font-weight: 600;
-  }
-
-  .ai-settings-import-head {
+  .import-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 0.5rem;
   }
 
-  .ai-settings-import-toggle,
-  .ai-settings-import-btn {
-    padding: 0.4rem 0.7rem;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--bg);
-    color: var(--text-muted);
+  .import-head h4 {
+    margin: 0;
     font-size: 0.78rem;
-    font-weight: 600;
-    cursor: pointer;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
   }
 
-  .ai-settings-import-btn {
-    align-self: flex-start;
-    color: var(--text);
-    border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  .hint {
+    margin: 0;
+    font-size: 0.76rem;
+    color: var(--text-muted);
+    line-height: 1.45;
   }
 
-  .ai-settings-import-btn:disabled {
-    opacity: 0.55;
-    cursor: not-allowed;
-  }
-
-  .ai-settings-notice {
+  .notice {
     margin: 0;
     font-size: 0.78rem;
     line-height: 1.45;
+  }
+
+  .notice.success {
     color: var(--success);
     font-weight: 600;
   }
 
-  .ai-settings-error {
-    margin: 0;
-    font-size: 0.8rem;
+  .notice.error {
     color: var(--danger);
   }
 
-  .ai-settings-actions {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    padding-top: 0.75rem;
-    margin-top: 0.1rem;
-    border-top: 1px solid var(--border);
-  }
-
-  .action-row {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.45rem;
-  }
-
-  .action-row.single {
-    grid-template-columns: 1fr;
-  }
-
-  .action-btn,
-  .action-chip {
-    min-height: 2.35rem;
-    border-radius: 8px;
+  .mini-btn,
+  .action-btn {
+    padding: 0.45rem 0.7rem;
     border: 1px solid var(--border);
+    border-radius: 8px;
     background: var(--bg);
     color: var(--text);
-    font: inherit;
-    font-size: 0.8rem;
+    font-size: 0.78rem;
     font-weight: 600;
     cursor: pointer;
-    transition:
-      border-color 0.2s,
-      background 0.2s,
-      color 0.2s,
-      opacity 0.2s;
-  }
-
-  .action-btn {
-    width: 100%;
-    padding: 0.55rem 0.65rem;
-    line-height: 1.25;
-    text-align: center;
-  }
-
-  .action-btn:hover {
-    border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
-    background: var(--surface);
   }
 
   .action-btn.primary {
@@ -536,69 +918,31 @@
     color: #fff;
   }
 
-  .action-btn.primary:hover {
-    background: color-mix(in srgb, var(--accent) 88%, #000);
-    border-color: color-mix(in srgb, var(--accent) 88%, #000);
-    color: #fff;
+  .action-btn:disabled,
+  .mini-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
   }
 
-  .action-btn.danger {
-    color: var(--danger);
-    border-color: color-mix(in srgb, var(--danger) 35%, var(--border));
-    background: var(--danger-bg);
+  .modal-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
   }
 
-  .action-btn.danger:hover {
-    border-color: color-mix(in srgb, var(--danger) 55%, var(--border));
-    background: color-mix(in srgb, var(--danger) 10%, var(--danger-bg));
-    color: var(--danger);
+  .modal-actions .action-btn {
+    flex: 1;
+    min-width: 7rem;
+    text-align: center;
   }
 
-  .action-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    width: 100%;
-    padding: 0.55rem 0.75rem;
-    color: var(--text-muted);
-    text-align: left;
-  }
-
-  .action-chip:hover {
-    border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
-    color: var(--text);
-    background: var(--surface);
-  }
-
-  .action-chip.on {
-    border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
-    background: color-mix(in srgb, var(--accent) 8%, var(--bg));
-    color: var(--text);
-  }
-
-  .action-chip-dot {
-    width: 0.55rem;
-    height: 0.55rem;
-    border-radius: 999px;
-    background: var(--text-muted);
-    flex-shrink: 0;
-  }
-
-  .action-chip.on .action-chip-dot {
-    background: var(--accent);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
-  }
-
-  .action-chip-label {
-    min-width: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  @media (max-width: 480px) {
-    .ai-settings-grid {
+  @media (max-width: 768px) {
+    .field-grid {
       grid-template-columns: 1fr;
+    }
+
+    .modal-actions {
+      flex-direction: column;
     }
   }
 </style>

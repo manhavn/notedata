@@ -1,5 +1,10 @@
 <script lang="ts">
   import { chatCompletion, type ChatMessage } from '../ai-chat'
+  import { getApiKeyById } from '../ai-api-keys'
+  import { getActiveModel, getActiveProvider } from '../ai-providers'
+  import { aiProviderState } from '../ai-providers.svelte'
+  import { aiFeatures } from '../ai-features'
+  import { openAccountSettings } from '../account-modal.svelte'
   import {
     getAiChatSettings,
     hasAiChatSettingsSaved,
@@ -7,7 +12,9 @@
     renderSystemPrompt,
   } from '../ai-settings'
   import { t } from '../i18n.svelte'
-  import EditorAiSettings from './EditorAiSettings.svelte'
+  import { toastError, toastSuccess } from '../toast.svelte'
+  import { isUserAiChatEnabled } from '../user-settings.svelte'
+  import EditorAiSettings, { type AiSettingsModal } from './EditorAiSettings.svelte'
 
   interface Props {
     noteTitle: string
@@ -25,7 +32,7 @@
   }
 
   let open = $state(false)
-  let showSettings = $state(false)
+  let openModal = $state<AiSettingsModal>(null)
   let configured = $state(isAiChatConfigured())
   let settingsSaved = $state(hasAiChatSettingsSaved())
   let input = $state('')
@@ -34,6 +41,20 @@
   let error = $state<string | null>(null)
   let abortController = $state<AbortController | null>(null)
   let messagesEl = $state<HTMLDivElement | undefined>(undefined)
+  let toolbarTick = $state(0)
+
+  const activeProvider = $derived(getActiveProvider(aiProviderState.settings))
+  const activeModel = $derived(getActiveModel(aiProviderState.settings))
+
+  const providerButtonLabel = $derived(activeProvider?.name?.trim() || t('aiProviderSelect'))
+  const modelButtonLabel = $derived(activeModel?.label?.trim() || t('aiProviderModelsSection'))
+  const apiKeyButtonLabel = $derived.by(() => {
+    void toolbarTick
+    if (!activeProvider) return t('aiApiKeyVaultSection')
+    if (!activeProvider.apiKeyId) return t('aiApiKeyNoneLabel')
+    const key = getApiKeyById(activeProvider.apiKeyId)
+    return key?.label?.trim() || t('aiApiKeyNoneLabel')
+  })
 
   function buildSystemPrompt(): string {
     const settings = getAiChatSettings()
@@ -52,28 +73,23 @@
     configured = isAiChatConfigured()
     settingsSaved = hasAiChatSettingsSaved()
     if (!settingsSaved) {
-      showSettings = true
+      openModal = 'provider'
     }
   }
 
-  function handleSettingsSaved() {
+  function handleSettingsChanged() {
     configured = isAiChatConfigured()
     settingsSaved = hasAiChatSettingsSaved()
-    if (configured || settingsSaved) {
-      showSettings = false
-    }
+    toolbarTick += 1
     error = null
   }
 
-  function openSettings() {
-    showSettings = true
-    error = null
+  function closeModal() {
+    openModal = null
   }
 
-  function closeSettings() {
-    if (!configured && !settingsSaved) return
-    showSettings = false
-    error = null
+  function openAiChatAccountSettings() {
+    openAccountSettings('aiChat')
   }
 
   async function sendMessage() {
@@ -115,13 +131,7 @@
       ]
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return
-      if (err instanceof Error && err.message === 'AI_SETTINGS_API_KEY_REQUIRED') {
-        configured = false
-        showSettings = true
-        error = t('aiApiKeyRequired')
-      } else {
-        error = err instanceof Error ? err.message : t('aiChatError')
-      }
+      error = err instanceof Error ? err.message : t('aiChatError')
       messages = messages.filter((message) => message.id !== userMessage.id)
       input = prompt
     } finally {
@@ -151,6 +161,33 @@
     }
   }
 
+  function formatChatMessage(message: UiMessage): string {
+    const roleLabel = message.role === 'user' ? t('aiChatYou') : t('aiChatAssistant')
+    return `${roleLabel}:\n${message.content.trim()}`
+  }
+
+  function formatAllChatMessages(): string {
+    return messages.map(formatChatMessage).join('\n\n')
+  }
+
+  async function copyAllChat() {
+    const text = formatAllChatMessages().trim()
+    if (!text) return
+
+    try {
+      await navigator.clipboard.writeText(text)
+      toastSuccess(t('aiChatCopied'))
+    } catch {
+      toastError(t('aiChatCopyFailed'))
+    }
+  }
+
+  function insertAllToNote() {
+    const text = formatAllChatMessages().trim()
+    if (!text) return
+    onInsert(text)
+  }
+
   function toggleOpen() {
     open = !open
     if (open) {
@@ -161,60 +198,19 @@
 </script>
 
 <div class="ai-chat" class:open>
-  <button
-    type="button"
-    class="ai-chat-toggle"
-    onclick={toggleOpen}
-    disabled={disabled}
-    aria-expanded={open}
-    aria-label={open ? t('aiChatClose') : t('aiChatOpen')}
-    title={open ? t('aiChatClose') : t('aiChatOpen')}
-  >
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M12 3a9 9 0 0 0-7.7 13.6L3 21l4.5-1.2A9 9 0 1 0 12 3Zm0 2a7 7 0 1 1 0 14 7 7 0 0 1 0-14Z"
-        fill="currentColor"
-      />
-    </svg>
-    <span>{t('aiChat')}</span>
-  </button>
-
   {#if open}
     <section class="ai-chat-panel" aria-label={t('aiChat')}>
-      <header class="ai-chat-header">
-        <div>
-          <h3>{t('aiChat')}</h3>
-          <p>{showSettings ? t('aiSettingsSubtitle') : t('aiChatHint')}</p>
-        </div>
-        <div class="ai-chat-header-actions">
-          {#if !showSettings}
-            <button type="button" class="ai-chat-icon-btn" onclick={openSettings} title={t('aiSettingsTitle')}>
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  d="M12 15.5A3.5 3.5 0 1 0 12 8.5a3.5 3.5 0 0 0 0 7Zm7.4-2.9.9-.7a1 1 0 0 0 .3-1.1l-.8-1.4a1 1 0 0 0-1-.5l-1.1.2a7.2 7.2 0 0 0-1.2-.7l-.2-1.1a1 1 0 0 0-.5-1l-1.4-.8a1 1 0 0 0-1.1.3l-.7.9a7.5 7.5 0 0 0-1.4 0l-.7-.9a1 1 0 0 0-1.1-.3l-1.4.8a1 1 0 0 0-.5 1l-.2 1.1c-.4.2-.8.5-1.2.7l-1.1-.2a1 1 0 0 0-1 .5l-.8 1.4a1 1 0 0 0 .3 1.1l.9.7a7.5 7.5 0 0 0 0 1.4l-.9.7a1 1 0 0 0-.3 1.1l.8 1.4a1 1 0 0 0 1 .5l1.1-.2c.4.3.8.5 1.2.7l.2 1.1a1 1 0 0 0 .5 1l1.4.8a1 1 0 0 0 1.1-.3l.7-.9c.5.1.9.1 1.4 0l.7.9a1 1 0 0 0 1.1.3l1.4-.8a1 1 0 0 0 .5-1l.2-1.1c.4-.2.8-.5 1.2-.7l1.1.2a1 1 0 0 0 1-.5l.8-1.4a1 1 0 0 0-.3-1.1Z"
-                  fill="currentColor"
-                />
-              </svg>
-            </button>
-            <button type="button" class="ai-chat-clear" onclick={clearChat} disabled={loading || messages.length === 0}>
-              {t('aiChatClear')}
-            </button>
-          {/if}
-        </div>
-      </header>
-
-      {#if showSettings}
-        <EditorAiSettings
-          canCancel={configured || settingsSaved}
-          onSaved={handleSettingsSaved}
-          onCancel={closeSettings}
-        />
-      {:else if !configured}
+      {#if !configured}
         <div class="ai-chat-messages">
           <p class="ai-chat-empty">{t('aiChatNeedApiKey')}</p>
-          <button type="button" class="ai-chat-open-settings" onclick={openSettings}>
-            {t('aiSettingsTitle')}
-          </button>
+          <div class="ai-chat-setup-actions">
+            <button type="button" class="ai-chat-setup-btn" onclick={() => (openModal = 'provider')}>
+              {t('aiPickerManageProviders')}
+            </button>
+            <button type="button" class="ai-chat-setup-btn" onclick={() => (openModal = 'apiKey')}>
+              {t('aiPickerManageApiKeys')}
+            </button>
+          </div>
         </div>
       {:else}
         <div class="ai-chat-messages" bind:this={messagesEl}>
@@ -227,15 +223,13 @@
                   {message.role === 'user' ? t('aiChatYou') : t('aiChatAssistant')}
                 </span>
                 <p>{message.content}</p>
-                {#if message.role === 'assistant'}
-                  <button
-                    type="button"
-                    class="ai-chat-insert"
-                    onclick={() => onInsert(message.content)}
-                  >
-                    {t('aiChatInsert')}
-                  </button>
-                {/if}
+                <button
+                  type="button"
+                  class="ai-chat-insert"
+                  onclick={() => onInsert(message.content)}
+                >
+                  {t('aiChatInsert')}
+                </button>
               </article>
             {/each}
           {/if}
@@ -253,8 +247,10 @@
         {#if error}
           <p class="ai-chat-error">{error}</p>
         {/if}
+      {/if}
 
-        <footer class="ai-chat-footer">
+      <footer class="ai-chat-footer">
+        {#if configured}
           <textarea
             class="ai-chat-input"
             bind:value={input}
@@ -263,7 +259,55 @@
             disabled={loading || disabled}
             onkeydown={handleKeydown}
           ></textarea>
-          <div class="ai-chat-actions">
+        {/if}
+
+        <div class="ai-chat-actions">
+          <div class="ai-chat-toolbar">
+            {#if !aiFeatures.disableAiChat}
+              <button
+                type="button"
+                class="ai-toolbar-setup"
+                onclick={openAiChatAccountSettings}
+                title={t('aiSettingsToggleAccountHint')}
+                aria-label={isUserAiChatEnabled()
+                  ? t('aiSettingsToggleAccountOn')
+                  : t('aiSettingsToggleAccountOff')}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    fill="currentColor"
+                    d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96a7.02 7.02 0 0 0-1.63-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.56-1.63.94l-2.39-.96a.488.488 0 0 0-.59.22L2.74 8.87a.49.49 0 0 0 .12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.04.7 1.63.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.63-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.01-1.58ZM12 15.6A3.6 3.6 0 1 1 15.6 12 3.6 3.6 0 0 1 12 15.6Z"
+                  />
+                </svg>
+              </button>
+            {/if}
+            <button
+              type="button"
+              class="ai-toolbar-btn ai-toolbar-picker"
+              onclick={() => (openModal = 'provider')}
+              title={providerButtonLabel}
+            >
+              <span class="ai-toolbar-picker-label">{providerButtonLabel}</span>
+            </button>
+            <button
+              type="button"
+              class="ai-toolbar-btn ai-toolbar-picker"
+              onclick={() => (openModal = 'model')}
+              disabled={!activeProvider}
+              title={modelButtonLabel}
+            >
+              <span class="ai-toolbar-picker-label">{modelButtonLabel}</span>
+            </button>
+            <button
+              type="button"
+              class="ai-toolbar-btn ai-toolbar-picker"
+              onclick={() => (openModal = 'apiKey')}
+              title={apiKeyButtonLabel}
+            >
+              <span class="ai-toolbar-picker-label">{apiKeyButtonLabel}</span>
+            </button>
+          </div>
+          {#if configured}
             {#if loading}
               <button type="button" class="ai-chat-stop" onclick={stopGeneration}>
                 {t('aiChatStop')}
@@ -278,12 +322,66 @@
                 {t('aiChatSend')}
               </button>
             {/if}
-          </div>
-        </footer>
-      {/if}
+          {/if}
+        </div>
+      </footer>
     </section>
   {/if}
+
+  <div class="ai-chat-controls">
+    {#if open && messages.length > 0}
+      <button
+        type="button"
+        class="ai-chat-action"
+        onclick={copyAllChat}
+        title={t('aiChatCopyAll')}
+      >
+        {t('aiChatCopyAll')}
+      </button>
+      <button
+        type="button"
+        class="ai-chat-action"
+        onclick={insertAllToNote}
+        title={t('aiChatInsertAll')}
+      >
+        {t('aiChatInsertAll')}
+      </button>
+      <button
+        type="button"
+        class="ai-chat-action"
+        onclick={clearChat}
+        disabled={loading}
+        title={t('aiChatClear')}
+      >
+        {t('aiChatClear')}
+      </button>
+    {/if}
+    <button
+      type="button"
+      class="ai-chat-toggle"
+      onclick={toggleOpen}
+      disabled={disabled}
+      aria-expanded={open}
+      aria-label={open ? t('aiChatClose') : t('aiChatOpen')}
+      title={open ? t('aiChatClose') : t('aiChatOpen')}
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          d="M12 3a9 9 0 0 0-7.7 13.6L3 21l4.5-1.2A9 9 0 1 0 12 3Zm0 2a7 7 0 1 1 0 14 7 7 0 0 1 0-14Z"
+          fill="currentColor"
+        />
+      </svg>
+      <span>{t('aiChat')}</span>
+    </button>
+  </div>
 </div>
+
+<EditorAiSettings
+  bind:openModal
+  activateOnSelect={true}
+  onClose={closeModal}
+  onChanged={handleSettingsChanged}
+/>
 
 <style>
   .ai-chat {
@@ -296,6 +394,42 @@
     align-items: flex-end;
     gap: 0.75rem;
     max-width: min(460px, calc(100% - 2rem));
+  }
+
+  .ai-chat-controls {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+  }
+
+  .ai-chat-action {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.55rem 0.8rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: var(--shadow-lg);
+    white-space: nowrap;
+    transition:
+      border-color 0.2s,
+      color 0.2s;
+  }
+
+  .ai-chat-action:hover:not(:disabled) {
+    color: var(--text);
+    border-color: var(--accent);
+  }
+
+  .ai-chat-action:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
   }
 
   .ai-chat-toggle {
@@ -343,79 +477,6 @@
     overflow: hidden;
   }
 
-  .ai-chat-header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 0.75rem;
-    padding: 0.85rem 1rem;
-    border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
-  }
-
-  .ai-chat-header h3 {
-    margin: 0;
-    font-size: 0.95rem;
-    color: var(--text);
-  }
-
-  .ai-chat-header p {
-    margin: 0.2rem 0 0;
-    font-size: 0.78rem;
-    color: var(--text-muted);
-    line-height: 1.4;
-  }
-
-  .ai-chat-header-actions {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    flex-shrink: 0;
-  }
-
-  .ai-chat-icon-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 1.75rem;
-    height: 1.75rem;
-    border: none;
-    border-radius: 6px;
-    background: transparent;
-    color: var(--text-muted);
-    cursor: pointer;
-  }
-
-  .ai-chat-icon-btn svg {
-    width: 1rem;
-    height: 1rem;
-  }
-
-  .ai-chat-icon-btn:hover {
-    color: var(--text);
-    background: color-mix(in srgb, var(--text-muted) 12%, transparent);
-  }
-
-  .ai-chat-clear {
-    flex-shrink: 0;
-    border: none;
-    background: transparent;
-    color: var(--text-muted);
-    font-size: 0.78rem;
-    font-weight: 600;
-    cursor: pointer;
-    padding: 0.2rem 0;
-  }
-
-  .ai-chat-clear:hover:not(:disabled) {
-    color: var(--text);
-  }
-
-  .ai-chat-clear:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
   .ai-chat-messages {
     flex: 1;
     overflow-y: auto;
@@ -432,9 +493,15 @@
     line-height: 1.5;
   }
 
-  .ai-chat-open-settings {
+  .ai-chat-setup-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
     margin-top: 0.75rem;
-    padding: 0.45rem 0.9rem;
+  }
+
+  .ai-chat-setup-btn {
+    padding: 0.5rem 0.8rem;
     border: 1px solid var(--border);
     border-radius: 8px;
     background: var(--bg);
@@ -442,9 +509,10 @@
     font-size: 0.82rem;
     font-weight: 600;
     cursor: pointer;
+    text-align: left;
   }
 
-  .ai-chat-open-settings:hover {
+  .ai-chat-setup-btn:hover {
     border-color: var(--accent);
   }
 
@@ -569,7 +637,78 @@
 
   .ai-chat-actions {
     display: flex;
-    justify-content: flex-end;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  .ai-chat-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    flex-wrap: nowrap;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .ai-toolbar-setup {
+    display: grid;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .ai-toolbar-setup svg {
+    width: 1rem;
+    height: 1rem;
+  }
+
+  .ai-toolbar-setup:hover {
+    color: var(--text);
+  }
+
+  .ai-toolbar-btn {
+    padding: 0.38rem 0.55rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .ai-toolbar-picker {
+    flex: 1 1 0;
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .ai-toolbar-picker-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .ai-toolbar-btn:hover:not(:disabled) {
+    color: var(--text);
+    border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  }
+
+  .ai-toolbar-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
   }
 
   .ai-chat-send,
@@ -580,6 +719,7 @@
     font-size: 0.82rem;
     font-weight: 600;
     cursor: pointer;
+    flex-shrink: 0;
   }
 
   .ai-chat-send {
@@ -596,5 +736,21 @@
     background: var(--danger-bg);
     color: var(--danger);
     border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border));
+  }
+
+  @media (max-width: 480px) {
+    .ai-chat-toolbar {
+      width: 100%;
+    }
+
+    .ai-toolbar-picker {
+      flex: 1 1 0;
+      min-width: 0;
+      padding-inline: 0.4rem;
+    }
+
+    .ai-toolbar-setup {
+      flex: 0 0 2rem;
+    }
   }
 </style>

@@ -1,3 +1,11 @@
+import { getApiKeyValue } from './ai-api-keys'
+import {
+  getActiveModel,
+  getActiveProvider,
+  providerToChatSettings,
+  type AiProviderSettings,
+} from './ai-providers'
+
 export interface AiChatSettings {
   completionsUrl: string
   apiKey: string
@@ -23,6 +31,19 @@ type LegacyAiChatSettings = Partial<AiChatSettings> & {
 
 const STORAGE_KEY = 'notedata-ai-chat-settings'
 const LEGACY_API_KEYS = ['notedata-legacy-api-key', 'notedata-poolside-api-key']
+
+const EMPTY_PROVIDER_SETTINGS: AiProviderSettings = {
+  activeProviderId: null,
+  activeModelId: null,
+  providers: {},
+  models: {},
+}
+
+let getProviderSettings: () => AiProviderSettings = () => EMPTY_PROVIDER_SETTINGS
+
+export function bindAiProviderSettingsGetter(getter: () => AiProviderSettings) {
+  getProviderSettings = getter
+}
 
 export const DEFAULT_AI_SETTINGS: AiChatSettings = {
   completionsUrl: '',
@@ -74,7 +95,7 @@ function resolveCompletionsUrl(raw: LegacyAiChatSettings): string {
   return baseUrl || completionsPath
 }
 
-function normalizeSettings(raw: LegacyAiChatSettings): AiChatSettings {
+function normalizeLegacySettings(raw: LegacyAiChatSettings): AiChatSettings {
   return {
     completionsUrl: resolveCompletionsUrl(raw),
     apiKey: typeof raw.apiKey === 'string' ? raw.apiKey.trim() : '',
@@ -82,7 +103,10 @@ function normalizeSettings(raw: LegacyAiChatSettings): AiChatSettings {
       typeof raw.authHeaderName === 'string' && raw.authHeaderName.trim()
         ? raw.authHeaderName.trim()
         : DEFAULT_AI_SETTINGS.authHeaderName,
-    authHeaderPrefix: typeof raw.authHeaderPrefix === 'string' ? raw.authHeaderPrefix : DEFAULT_AI_SETTINGS.authHeaderPrefix,
+    authHeaderPrefix:
+      typeof raw.authHeaderPrefix === 'string'
+        ? raw.authHeaderPrefix
+        : DEFAULT_AI_SETTINGS.authHeaderPrefix,
     model: typeof raw.model === 'string' ? raw.model.trim() : DEFAULT_AI_SETTINGS.model,
     systemPrompt:
       typeof raw.systemPrompt === 'string' && raw.systemPrompt.trim()
@@ -99,7 +123,9 @@ function normalizeSettings(raw: LegacyAiChatSettings): AiChatSettings {
         ? raw.extraHeaders
         : DEFAULT_AI_SETTINGS.extraHeaders,
     extraBody:
-      typeof raw.extraBody === 'string' && raw.extraBody.trim() ? raw.extraBody : DEFAULT_AI_SETTINGS.extraBody,
+      typeof raw.extraBody === 'string' && raw.extraBody.trim()
+        ? raw.extraBody
+        : DEFAULT_AI_SETTINGS.extraBody,
   }
 }
 
@@ -121,7 +147,7 @@ function migrateLegacyApiKey(settings: AiChatSettings): AiChatSettings {
   }
 }
 
-function readSettings(): AiChatSettings {
+function readLegacySettings(): AiChatSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) {
@@ -129,18 +155,26 @@ function readSettings(): AiChatSettings {
     }
 
     const parsed = JSON.parse(raw) as LegacyAiChatSettings
-    return migrateLegacyApiKey(normalizeSettings(parsed))
+    return migrateLegacyApiKey(normalizeLegacySettings(parsed))
   } catch {
     return migrateLegacyApiKey(DEFAULT_AI_SETTINGS)
   }
 }
 
-export function getAiChatSettings(): AiChatSettings {
-  return readSettings()
+export function getLegacyAiChatSettingsFromStorage(): AiChatSettings {
+  return readLegacySettings()
 }
 
-export function saveAiChatSettings(settings: AiChatSettings) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizeSettings(settings)))
+export function getAiChatSettings(): AiChatSettings {
+  const providerSettings = getProviderSettings()
+  const provider = getActiveProvider(providerSettings)
+
+  if (!provider) {
+    return readLegacySettings()
+  }
+
+  const apiKey = getApiKeyValue(provider.apiKeyId)
+  return providerToChatSettings(provider, apiKey, providerSettings, getActiveModel(providerSettings))
 }
 
 export function resetAiChatSettings(): AiChatSettings {
@@ -152,21 +186,21 @@ export function resetAiChatSettings(): AiChatSettings {
 }
 
 export function hasAiChatSettingsSaved(): boolean {
-  const settings = readSettings()
-  return Boolean(settings.completionsUrl.trim() && settings.model.trim())
+  const providerSettings = getProviderSettings()
+  const provider = getActiveProvider(providerSettings)
+  if (!provider) return false
+  return Boolean(
+    provider.completionsUrl.trim() &&
+      providerSettings.activeModelId &&
+      providerSettings.models[providerSettings.activeModelId],
+  )
 }
 
 export function isAiChatConfigured(): boolean {
-  const settings = readSettings()
-  return Boolean(settings.apiKey && hasAiChatSettingsSaved())
+  return hasAiChatSettingsSaved()
 }
 
-export function maskApiKey(apiKey: string): string {
-  const trimmed = apiKey.trim()
-  if (!trimmed) return ''
-  if (trimmed.length <= 8) return '••••••••'
-  return `${trimmed.slice(0, 4)}••••${trimmed.slice(-4)}`
-}
+export { maskApiKey } from './ai-api-keys'
 
 export function buildCompletionsUrl(settings: AiChatSettings): string {
   return settings.completionsUrl.trim()

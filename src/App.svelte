@@ -1,6 +1,7 @@
 <script lang="ts">
   import { authState, userNeedsEmailVerification } from './lib/auth.svelte'
   import './lib/user-settings.svelte'
+  import './lib/ai-providers.svelte'
   import { t } from './lib/i18n.svelte'
   import DialogModal from './lib/components/DialogModal.svelte'
   import ToastContainer from './lib/components/ToastContainer.svelte'

@@ -64,9 +64,6 @@ export async function chatCompletion(
   options?: { signal?: AbortSignal },
 ): Promise<string> {
   const settings = getAiChatSettings()
-  if (!settings.apiKey) {
-    throw new Error('AI_SETTINGS_API_KEY_REQUIRED')
-  }
 
   const response = await fetch(buildCompletionsUrl(settings), {
     method: 'POST',
