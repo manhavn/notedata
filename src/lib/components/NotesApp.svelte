@@ -22,8 +22,6 @@
   import { confirm } from '../dialog.svelte'
   import { t } from '../i18n.svelte'
   import { toastError, toastSuccess } from '../toast.svelte'
-  import KeyManagerModal from './KeyManagerModal.svelte'
-  import UserAccountModal from './UserAccountModal.svelte'
   import LocaleThemeControls from './LocaleThemeControls.svelte'
   import NoteEditor from './NoteEditor.svelte'
   import NoteSidebar from './NoteSidebar.svelte'
@@ -708,8 +706,17 @@
   </div>
 </div>
 
-<KeyManagerModal open={keyManagerOpen} onClose={() => (keyManagerOpen = false)} />
-<UserAccountModal open={accountModalOpen} onClose={() => (accountModalOpen = false)} />
+{#if keyManagerOpen}
+  {#await import('./KeyManagerModal.svelte') then { default: KeyManagerModal }}
+    <KeyManagerModal open={keyManagerOpen} onClose={() => (keyManagerOpen = false)} />
+  {/await}
+{/if}
+
+{#if accountModalOpen}
+  {#await import('./UserAccountModal.svelte') then { default: UserAccountModal }}
+    <UserAccountModal open={accountModalOpen} onClose={() => (accountModalOpen = false)} />
+  {/await}
+{/if}
 
 <style>
   .hidden-input {

@@ -1,11 +1,8 @@
 <script lang="ts">
   import { authState, userNeedsEmailVerification } from './lib/auth.svelte'
   import { t } from './lib/i18n.svelte'
-  import AuthPage from './lib/components/AuthPage.svelte'
   import DialogModal from './lib/components/DialogModal.svelte'
   import ToastContainer from './lib/components/ToastContainer.svelte'
-  import EmailVerificationScreen from './lib/components/EmailVerificationScreen.svelte'
-  import NotesApp from './lib/components/NotesApp.svelte'
 
   const pendingEmailVerification = $derived.by(() => {
     void authState.profileTick
@@ -20,12 +17,33 @@
   </div>
 {:else if authState.user}
   {#if pendingEmailVerification}
-    <EmailVerificationScreen />
+    {#await import('./lib/components/EmailVerificationScreen.svelte')}
+      <div class="loading">
+        <div class="spinner"></div>
+        <p>{t('loading')}</p>
+      </div>
+    {:then { default: EmailVerificationScreen }}
+      <EmailVerificationScreen />
+    {/await}
   {:else}
-    <NotesApp />
+    {#await import('./lib/components/NotesApp.svelte')}
+      <div class="loading">
+        <div class="spinner"></div>
+        <p>{t('loading')}</p>
+      </div>
+    {:then { default: NotesApp }}
+      <NotesApp />
+    {/await}
   {/if}
 {:else}
-  <AuthPage />
+  {#await import('./lib/components/AuthPage.svelte')}
+    <div class="loading">
+      <div class="spinner"></div>
+      <p>{t('loading')}</p>
+    </div>
+  {:then { default: AuthPage }}
+    <AuthPage />
+  {/await}
 {/if}
 
 <DialogModal />

@@ -6,5 +6,21 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            {
+              name: 'firebase',
+              test: /node_modules\/firebase/,
+            },
+            {
+              name: 'markdown',
+              test: /node_modules\/(marked|dompurify)/,
+            },
+          ],
+        },
+      },
+    },
   },
 })

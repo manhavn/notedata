@@ -11,8 +11,7 @@
   import { portal } from '../portal'
   import { normalizeTags } from '../notes'
   import type { Note } from '../types'
-  import EditorAiChat from './EditorAiChat.svelte'
-  import KeySelectModal, { type PasscodeSubmit } from './KeySelectModal.svelte'
+  import type { PasscodeSubmit } from './KeySelectModal.svelte'
 
   interface SavePayload {
     title: string
@@ -74,8 +73,40 @@
   const showLockedState = $derived(
     Boolean(note && noteIsEncrypted && !isUnlocked && !hasDraft),
   )
-  const renderedMarkdown = $derived(renderMarkdown(plainContent))
-  const renderedHtml = $derived(renderHtml(plainContent))
+  let renderedMarkdown = $state('')
+  let renderedHtml = $state('')
+
+  $effect(() => {
+    if (contentViewMode !== 'md') {
+      renderedMarkdown = ''
+      return
+    }
+
+    let cancelled = false
+    void renderMarkdown(plainContent).then((html) => {
+      if (!cancelled) renderedMarkdown = html
+    })
+
+    return () => {
+      cancelled = true
+    }
+  })
+
+  $effect(() => {
+    if (contentViewMode !== 'html') {
+      renderedHtml = ''
+      return
+    }
+
+    let cancelled = false
+    void renderHtml(plainContent).then((html) => {
+      if (!cancelled) renderedHtml = html
+    })
+
+    return () => {
+      cancelled = true
+    }
+  })
 
   $effect(() => {
     if (!note) {
@@ -572,11 +603,13 @@
     {/if}
 
     {#if !aiFeatures.disableAiChat && !readonly && !showLockedState}
-      <EditorAiChat
-        noteTitle={title}
-        noteContent={plainContent}
-        onInsert={insertAiContent}
-      />
+      {#await import('./EditorAiChat.svelte') then { default: EditorAiChat }}
+        <EditorAiChat
+          noteTitle={title}
+          noteContent={plainContent}
+          onInsert={insertAiContent}
+        />
+      {/await}
     {/if}
   {:else}
     <div class="placeholder">
@@ -589,23 +622,25 @@
 
 {#if keyModalOpen}
   <div class="key-modal-layer" use:portal>
-    <KeySelectModal
-      open={true}
-      title={keyModalMode === 'unlock' ? t('selectKeyToUnlock') : t('selectKeyToEncrypt')}
-      subtitle={keyModalMode === 'save' ? t('saveEncryptedHint') : ''}
-      suggestedKeyId={note?.keyId ?? null}
-      noteKeyId={note?.keyId ?? null}
-      customPasscodeConfirm={keyModalMode === 'save'}
-      onClose={() => (keyModalOpen = false)}
-      onSuccess={keyModalMode === 'unlock' ? handleUnlockSuccess : handleSaveSuccess}
-      onManageKeys={onManageKeys}
-    />
+    {#await import('./KeySelectModal.svelte') then { default: KeySelectModal }}
+      <KeySelectModal
+        open={true}
+        title={keyModalMode === 'unlock' ? t('selectKeyToUnlock') : t('selectKeyToEncrypt')}
+        subtitle={keyModalMode === 'save' ? t('saveEncryptedHint') : ''}
+        suggestedKeyId={note?.keyId ?? null}
+        noteKeyId={note?.keyId ?? null}
+        customPasscodeConfirm={keyModalMode === 'save'}
+        onClose={() => (keyModalOpen = false)}
+        onSuccess={keyModalMode === 'unlock' ? handleUnlockSuccess : handleSaveSuccess}
+        onManageKeys={onManageKeys}
+      />
 
-    {#if keyModalMode === 'save'}
-      <button type="button" class="save-plain-floating" onclick={saveWithoutEncryption}>
-        {t('saveWithoutEncryption')}
-      </button>
-    {/if}
+      {#if keyModalMode === 'save'}
+        <button type="button" class="save-plain-floating" onclick={saveWithoutEncryption}>
+          {t('saveWithoutEncryption')}
+        </button>
+      {/if}
+    {/await}
   </div>
 {/if}
 
