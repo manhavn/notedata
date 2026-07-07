@@ -49,6 +49,7 @@
   let searchInputEl = $state<HTMLInputElement | undefined>(undefined)
 
   const SIDEBAR_COLLAPSED_KEY = 'notedata-sidebar-collapsed'
+  const DESKTOP_MIN_WIDTH = 769
 
   function loadSidebarCollapsed(): boolean {
     return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1'
@@ -56,16 +57,24 @@
 
   let sidebarCollapsed = $state(loadSidebarCollapsed())
   let searchFocused = $state(false)
+  let isDesktop = $state(
+    typeof window !== 'undefined' &&
+      window.matchMedia(`(min-width: ${DESKTOP_MIN_WIDTH}px)`).matches,
+  )
 
   let searchDebounceTimer: ReturnType<typeof setTimeout> | undefined
   let searchRequestId = 0
 
   const isSearchActive = $derived(view === 'notes' && debouncedSearch.trim().length > 0)
 
+  const sidebarCollapsedActive = $derived(sidebarCollapsed && isDesktop)
+
+  const sidebarSearchActive = $derived(
+    view === 'notes' && (searchFocused || searchInput.trim().length > 0),
+  )
+
   const sidebarSearchReveal = $derived(
-    sidebarCollapsed &&
-      view === 'notes' &&
-      (searchFocused || searchInput.trim().length > 0),
+    sidebarSearchActive && (sidebarCollapsedActive || !isDesktop),
   )
 
   const topbarUserLabel = $derived(
@@ -142,8 +151,17 @@
   }
 
   onMount(() => {
+    const desktopMq = window.matchMedia(`(min-width: ${DESKTOP_MIN_WIDTH}px)`)
+    const syncDesktop = () => {
+      isDesktop = desktopMq.matches
+    }
+    syncDesktop()
+    desktopMq.addEventListener('change', syncDesktop)
+
     const userId = authState.user?.uid
-    if (!userId) return
+    if (!userId) {
+      return () => desktopMq.removeEventListener('change', syncDesktop)
+    }
 
     const unsubscribeNotes = subscribeToNotes(userId, (loaded) => {
       notes = loaded
@@ -162,6 +180,7 @@
     })
 
     return () => {
+      desktopMq.removeEventListener('change', syncDesktop)
       unsubscribeNotes()
       unsubscribeTrash()
     }
@@ -505,7 +524,7 @@
     <button
       type="button"
       class="app-logo-btn topbar-main"
-      class:active={sidebarCollapsed}
+      class:active={sidebarCollapsedActive}
       onclick={toggleSidebarCollapsed}
       aria-label={sidebarCollapsed ? t('expandSidebar') : t('collapseSidebar')}
       title={sidebarCollapsed ? t('expandSidebar') : t('collapseSidebar')}
@@ -605,11 +624,11 @@
   </header>
 
   <div class="layout">
-    <div class="sidebar-slot" class:collapsed={sidebarCollapsed}>
+    <div class="sidebar-slot" class:collapsed={sidebarCollapsedActive}>
     <div
       class="sidebar-wrap"
       class:open={sidebarOpen}
-      class:collapsed={sidebarCollapsed}
+      class:collapsed={sidebarCollapsedActive}
       class:search-reveal={sidebarSearchReveal}
     >
       {#if view === 'notes'}
@@ -918,10 +937,6 @@
     height: 100%;
   }
 
-  .sidebar-slot.collapsed {
-    width: 52px;
-  }
-
   .sidebar-wrap {
     width: 100%;
     height: 100%;
@@ -929,109 +944,115 @@
     transition: width 0.22s ease, box-shadow 0.22s ease;
   }
 
-  .sidebar-wrap.collapsed {
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 52px;
-    overflow: hidden;
-  }
+  @media (min-width: 769px) {
+    .sidebar-slot.collapsed {
+      width: 52px;
+    }
 
-  .sidebar-wrap.collapsed:hover,
-  .sidebar-wrap.collapsed.search-reveal {
-    width: 320px;
-    overflow: hidden;
-    z-index: 6;
-    box-shadow: var(--shadow-lg);
-  }
+    .sidebar-wrap.collapsed {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 52px;
+      overflow: hidden;
+    }
 
-  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.sidebar-header h2),
-  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.header-text),
-  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.sort-wrap),
-  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.icon-btn),
-  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.bulk-bar),
-  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.select-all),
-  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.checkbox-wrap),
-  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.preview),
-  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.tags),
-  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.date),
-  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.load-more-info),
-  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.searching-hint),
-  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.empty),
-  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.load-more-wrap),
-  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.actions),
-  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.item-actions) {
-    display: none;
-  }
+    .sidebar-wrap.collapsed:hover,
+    .sidebar-wrap.collapsed.search-reveal {
+      width: 320px;
+      overflow: hidden;
+      z-index: 6;
+      box-shadow: var(--shadow-lg);
+    }
 
-  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.sidebar-header) {
-    justify-content: center;
-    padding: 0.4rem 0;
-    border-bottom: none;
-  }
+    .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.sidebar-header h2),
+    .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.header-text),
+    .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.sort-wrap),
+    .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.icon-btn),
+    .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.bulk-bar),
+    .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.select-all),
+    .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.checkbox-wrap),
+    .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.preview),
+    .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.tags),
+    .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.date),
+    .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.load-more-info),
+    .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.searching-hint),
+    .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.empty),
+    .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.load-more-wrap),
+    .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.actions),
+    .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.item-actions) {
+      display: none;
+    }
 
-  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.header-actions) {
-    flex-direction: column;
-    gap: 0.25rem;
-  }
+    .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.sidebar-header) {
+      justify-content: center;
+      padding: 0.4rem 0;
+      border-bottom: none;
+    }
 
-  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.new-btn) {
-    width: 32px;
-    height: 32px;
-  }
+    .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.header-actions) {
+      flex-direction: column;
+      gap: 0.25rem;
+    }
 
-  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.back-btn) {
-    width: 32px;
-    height: 32px;
-    margin: 0 auto;
-  }
+    .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.new-btn) {
+      width: 32px;
+      height: 32px;
+    }
 
-  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.note-item) {
-    margin: 0 0.35rem 0.3rem;
-    border-radius: 8px;
-  }
+    .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.back-btn) {
+      width: 32px;
+      height: 32px;
+      margin: 0 auto;
+    }
 
-  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.note-btn) {
-    width: 100%;
-    padding: 0.45rem 0;
-    align-items: center;
-    justify-content: center;
-  }
+    .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.note-item) {
+      margin: 0 0.35rem 0.3rem;
+      border-radius: 8px;
+    }
 
-  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.title) {
-    display: block;
-    width: 1.25rem;
-    max-width: 1.25rem;
-    text-align: center;
-    font-size: 0;
-    line-height: 1.25rem;
-    white-space: nowrap;
-    overflow: hidden;
-  }
+    .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.note-btn) {
+      width: 100%;
+      padding: 0.45rem 0;
+      align-items: center;
+      justify-content: center;
+    }
 
-  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.unsaved-dot) {
-    display: none;
-  }
+    .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.title) {
+      display: block;
+      width: 1.25rem;
+      max-width: 1.25rem;
+      text-align: center;
+      font-size: 0;
+      line-height: 1.25rem;
+      white-space: nowrap;
+      overflow: hidden;
+    }
 
-  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.title:not(:empty))::first-letter {
-    font-size: 0.82rem;
-    font-weight: 700;
-  }
+    .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.unsaved-dot) {
+      display: none;
+    }
 
-  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.title:empty)::before {
-    content: '·';
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: var(--text-muted);
-  }
+    .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.title:not(:empty))::first-letter {
+      font-size: 0.82rem;
+      font-weight: 700;
+    }
 
-  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.note-item.selected) {
-    background: rgba(245, 158, 11, 0.16);
-  }
+    .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.title:empty)::before {
+      content: '·';
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text-muted);
+    }
 
-  .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.note-item.selected .note-btn) {
-    box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent);
+    .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.note-item.selected) {
+      background: rgba(245, 158, 11, 0.16);
+    }
+
+    .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.note-item.selected .note-btn) {
+      box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent);
+    }
   }
 
   .main {
@@ -1156,10 +1177,6 @@
       overflow: visible;
     }
 
-    .sidebar-slot.collapsed {
-      width: 0;
-    }
-
     .sidebar-wrap {
       position: absolute;
       left: 0;
@@ -1171,15 +1188,8 @@
       box-shadow: var(--shadow-lg);
     }
 
-    .sidebar-wrap.collapsed,
-    .sidebar-wrap.collapsed:hover {
-      position: absolute;
-      width: 320px;
-      overflow: visible;
-      box-shadow: var(--shadow-lg);
-    }
-
-    .sidebar-wrap.open {
+    .sidebar-wrap.open,
+    .sidebar-wrap.search-reveal {
       transform: translateX(0);
     }
 
