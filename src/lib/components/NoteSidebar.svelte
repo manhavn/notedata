@@ -1,7 +1,7 @@
 <script lang="ts">
   import { confirm } from '../dialog.svelte'
   import { isNoteEncrypted } from '../crypto'
-  import { lockAllNotes, notePasscodeState } from '../note-passcodes.svelte'
+  import { hasNotePasscode, lockAllNotes, notePasscodeState } from '../note-passcodes.svelte'
   import { draftContentStore, hasDraftContent, peekDraftContent } from '../draft-content'
   import { userSettingsState } from '../user-settings.svelte'
   import { formatAppDate, localeState, t } from '../i18n.svelte'
@@ -120,6 +120,19 @@
     return new Set(notes.filter((note) => hasDraftContent(note.id)).map((note) => note.id))
   })
 
+  function isNoteUnlockedInSession(noteId: string) {
+    void notePasscodeState.passcodes
+    return hasNotePasscode(noteId)
+  }
+
+  function showsEncryptedPreview(note: Note) {
+    void $draftContentStore
+    void userSettingsState.persistNoteDraftLocal
+    const draft = peekDraftContent(note.id)
+    if (draft !== undefined) return false
+    return isNoteEncrypted(note)
+  }
+
   function preview(note: Note) {
     void $draftContentStore
     void userSettingsState.persistNoteDraftLocal
@@ -130,7 +143,7 @@
     }
 
     if (isNoteEncrypted(note)) {
-      return `🔒 ${t('encryptedContent')}`
+      return t('encryptedContent')
     }
     const text = note.content.trim()
     return text.length > 80 ? `${text.slice(0, 80)}...` : text || t('noContent')
@@ -364,7 +377,27 @@
                 {/each}
               </span>
             {/if}
-            <span class="preview">{preview(note)}</span>
+            {#if showsEncryptedPreview(note)}
+              <span class="preview encrypted-preview">
+                {#if isNoteUnlockedInSession(note.id)}
+                  <svg class="encrypted-preview-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      d="M7 11V7a5 5 0 0 1 9.9-1M6 11h12a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1z"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                {:else}
+                  <span class="encrypted-preview-icon locked" aria-hidden="true">🔒</span>
+                {/if}
+                {t('encryptedContent')}
+              </span>
+            {:else}
+              <span class="preview">{preview(note)}</span>
+            {/if}
             <span class="date">{formatAppDate(note.updatedAt)}</span>
           </button>
         </div>
@@ -719,6 +752,27 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .encrypted-preview {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    min-width: 0;
+  }
+
+  .encrypted-preview-icon {
+    flex-shrink: 0;
+    width: 0.85rem;
+    height: 0.85rem;
+    color: var(--success);
+  }
+
+  .encrypted-preview-icon.locked {
+    width: auto;
+    height: auto;
+    font-size: 0.8rem;
+    line-height: 1;
   }
 
   .date {
