@@ -15,7 +15,7 @@ A personal notes app built with **Svelte 5 + Vite**, using **Firebase Authentica
 - **Keyboard-friendly auth** — Enter submits the form; Tab order is email → password → eye → submit (forgot-password link sits below submit)
 - **Forgot password** — Firebase sends a reset link by email (`sendPasswordResetEmail`)
 - **Email verification** — after email/password sign-up, Firebase sends a verification link (`sendEmailVerification`); the app unlocks after the user verifies
-- **Account settings** — display name (shown in the top bar), sign-in method chips, email verification status, change email (`verifyBeforeUpdateEmail`), change/add password, resend verification
+- **Account settings** — display name (shown in the top bar), sign-in method chips, email verification status, change email (`verifyBeforeUpdateEmail`), change/add password, resend verification, **settings backup** (export/import all Firebase account settings as JSON)
 - **Source code link** — GitHub repo link on the auth screen and in Account settings
 - **Auth feature flags** — optionally disable sign-up, forgot password, change email, or change/add password via `VITE_DISABLE_*` env variables (UI + actions)
 - Login required before using the app
@@ -72,8 +72,15 @@ A personal notes app built with **Svelte 5 + Vite**, using **Firebase Authentica
 
 ### Import / Export
 
-- **Export** selected notes to a `.json` file
-- **Import** notes from JSON (array, `{ notes: [...] }`, or NoteData export format)
+#### Notes
+
+- **Export** selected notes to a `.json` file (full metadata: encryption flags, `keyId`, `contentViewMode`, per-note AI selection, original timestamps)
+- **Import Notes** — import from JSON via the sidebar import button (array, `{ notes: [...] }`, or NoteData export format); restores all exported fields so encrypted and AI-configured notes stay usable
+
+#### Account settings
+
+- **Export settings** — download all data under `users/{uid}/settings` as JSON (preferences, AI providers/models/keys, active selections)
+- **Import settings** — upload a settings JSON file to overwrite current account settings (confirmation required; clears in-memory unlocked API keys)
 
 ### Note encryption
 
@@ -238,6 +245,8 @@ After sign-in, open the **user icon** in the top bar (right side):
 | Resend verification | `sendEmailVerification` | Email/password accounts only, when not yet verified |
 | AI assistant toggle | `users/{uid}/settings/disableAiChat` | Enable or disable the AI chat button for your account (synced via Realtime Database) |
 | Local chat history | `users/{uid}/settings/persistAiChatLocal` | Save AI chat drafts in browser `localStorage` per note (`chat_{noteId}`) |
+| Local note drafts | `users/{uid}/settings/persistNoteDraftLocal` | Save unsaved note edits in browser `localStorage` per note (`note_{noteId}`) |
+| Settings backup | `users/{uid}/settings` (full tree) | Export or import all account settings as JSON; import overwrites current settings |
 
 Beyond enabling **Email/Password** and **Google**, customize the three templates above: **Password reset**, **Email address verification**, and **Email address change**.
 
@@ -482,6 +491,7 @@ users/
     settings/
       disableAiChat?: boolean
       persistAiChatLocal?: boolean
+      persistNoteDraftLocal?: boolean
       aiChatSettings/
         activeProviderId: string | null
         activeModelId: string | null
@@ -520,6 +530,8 @@ users/
 
 ## Import / Export format
 
+### Notes
+
 Export produces a JSON file like:
 
 ```json
@@ -532,18 +544,45 @@ Export produces a JSON file like:
       "content": "Note content",
       "tags": ["work", "ideas"],
       "createdAt": 1710000000000,
-      "updatedAt": 1710000000000
+      "updatedAt": 1710000000000,
+      "encrypted": true,
+      "keyId": "uuid-of-encryption-key",
+      "contentViewMode": "md",
+      "aiActiveProviderId": "provider-uuid",
+      "aiActiveModelId": "model-uuid",
+      "aiActiveApiKeyId": "api-key-uuid"
     }
   ]
 }
 ```
+
+Optional fields (`encrypted`, `keyId`, `contentViewMode`, `aiActive*`) are included when set. Older export files without them still import correctly.
 
 Import also accepts:
 
 - A plain array: `[{ "title": "...", "content": "...", "tags": ["..."] }]`
 - A single note object with `title` and `content` (optional `tags` array or comma-separated string)
 
-Imported notes are created as new entries in Firebase (new IDs).
+Imported notes are created as new entries in Firebase (new IDs). `createdAt` and `updatedAt` from the file are preserved when present.
+
+### Account settings
+
+Settings export produces:
+
+```json
+{
+  "version": 1,
+  "exportedAt": 1710000000000,
+  "settings": {
+    "disableAiChat": false,
+    "persistAiChatLocal": false,
+    "persistNoteDraftLocal": false,
+    "aiChatSettings": { "...": "..." }
+  }
+}
+```
+
+Import accepts the full payload above or a plain `settings` object. Import overwrites the entire `users/{uid}/settings` node.
 
 ---
 
@@ -661,7 +700,9 @@ The gear icon in the chat footer opens Account settings focused on this section.
 | AI chat settings | `users/{uid}/settings/aiChatSettings` | Yes — providers, models, `apiKeys`, and active selections (no API key plaintext) |
 | Per-account AI toggle | `users/{uid}/settings/disableAiChat` | Yes |
 | Local chat history toggle | `users/{uid}/settings/persistAiChatLocal` | Yes |
+| Local note draft toggle | `users/{uid}/settings/persistNoteDraftLocal` | Yes |
 | AI chat drafts (when enabled) | `localStorage` keys `chat_{noteId}` | No |
+| Note content drafts (when enabled) | `localStorage` keys `note_{noteId}` | No |
 | Passcodes for encryption | `notedata-encryption-keys` (browser) | No (hash only in localStorage) |
 | Unlocked note passcodes (session) | In-memory `notePasscodeState` in `note-passcodes.svelte.ts`, keyed by `noteId` | No |
 | Unlocked trash passcodes (session) | In-memory `trashNotePasscodeState` in `note-passcodes.svelte.ts`, keyed by `noteId` | No |
@@ -880,6 +921,7 @@ src/
     parse-curl-ai.ts     # Parse cURL into AI settings
     user-settings.ts     # Per-account settings on Firebase (e.g. disableAiChat)
     user-settings.svelte.ts  # Realtime sync for user settings
+    settings-io.ts       # Account settings JSON backup import/export
     auth.svelte.ts       # Login, register, verification, password/email changes, profile
     theme.svelte.ts      # Dark/light theme state and persistence
     i18n.svelte.ts       # Locale state, t(), date formatting

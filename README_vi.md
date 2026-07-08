@@ -15,7 +15,7 @@
 - **Hỗ trợ bàn phím** — Enter submit form; Tab theo thứ tự email → mật khẩu → mắt → submit (link quên mật khẩu nằm dưới nút submit)
 - **Quên mật khẩu** — Firebase gửi link đặt lại qua email (`sendPasswordResetEmail`)
 - **Xác minh email** — sau đăng ký email/mật khẩu, Firebase gửi link xác minh (`sendEmailVerification`); app mở sau khi xác minh
-- **Cài đặt tài khoản** — tên hiển thị (topbar), chip phương thức đăng nhập, trạng thái xác minh email, đổi email (`verifyBeforeUpdateEmail`), đổi/thêm mật khẩu, gửi lại xác minh
+- **Cài đặt tài khoản** — tên hiển thị (topbar), chip phương thức đăng nhập, trạng thái xác minh email, đổi email (`verifyBeforeUpdateEmail`), đổi/thêm mật khẩu, gửi lại xác minh, **sao lưu cài đặt** (export/import toàn bộ settings tài khoản trên Firebase dạng JSON)
 - **Link mã nguồn** — liên kết GitHub trên màn đăng nhập và trong Cài đặt tài khoản
 - **Tắt tính năng auth** — tùy chọn tắt đăng ký, quên mật khẩu, đổi email, đổi/thêm mật khẩu qua biến `VITE_DISABLE_*` (cả UI lẫn action)
 - Bắt buộc đăng nhập trước khi sử dụng app
@@ -72,8 +72,15 @@
 
 ### Import / Export
 
-- **Export** ghi chú đã chọn thành file `.json`
-- **Import** ghi chú từ JSON (mảng, `{ notes: [...] }`, hoặc định dạng export của NoteData)
+#### Ghi chú
+
+- **Export** ghi chú đã chọn thành file `.json` (đầy đủ metadata: cờ mã hóa, `keyId`, `contentViewMode`, chọn AI theo ghi chú, thời gian gốc)
+- **Import Notes** — import từ JSON qua nút import trên sidebar (mảng, `{ notes: [...] }`, hoặc định dạng export của NoteData); khôi phục đủ trường đã export để ghi chú mã hóa và cấu hình AI vẫn dùng được
+
+#### Cài đặt tài khoản
+
+- **Export cài đặt** — tải toàn bộ dữ liệu tại `users/{uid}/settings` dạng JSON (tùy chọn, cấu hình AI, API key đã mã hóa, lựa chọn đang dùng)
+- **Import cài đặt** — upload file JSON cài đặt để ghi đè settings hiện tại (có xác nhận; xóa API key đã unlock trong bộ nhớ)
 
 ### Mã hóa ghi chú
 
@@ -238,6 +245,8 @@ Sau khi đăng nhập, bấm **icon user** trên topbar (bên phải):
 | Gửi lại xác minh | `sendEmailVerification` | Tài khoản email/mật khẩu chưa xác minh |
 | Bật/tắt trợ lý AI | `users/{uid}/settings/disableAiChat` | Bật hoặc tắt nút chat AI cho tài khoản (đồng bộ qua Realtime Database) |
 | Lịch sử chat trên máy | `users/{uid}/settings/persistAiChatLocal` | Lưu bản nháp chat AI trong `localStorage` trình duyệt theo ghi chú (`chat_{noteId}`) |
+| Bản nháp ghi chú trên máy | `users/{uid}/settings/persistNoteDraftLocal` | Lưu nội dung ghi chú chưa lưu trong `localStorage` trình duyệt theo ghi chú (`note_{noteId}`) |
+| Sao lưu cài đặt | `users/{uid}/settings` (toàn bộ cây) | Export hoặc import toàn bộ cài đặt tài khoản dạng JSON; import ghi đè settings hiện tại |
 
 Ngoài bật **Email/Password** và **Google**, nên tùy chỉnh ba template: **Password reset**, **Email address verification**, **Email address change**.
 
@@ -467,6 +476,7 @@ users/
     settings/
       disableAiChat?: boolean
       persistAiChatLocal?: boolean
+      persistNoteDraftLocal?: boolean
       aiChatSettings/
         activeProviderId: string | null
         activeModelId: string | null
@@ -505,6 +515,8 @@ users/
 
 ## Định dạng Import / Export
 
+### Ghi chú
+
 File export có dạng:
 
 ```json
@@ -517,18 +529,45 @@ File export có dạng:
       "content": "Nội dung ghi chú",
       "tags": ["công-việc", "ý-tưởng"],
       "createdAt": 1710000000000,
-      "updatedAt": 1710000000000
+      "updatedAt": 1710000000000,
+      "encrypted": true,
+      "keyId": "uuid-cua-ma-khoa",
+      "contentViewMode": "md",
+      "aiActiveProviderId": "provider-uuid",
+      "aiActiveModelId": "model-uuid",
+      "aiActiveApiKeyId": "api-key-uuid"
     }
   ]
 }
 ```
+
+Các trường tùy chọn (`encrypted`, `keyId`, `contentViewMode`, `aiActive*`) chỉ có khi đã được đặt. File export cũ không có các trường này vẫn import được.
 
 Import cũng hỗ trợ:
 
 - Mảng thuần: `[{ "title": "...", "content": "...", "tags": ["..."] }]`
 - Một object ghi chú đơn có `title` và `content` (tuỳ chọn `tags` dạng mảng hoặc chuỗi phân cách dấu phẩy)
 
-Ghi chú import sẽ được tạo mới trên Firebase (ID mới).
+Ghi chú import sẽ được tạo mới trên Firebase (ID mới). `createdAt` và `updatedAt` trong file được giữ nguyên nếu có.
+
+### Cài đặt tài khoản
+
+File export cài đặt có dạng:
+
+```json
+{
+  "version": 1,
+  "exportedAt": 1710000000000,
+  "settings": {
+    "disableAiChat": false,
+    "persistAiChatLocal": false,
+    "persistNoteDraftLocal": false,
+    "aiChatSettings": { "...": "..." }
+  }
+}
+```
+
+Import chấp nhận payload đầy đủ như trên hoặc chỉ object `settings`. Import ghi đè toàn bộ node `users/{uid}/settings`.
 
 ---
 
@@ -646,7 +685,9 @@ Icon bánh răng trong footer chat mở Cài đặt tài khoản, tập trung v�
 | Cài đặt AI chat | `users/{uid}/settings/aiChatSettings` | Có — providers, models, `apiKeys` và lựa chọn đang active (không có plaintext API key) |
 | Bật/tắt AI tài khoản | `users/{uid}/settings/disableAiChat` | Có |
 | Toggle lịch sử chat trên máy | `users/{uid}/settings/persistAiChatLocal` | Có |
+| Toggle bản nháp ghi chú trên máy | `users/{uid}/settings/persistNoteDraftLocal` | Có |
 | Bản nháp chat AI (khi bật) | `localStorage` key `chat_{noteId}` | Không |
+| Bản nháp nội dung ghi chú (khi bật) | `localStorage` key `note_{noteId}` | Không |
 | Mã khóa mã hóa | `notedata-encryption-keys` (trình duyệt) | Không (chỉ hash trong localStorage) |
 | Mã mở khóa ghi chú (phiên) | `notePasscodeState` trong bộ nhớ (`note-passcodes.svelte.ts`), key theo `noteId` | Không |
 | Mã mở khóa thùng rác (phiên) | `trashNotePasscodeState` trong bộ nhớ (`note-passcodes.svelte.ts`), key theo `noteId` | Không |
@@ -865,6 +906,7 @@ src/
     parse-curl-ai.ts     # Phân tích cURL thành cài đặt AI
     user-settings.ts     # Cài đặt theo tài khoản trên Firebase (vd. disableAiChat)
     user-settings.svelte.ts  # Đồng bộ realtime cài đặt người dùng
+    settings-io.ts       # Export/import sao lưu cài đặt tài khoản dạng JSON
     auth.svelte.ts       # Đăng nhập, đăng ký, xác minh, đổi mật khẩu/email, profile
     theme.svelte.ts      # Trạng thái dark/light và lưu preference
     i18n.svelte.ts       # Locale, hàm t(), format ngày
