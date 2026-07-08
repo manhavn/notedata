@@ -30,6 +30,7 @@ A personal notes app built with **Svelte 5 + Vite**, using **Firebase Authentica
 - **Unsaved drafts** — edits are kept in memory while you switch notes; sidebar and editor show indicators; **Cancel edit** discards changes without saving (cleared on save or page reload)
 - **Collapsible editor header** — collapse the title/tags toolbar for more writing space
 - **Move to trash** — delete link in the editor header
+- **Encrypted notes** — session unlock cache (auto-reopen without re-entry), per-note **Lock** in the editor, and **Lock all notes** in the sidebar header
 - Realtime sync scoped by `userId`
 - Paginated note list with **Load more** (20 items per page)
 - Soft delete via **Trash** — restore, permanently delete, or **Empty trash**; quick **↩ restore** and **× delete** buttons on each trashed note in the sidebar
@@ -77,6 +78,10 @@ A personal notes app built with **Svelte 5 + Vite**, using **Firebase Authentica
 - **Manage keys** from the lock icon in the header (create, list, delete)
 - **Save flow:** pick a saved key or enter a one-time passcode (enter twice to confirm)
 - **Unlock flow:** default screen is manual passcode entry; switch to **Choose from saved keys** if needed
+- **Session unlock cache** — after a successful unlock, the passcode for that note is kept in memory keyed by `noteId` (never sent to Firebase); switching away and back auto-unlocks without re-entry
+- **Lock note** — success-styled lock button next to **Delete note** clears the cached passcode for the current note and hides decrypted content until you unlock again
+- **Lock all notes** — lock icon as the first button in the sidebar header (left of sort/import/trash/new); confirms with a lock-themed dialog, then clears every cached passcode and locks any open encrypted note in the editor
+- Cached passcodes stay until you lock a note or use **Lock all notes** — they are not cleared when switching notes
 - Passcode entry uses a text field plus an on-screen numeric keypad; optional **auto-focus** toggle (`notedata-passcode-autofocus`)
 - AES-GCM encryption via Web Crypto API; database stores `encrypted: true` and `keyId` only
 - Wrong passcode shows a generic error on the note — no hints in the modal (anti-enumeration)
@@ -628,6 +633,7 @@ The gear icon in the chat footer opens Account settings focused on this section.
 | Local chat history toggle | `users/{uid}/settings/persistAiChatLocal` | Yes |
 | AI chat drafts (when enabled) | `localStorage` keys `chat_{noteId}` | No |
 | Passcodes for encryption | `notedata-encryption-keys` (browser) | No (hash only in localStorage) |
+| Unlocked note passcodes (session) | In-memory Svelte state (`note-passcodes.svelte.ts`), keyed by `noteId` | No |
 | Unlocked API key plaintext | In-memory Svelte state | No |
 
 ### Disable the chat box
@@ -789,6 +795,7 @@ To use a new Firebase project:
 - Encryption keys live only in the current browser's `localStorage`
 - Notes locked with a **one-time passcode** require remembering that exact code
 - Export keys or use saved keys consistently on the same device
+- **Session unlock cache** is in-memory only — reloading the tab or using **Lock all notes** clears cached passcodes; you must unlock again
 
 ### AI chat: button missing
 
@@ -851,6 +858,7 @@ src/
     passcode-focus.svelte.ts  # Auto-focus passcode input preference
     crypto.ts            # AES-GCM encrypt/decrypt (Web Crypto)
     encryption-keys.ts   # Passcode CRUD in localStorage
+    note-passcodes.svelte.ts  # In-memory per-note unlock passcodes (session cache)
     portal.ts            # Portal action for modals
     components/
       AuthPage.svelte             # Login, register, forgot password
