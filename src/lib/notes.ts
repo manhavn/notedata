@@ -10,7 +10,7 @@ import {
 } from 'firebase/database'
 import { getUntitledNoteTitle } from './i18n.svelte'
 import { db } from './firebase'
-import type { Note, NoteInput, TrashedNote } from './types'
+import type { Note, NoteContentViewMode, NoteInput, TrashedNote } from './types'
 
 function notesPath(userId: string) {
   return `users/${userId}/notes`
@@ -56,6 +56,10 @@ function parseOptionalAiActiveId(value: unknown): string | null | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
+function parseContentViewMode(value: unknown): NoteContentViewMode | undefined {
+  return value === 'txt' || value === 'md' || value === 'html' ? value : undefined
+}
+
 function parseNoteAiActiveFields(raw: Record<string, unknown>) {
   const aiActiveProviderId = parseOptionalAiActiveId(raw.aiActiveProviderId)
   const aiActiveModelId = parseOptionalAiActiveId(raw.aiActiveModelId)
@@ -68,14 +72,20 @@ function parseNoteAiActiveFields(raw: Record<string, unknown>) {
   }
 }
 
-function parseNoteRecord(id: string, note: Omit<Note, 'id'> & { tags?: unknown }): Note {
-  const { tags: rawTags, ...rest } = note
+function parseNoteRecord(
+  id: string,
+  note: Omit<Note, 'id'> & { tags?: unknown; contentViewMode?: unknown },
+): Note {
+  const { tags: rawTags, contentViewMode: rawContentViewMode, ...rest } = note
   const tags = parseTags(rawTags)
   const aiFields = parseNoteAiActiveFields(rest as Record<string, unknown>)
+  const contentViewMode = parseContentViewMode(rawContentViewMode)
 
-  return tags
+  const base = tags
     ? { id, ...rest, ...aiFields, tags }
     : { id, ...rest, ...aiFields }
+
+  return contentViewMode ? { ...base, contentViewMode } : base
 }
 
 export type NoteSortOrder =
@@ -169,13 +179,28 @@ function buildNotePayload(input: NoteInput, now: number) {
   if (input.aiActiveApiKeyId) {
     payload.aiActiveApiKeyId = input.aiActiveApiKeyId
   }
+  if (input.contentViewMode) {
+    payload.contentViewMode = input.contentViewMode
+  }
 
   return payload
 }
 
+function shouldBumpUpdatedAt(input: Partial<NoteInput>): boolean {
+  return (
+    input.title !== undefined ||
+    input.content !== undefined ||
+    input.tags !== undefined ||
+    input.encrypted !== undefined ||
+    input.keyId !== undefined
+  )
+}
+
 function buildNoteUpdates(input: Partial<NoteInput>) {
-  const updates: Record<string, string | number | boolean | null> = {
-    updatedAt: Date.now(),
+  const updates: Record<string, string | number | boolean | null> = {}
+
+  if (shouldBumpUpdatedAt(input)) {
+    updates.updatedAt = Date.now()
   }
 
   if (input.title !== undefined) {
@@ -205,6 +230,9 @@ function buildNoteUpdates(input: Partial<NoteInput>) {
   }
   if (input.aiActiveApiKeyId !== undefined) {
     updates.aiActiveApiKeyId = input.aiActiveApiKeyId
+  }
+  if (input.contentViewMode !== undefined) {
+    updates.contentViewMode = input.contentViewMode
   }
 
   return updates
@@ -278,6 +306,7 @@ export async function moveNoteToTrash(userId: string, note: Note): Promise<void>
   if (note.aiActiveProviderId) payload.aiActiveProviderId = note.aiActiveProviderId
   if (note.aiActiveModelId) payload.aiActiveModelId = note.aiActiveModelId
   if (note.aiActiveApiKeyId) payload.aiActiveApiKeyId = note.aiActiveApiKeyId
+  if (note.contentViewMode) payload.contentViewMode = note.contentViewMode
 
   await set(ref(db, `${trashPath(userId)}/${note.id}`), payload)
   await remove(ref(db, `${notesPath(userId)}/${note.id}`))
@@ -300,6 +329,7 @@ export async function restoreNoteFromTrash(userId: string, note: TrashedNote): P
   if (note.aiActiveProviderId) payload.aiActiveProviderId = note.aiActiveProviderId
   if (note.aiActiveModelId) payload.aiActiveModelId = note.aiActiveModelId
   if (note.aiActiveApiKeyId) payload.aiActiveApiKeyId = note.aiActiveApiKeyId
+  if (note.contentViewMode) payload.contentViewMode = note.contentViewMode
 
   await set(ref(db, `${notesPath(userId)}/${note.id}`), payload)
   await remove(ref(db, `${trashPath(userId)}/${note.id}`))

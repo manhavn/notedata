@@ -27,7 +27,7 @@
   import { renderHtml, renderMarkdown } from '../markdown'
   import { portal } from '../portal'
   import { normalizeTags } from '../notes'
-  import type { Note, NoteAiActiveIds } from '../types'
+  import type { Note, NoteAiActiveIds, NoteContentViewMode } from '../types'
   import type { PasscodeSubmit } from './KeySelectModal.svelte'
 
   interface SavePayload {
@@ -47,6 +47,10 @@
       noteId: string,
       patch: Partial<NoteAiActiveIds>,
     ) => void | Promise<void>
+    onSaveContentViewMode?: (
+      noteId: string,
+      mode: NoteContentViewMode,
+    ) => void | Promise<void>
     saving: boolean
     readonly?: boolean
     deletedAt?: number
@@ -64,6 +68,7 @@
     onSaveTitle,
     onSaveTags,
     onSaveNoteAiActive,
+    onSaveContentViewMode,
     saving,
     readonly = false,
     deletedAt,
@@ -85,7 +90,7 @@
   let keyModalOpen = $state(false)
   let keyModalMode = $state<'unlock' | 'save'>('unlock')
   let decryptError = $state<string | null>(null)
-  type ContentViewMode = 'txt' | 'md' | 'html'
+  type ContentViewMode = NoteContentViewMode
   let contentViewMode = $state<ContentViewMode>('txt')
   let headerCollapsed = $state(false)
   let titleSaveTimer: ReturnType<typeof setTimeout> | undefined
@@ -103,6 +108,16 @@
   const showLockedState = $derived(
     Boolean(note && noteIsEncrypted && !isUnlocked && !hasDraft),
   )
+
+  function savedContentViewMode(): ContentViewMode {
+    return note?.contentViewMode ?? 'txt'
+  }
+
+  function switchContentViewMode(mode: ContentViewMode) {
+    contentViewMode = mode
+    if (!note || readonly || showLockedState) return
+    void onSaveContentViewMode?.(note.id, mode)
+  }
   let renderedMarkdown = $state('')
   let renderedHtml = $state('')
 
@@ -154,7 +169,7 @@
       isUnlocked = false
       void attemptAutoUnlock(note.id, note.content)
     }
-    contentViewMode = 'txt'
+    contentViewMode = savedContentViewMode()
     decryptError = null
   })
 
@@ -192,7 +207,7 @@
       lastLoadedId = note.id
       decryptError = null
       keyModalOpen = false
-      contentViewMode = 'txt'
+      contentViewMode = savedContentViewMode()
 
       const draft = loadDraftContent(note.id)
       headerCollapsed =
@@ -291,7 +306,7 @@
       isUnlocked = false
     }
 
-    contentViewMode = 'txt'
+    contentViewMode = savedContentViewMode()
     decryptError = null
   }
 
@@ -324,6 +339,7 @@
       plainContent = decrypted
       savedPlainSnapshot = decrypted
       isUnlocked = true
+      contentViewMode = savedContentViewMode()
       decryptError = null
     } catch {
       // Keep stored passcode until the user locks the note explicitly.
@@ -339,6 +355,7 @@
       plainContent = decrypted
       savedPlainSnapshot = decrypted
       isUnlocked = true
+      contentViewMode = savedContentViewMode()
       decryptError = null
       setNotePasscode(note.id, payload.code, payload.keyId)
     } catch {
@@ -680,7 +697,7 @@
               <button
                 type="button"
                 class:active={contentViewMode === 'txt'}
-                onclick={() => (contentViewMode = 'txt')}
+                onclick={() => switchContentViewMode('txt')}
                 disabled={showLockedState}
                 aria-label={t('editMode')}
               >
@@ -689,7 +706,7 @@
               <button
                 type="button"
                 class:active={contentViewMode === 'md'}
-                onclick={() => (contentViewMode = 'md')}
+                onclick={() => switchContentViewMode('md')}
                 disabled={showLockedState}
                 aria-label={t('viewMarkdown')}
               >
@@ -698,7 +715,7 @@
               <button
                 type="button"
                 class:active={contentViewMode === 'html'}
-                onclick={() => (contentViewMode = 'html')}
+                onclick={() => switchContentViewMode('html')}
                 disabled={showLockedState}
                 aria-label={t('viewHtml')}
               >
@@ -715,7 +732,7 @@
               <button
                 type="button"
                 class:active={contentViewMode === 'txt'}
-                onclick={() => (contentViewMode = 'txt')}
+                onclick={() => switchContentViewMode('txt')}
                 disabled={showLockedState}
                 aria-label={t('editMode')}
               >
@@ -724,7 +741,7 @@
               <button
                 type="button"
                 class:active={contentViewMode === 'md'}
-                onclick={() => (contentViewMode = 'md')}
+                onclick={() => switchContentViewMode('md')}
                 disabled={showLockedState}
                 aria-label={t('viewMarkdown')}
               >
@@ -733,7 +750,7 @@
               <button
                 type="button"
                 class:active={contentViewMode === 'html'}
-                onclick={() => (contentViewMode = 'html')}
+                onclick={() => switchContentViewMode('html')}
                 disabled={showLockedState}
                 aria-label={t('viewHtml')}
               >

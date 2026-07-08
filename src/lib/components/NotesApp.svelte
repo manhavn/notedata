@@ -19,7 +19,7 @@
     subscribeToTrash,
     updateNote,
   } from '../notes'
-  import type { Note, NoteAiActiveIds, NoteInput, TrashedNote } from '../types'
+  import type { Note, NoteAiActiveIds, NoteContentViewMode, NoteInput, TrashedNote } from '../types'
   import { accountModalState, closeAccountSettings, openAccountSettings } from '../account-modal.svelte'
   import { confirm } from '../dialog.svelte'
   import { t } from '../i18n.svelte'
@@ -279,6 +279,13 @@
     if (!userId || view !== 'notes') return
 
     await updateNote(userId, noteId, patch)
+  }
+
+  async function handleSaveContentViewMode(noteId: string, contentViewMode: NoteContentViewMode) {
+    const userId = authState.user?.uid
+    if (!userId || view !== 'notes') return
+
+    await updateNote(userId, noteId, { contentViewMode })
   }
 
   function openKeyManager() {
@@ -705,6 +712,7 @@
           onSaveTitle={handleSaveTitle}
           onSaveTags={handleSaveTags}
           onSaveNoteAiActive={handleSaveNoteAiActive}
+          onSaveContentViewMode={handleSaveContentViewMode}
           {saving}
           onDelete={() => selectedId && handleMoveToTrash(selectedId)}
           onManageKeys={openKeyManager}

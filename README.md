@@ -26,7 +26,8 @@ A personal notes app built with **Svelte 5 + Vite**, using **Firebase Authentica
 - **Tags** — comma-separated tags per note; optional `tagName:value` format attaches data to a tag (used by AI system prompt variables); add/remove in the editor; included in import/export
 - **Search** — find notes by title or tag from the top bar (debounced; works alongside sort and pagination)
 - **Sort** — title A–Z / Z–A, created/updated ascending or descending; preference saved in `localStorage` (`notedata-note-sort`)
-- **Content view modes** — **TXT / MD / HTML** segmented toggle (same style as EN / VI): plain-text edit, Markdown preview (GFM via `marked`), or raw HTML preview (sanitized via DOMPurify)
+- **Content view modes** — **TXT / MD / HTML** segmented toggle (same style as EN / VI): plain-text edit, Markdown preview (GFM via `marked`), or raw HTML preview (sanitized via DOMPurify); per-note view preference saved on Firebase (`contentViewMode`) and restored when reopening
+- **Content-only `updatedAt`** — `updatedAt` changes only when title, content, tags, or encryption changes — not when switching TXT/MD/HTML or per-note AI selections
 - **Unsaved drafts** — edits are kept in memory while you switch notes; sidebar and editor show indicators; **Cancel edit** discards changes without saving (cleared on save or page reload)
 - **Collapsible editor header** — collapse the title/tags toolbar for more writing space; while a note has unsaved edits or is session-unlocked, the collapse state is kept in memory when you switch notes and restored when you return (cleared on save, cancel, or lock)
 - **Move to trash** — delete link in the editor header
@@ -45,7 +46,7 @@ A personal notes app built with **Svelte 5 + Vite**, using **Firebase Authentica
 - **API key vault** — labeled API keys encrypted with your passcode (same AES-GCM as note content) and stored in Firebase (`users/{uid}/settings/aiChatSettings/apiKeys`); only ciphertext is synced — plaintext stays in memory after unlock
 - **API key unlock** — same passcode modal as encrypted notes (saved keys or manual entry); required on each new chat session, when switching keys, and when editing a saved key
 - **Active API key** — `activeApiKeyId` in Firebase (like `activeModelId` / `activeProviderId`); footer toolbar picks the key used for requests
-- **Per-note AI selection** — each note can remember its own provider, model, and API key (`aiActive*` on Firebase); unset fields fall back to account defaults
+- **Per-note AI selection** — each note can remember its own provider, model, and API key (`aiActive*` on Firebase); unset fields fall back to account defaults; does not change note `updatedAt`
 - **Popup settings** — pick providers, models, and API keys from list popups; Add/Edit opens a separate settings form
 - **Chat footer toolbar** — **Provider**, **Model**, and API key buttons (show active name or default label; ellipsis when long); gear icon links to account AI toggle
 - **Import from cURL** — paste a `curl` command to auto-fill provider fields (endpoint, auth, generation params); does not create or select a model
@@ -433,6 +434,7 @@ users/
         aiActiveProviderId?: string
         aiActiveModelId?: string
         aiActiveApiKeyId?: string
+        contentViewMode?: string ('txt' | 'md' | 'html')
         createdAt: number (timestamp)
         updatedAt: number (timestamp)
         encrypted?: boolean
@@ -445,6 +447,7 @@ users/
         aiActiveProviderId?: string
         aiActiveModelId?: string
         aiActiveApiKeyId?: string
+        contentViewMode?: string ('txt' | 'md' | 'html')
         createdAt: number (timestamp)
         updatedAt: number (timestamp)
         deletedAt: number (timestamp)
@@ -591,7 +594,7 @@ Hover the **?** next to **System prompt template** in the provider form for the 
 
 ### Per-note AI selection
 
-When you pick provider, model, or API key from the chat footer on a note, the choice is saved on that note in Firebase (`aiActiveProviderId`, `aiActiveModelId`, `aiActiveApiKeyId`). Fields left unset on the note inherit the account-wide defaults from `aiChatSettings`. If a note's saved selection points to a deleted provider, model, or key, the app asks you to choose again.
+When you pick provider, model, or API key from the chat footer on a note, the choice is saved on that note in Firebase (`aiActiveProviderId`, `aiActiveModelId`, `aiActiveApiKeyId`). Fields left unset on the note inherit the account-wide defaults from `aiChatSettings`. If a note's saved selection points to a deleted provider, model, or key, the app asks you to choose again. These preference fields do not update the note's `updatedAt` timestamp (sort order stays unchanged).
 
 ### Local chat history
 
@@ -636,6 +639,7 @@ The gear icon in the chat footer opens Account settings focused on this section.
 | Passcodes for encryption | `notedata-encryption-keys` (browser) | No (hash only in localStorage) |
 | Unlocked note passcodes (session) | In-memory Svelte state (`note-passcodes.svelte.ts`), keyed by `noteId` | No |
 | Editor header collapse (unsaved/unlocked) | In-memory Svelte store (`note-header-collapse.ts`), keyed by `noteId` | No |
+| Content view mode (TXT/MD/HTML) | `users/{uid}/notes/{noteId}/contentViewMode` | Yes |
 | Unlocked API key plaintext | In-memory Svelte state | No |
 
 ### Disable the chat box

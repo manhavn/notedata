@@ -26,7 +26,8 @@
 - **Thẻ (tags)** — gắn thẻ phân cách bằng dấu phẩy; định dạng `tênTag:giá_trị` tùy chọn gắn dữ liệu vào thẻ (dùng cho biến system prompt AI); thêm/xóa trong editor; hỗ trợ import/export
 - **Tìm kiếm** — tìm theo tiêu đề hoặc thẻ từ topbar (debounce; dùng cùng sort và phân trang)
 - **Sắp xếp** — tiêu đề A–Z / Z–A, ngày tạo/cập nhật tăng/giảm; lưu trong `localStorage` (`notedata-note-sort`)
-- **Chế độ xem nội dung** — toggle **TXT / MD / HTML** dạng phân đoạn (cùng kiểu EN / VI): sửa văn bản thuần, xem trước Markdown (GFM qua `marked`), hoặc xem trước HTML (sanitize qua DOMPurify)
+- **Chế độ xem nội dung** — toggle **TXT / MD / HTML** dạng phân đoạn (cùng kiểu EN / VI): sửa văn bản thuần, xem trước Markdown (GFM qua `marked`), hoặc xem trước HTML (sanitize qua DOMPurify); lưu chế độ xem theo từng ghi chú trên Firebase (`contentViewMode`) và khôi phục khi mở lại
+- **Chỉ cập nhật `updatedAt` khi đổi nội dung** — `updatedAt` chỉ đổi khi sửa tiêu đề, nội dung, thẻ hoặc mã hóa — không đổi khi chuyển TXT/MD/HTML hay chọn AI theo ghi chú
 - **Bản nháp chưa lưu** — nội dung sửa được giữ trong bộ nhớ khi chuyển ghi chú; sidebar và editor hiện chỉ báo; **Hủy sửa** hủy thay đổi mà không lưu (xóa khi lưu hoặc tải lại trang)
 - **Thu gọn header editor** — thu gọn thanh tiêu đề/thẻ để có thêm không gian viết; khi ghi chú đang có thay đổi chưa lưu hoặc đã mở khóa trong phiên, trạng thái thu gọn được giữ trong bộ nhớ khi chuyển sang ghi chú khác và khôi phục khi quay lại (xóa khi lưu, hủy sửa, hoặc khóa)
 - **Chuyển vào thùng rác** — link xóa ghi chú trong header editor
@@ -45,7 +46,7 @@
 - **Kho API key** — key có nhãn, mã hóa bằng mã khóa của bạn (AES-GCM giống nội dung ghi chú) và lưu trên Firebase (`users/{uid}/settings/aiChatSettings/apiKeys`); chỉ ciphertext đồng bộ — plaintext chỉ ở bộ nhớ sau khi mở khóa
 - **Mở khóa API key** — dùng popup mã giống ghi chú mã hóa (mã đã lưu hoặc nhập thủ công); bắt buộc mỗi phiên chat mới, khi đổi key, và khi sửa key đã lưu
 - **API key đang dùng** — `activeApiKeyId` trên Firebase (giống `activeModelId` / `activeProviderId`); toolbar footer chọn key gửi request
-- **Chọn AI theo ghi chú** — mỗi ghi chú có thể nhớ provider, model và API key riêng (`aiActive*` trên Firebase); trường chưa đặt sẽ dùng mặc định tài khoản
+- **Chọn AI theo ghi chú** — mỗi ghi chú có thể nhớ provider, model và API key riêng (`aiActive*` trên Firebase); trường chưa đặt sẽ dùng mặc định tài khoản; không làm đổi `updatedAt` của ghi chú
 - **Cài đặt dạng popup** — chọn provider, model và API key từ popup danh sách; Add/Edit mở form cài đặt riêng
 - **Toolbar footer chat** — nút **Provider**, **Model** và API key (hiện tên đang chọn hoặc nhãn mặc định; ellipsis khi dài); icon bánh răng mở cài đặt bật/tắt AI tài khoản
 - **Import từ cURL** — dán lệnh `curl` để tự điền các trường provider (endpoint, xác thực, tham số sinh văn bản); không tự tạo hoặc chọn model
@@ -433,6 +434,7 @@ users/
         aiActiveProviderId?: string
         aiActiveModelId?: string
         aiActiveApiKeyId?: string
+        contentViewMode?: string ('txt' | 'md' | 'html')
         createdAt: number (timestamp)
         updatedAt: number (timestamp)
         encrypted?: boolean
@@ -445,6 +447,7 @@ users/
         aiActiveProviderId?: string
         aiActiveModelId?: string
         aiActiveApiKeyId?: string
+        contentViewMode?: string ('txt' | 'md' | 'html')
         createdAt: number (timestamp)
         updatedAt: number (timestamp)
         deletedAt: number (timestamp)
@@ -591,7 +594,7 @@ Hover dấu **?** cạnh **Mẫu system prompt** trong form provider để xem h
 
 ### Chọn AI theo ghi chú
 
-Khi chọn provider, model hoặc API key từ toolbar footer chat trên một ghi chú, lựa chọn được lưu trên ghi chú đó trong Firebase (`aiActiveProviderId`, `aiActiveModelId`, `aiActiveApiKeyId`). Trường chưa đặt trên ghi chú sẽ kế thừa mặc định toàn tài khoản từ `aiChatSettings`. Nếu lựa chọn đã lưu trỏ tới provider, model hoặc key đã xóa, app sẽ nhắc chọn lại.
+Khi chọn provider, model hoặc API key từ toolbar footer chat trên một ghi chú, lựa chọn được lưu trên ghi chú đó trong Firebase (`aiActiveProviderId`, `aiActiveModelId`, `aiActiveApiKeyId`). Trường chưa đặt trên ghi chú sẽ kế thừa mặc định toàn tài khoản từ `aiChatSettings`. Nếu lựa chọn đã lưu trỏ tới provider, model hoặc key đã xóa, app sẽ nhắc chọn lại. Các trường tùy chọn này không cập nhật `updatedAt` của ghi chú (thứ tự sắp xếp không đổi).
 
 ### Lịch sử chat trên máy
 
@@ -636,6 +639,7 @@ Icon bánh răng trong footer chat mở Cài đặt tài khoản, tập trung v�
 | Mã khóa mã hóa | `notedata-encryption-keys` (trình duyệt) | Không (chỉ hash trong localStorage) |
 | Mã mở khóa ghi chú (phiên) | Trạng thái Svelte trong bộ nhớ (`note-passcodes.svelte.ts`), key theo `noteId` | Không |
 | Trạng thái thu gọn header (chưa lưu/đã mở khóa) | Svelte store trong bộ nhớ (`note-header-collapse.ts`), key theo `noteId` | Không |
+| Chế độ xem nội dung (TXT/MD/HTML) | `users/{uid}/notes/{noteId}/contentViewMode` | Có |
 | Plaintext API key đã mở khóa | Trạng thái Svelte trong bộ nhớ | Không |
 
 ### Tắt hộp chat
