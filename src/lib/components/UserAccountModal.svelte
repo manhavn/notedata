@@ -24,7 +24,9 @@
   import { hasAiChatSettingsSaved } from '../ai-settings'
   import { countAiChatDrafts, draftAiChatStore, purgeAllAiChatDrafts } from '../draft-ai-chat'
   import { countNoteDrafts, draftContentStore, purgeAllNoteDrafts } from '../draft-content'
+  import { clearUnlockedApiKey } from '../ai-api-keys.svelte'
   import { confirm } from '../dialog.svelte'
+  import { exportUserSettings, importUserSettings, readSettingsFromFile } from '../settings-io'
   import { t } from '../i18n.svelte'
   import EditorAiSettings, { type AiSettingsModal } from './EditorAiSettings.svelte'
   import {
@@ -65,6 +67,9 @@
   let aiChatSectionHighlight = $state(false)
   let globalAiModal = $state<AiSettingsModal>(null)
   let globalAiToolbarTick = $state(0)
+  let exportingSettings = $state(false)
+  let importingSettings = $state(false)
+  let settingsImportInput = $state<HTMLInputElement | undefined>(undefined)
 
   const globalActiveProvider = $derived(getActiveProvider(aiChatSettingsState.settings))
   const globalActiveModel = $derived(getActiveModel(aiChatSettingsState.settings))
@@ -142,6 +147,57 @@
   async function handleLogout() {
     handleClose()
     await logout()
+  }
+
+  async function handleExportSettings() {
+    const userId = user?.uid
+    if (!userId) return
+
+    exportingSettings = true
+    try {
+      await exportUserSettings(userId)
+      toastSuccess(t('accountSettingsExportSuccess'))
+    } catch {
+      toastError(t('toastOperationFailed'))
+    } finally {
+      exportingSettings = false
+    }
+  }
+
+  function triggerImportSettings() {
+    settingsImportInput?.click()
+  }
+
+  async function handleImportSettingsFile(event: Event) {
+    const input = event.target as HTMLInputElement
+    const file = input.files?.[0]
+    input.value = ''
+
+    if (!file) return
+
+    const userId = user?.uid
+    if (!userId) return
+
+    if (!(await confirm({
+      title: t('accountSettingsImportTitle'),
+      message: t('accountSettingsImportConfirm'),
+      variant: 'default',
+      confirmLabel: t('accountSettingsImport'),
+    }))) {
+      return
+    }
+
+    importingSettings = true
+    try {
+      const settings = await readSettingsFromFile(file)
+      await importUserSettings(userId, settings)
+      clearUnlockedApiKey()
+      toastSuccess(t('accountSettingsImportSuccess'))
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : t('accountSettingsImportFailed'))
+    } finally {
+      importingSettings = false
+    }
   }
 
   async function handleSaveDisplayName() {
@@ -672,6 +728,36 @@
       </section>
     {/if}
 
+    <section class="section settings-io-section">
+      <h3>{t('accountSettingsBackupSection')}</h3>
+      <p class="hint">{t('accountSettingsBackupHint')}</p>
+      <div class="settings-io-actions">
+        <button
+          type="button"
+          class="secondary-btn"
+          onclick={handleExportSettings}
+          disabled={exportingSettings || importingSettings}
+        >
+          {exportingSettings ? t('processing') : t('accountSettingsExport')}
+        </button>
+        <button
+          type="button"
+          class="secondary-btn"
+          onclick={triggerImportSettings}
+          disabled={exportingSettings || importingSettings}
+        >
+          {importingSettings ? t('processing') : t('accountSettingsImport')}
+        </button>
+      </div>
+      <input
+        bind:this={settingsImportInput}
+        type="file"
+        accept="application/json,.json"
+        class="hidden-input"
+        onchange={handleImportSettingsFile}
+      />
+    </section>
+
     <section class="section logout-section">
       <button type="button" class="logout-btn" onclick={handleLogout}>
         <svg class="logout-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -992,6 +1078,16 @@
   .primary-btn:disabled {
     opacity: 0.65;
     cursor: not-allowed;
+  }
+
+  .settings-io-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .hidden-input {
+    display: none;
   }
 
   .logout-section {

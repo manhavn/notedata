@@ -1,4 +1,4 @@
-import { get, onValue, ref, update, type Unsubscribe } from 'firebase/database'
+import { get, onValue, ref, set, update, type Unsubscribe } from 'firebase/database'
 import { db } from './firebase'
 
 export const USER_SETTING_DISABLE_AI_CHAT = 'disableAiChat'
@@ -45,6 +45,24 @@ export function subscribeToUserSettings(
 export async function getUserSettings(userId: string): Promise<UserSettings> {
   const snapshot = await get(ref(db, settingsPath(userId)))
   return parseUserSettings(snapshot.val())
+}
+
+export async function getRawUserSettings(userId: string): Promise<Record<string, unknown>> {
+  const snapshot = await get(ref(db, settingsPath(userId)))
+  const value = snapshot.val()
+
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {}
+  }
+
+  return value as Record<string, unknown>
+}
+
+export async function overwriteUserSettings(
+  userId: string,
+  settings: Record<string, unknown>,
+): Promise<void> {
+  await set(ref(db, settingsPath(userId)), settings)
 }
 
 export async function setUserDisableAiChat(userId: string, disabled: boolean): Promise<void> {
