@@ -3,9 +3,15 @@
   import {
     clearNotePasscode,
     getNotePasscode,
+    hasNotePasscode,
     notePasscodeState,
     setNotePasscode,
   } from '../note-passcodes.svelte'
+  import {
+    clearNoteHeaderCollapsed,
+    getNoteHeaderCollapsed,
+    setNoteHeaderCollapsed,
+  } from '../note-header-collapse'
   import {
     clearDraftContent,
     draftContentStore,
@@ -174,6 +180,9 @@
     if (note.id !== lastLoadedId) {
       if (lastLoadedId) {
         void flushTitleSaveForNote(lastLoadedId, title, savedTitleBaseline)
+        if (shouldPreserveHeaderCollapse(lastLoadedId)) {
+          setNoteHeaderCollapsed(lastLoadedId, headerCollapsed)
+        }
       }
 
       title = note.title
@@ -184,9 +193,13 @@
       decryptError = null
       keyModalOpen = false
       contentViewMode = 'txt'
-      headerCollapsed = false
 
       const draft = loadDraftContent(note.id)
+      headerCollapsed =
+        draft !== undefined || hasNotePasscode(note.id)
+          ? getNoteHeaderCollapsed(note.id)
+          : false
+
       if (draft !== undefined) {
         plainContent = draft
         savedPlainSnapshot = null
@@ -247,14 +260,23 @@
     }
   })
 
+  function shouldPreserveHeaderCollapse(noteId: string): boolean {
+    return hasDraftContent(noteId) || hasNotePasscode(noteId)
+  }
+
   function toggleHeaderCollapse() {
     headerCollapsed = !headerCollapsed
+    if (note && shouldPreserveHeaderCollapse(note.id)) {
+      setNoteHeaderCollapsed(note.id, headerCollapsed)
+    }
   }
 
   function cancelEdit() {
     if (!note || readonly || !hasUnsavedChanges) return
 
     clearDraftContent(note.id)
+    clearNoteHeaderCollapsed(note.id)
+    headerCollapsed = false
 
     if (!isNoteEncrypted(note)) {
       plainContent = note.content
@@ -328,6 +350,8 @@
     if (!note || readonly || !noteIsEncrypted || !isUnlocked) return
 
     clearDraftContent(note.id)
+    clearNoteHeaderCollapsed(note.id)
+    headerCollapsed = false
     plainContent = ''
     savedPlainSnapshot = null
     isUnlocked = false
@@ -378,6 +402,8 @@
       keyId: options.keyId,
     })
     clearDraftContent(note.id)
+    clearNoteHeaderCollapsed(note.id)
+    headerCollapsed = false
 
     if (options.encrypted) {
       isUnlocked = false

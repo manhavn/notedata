@@ -28,7 +28,7 @@
 - **Sắp xếp** — tiêu đề A–Z / Z–A, ngày tạo/cập nhật tăng/giảm; lưu trong `localStorage` (`notedata-note-sort`)
 - **Chế độ xem nội dung** — toggle **TXT / MD / HTML** dạng phân đoạn (cùng kiểu EN / VI): sửa văn bản thuần, xem trước Markdown (GFM qua `marked`), hoặc xem trước HTML (sanitize qua DOMPurify)
 - **Bản nháp chưa lưu** — nội dung sửa được giữ trong bộ nhớ khi chuyển ghi chú; sidebar và editor hiện chỉ báo; **Hủy sửa** hủy thay đổi mà không lưu (xóa khi lưu hoặc tải lại trang)
-- **Thu gọn header editor** — thu gọn thanh tiêu đề/thẻ để có thêm không gian viết
+- **Thu gọn header editor** — thu gọn thanh tiêu đề/thẻ để có thêm không gian viết; khi ghi chú đang có thay đổi chưa lưu hoặc đã mở khóa trong phiên, trạng thái thu gọn được giữ trong bộ nhớ khi chuyển sang ghi chú khác và khôi phục khi quay lại (xóa khi lưu, hủy sửa, hoặc khóa)
 - **Chuyển vào thùng rác** — link xóa ghi chú trong header editor
 - **Ghi chú mã hóa** — cache mở khóa trong phiên (tự mở lại không cần nhập lại), danh sách sidebar hiện icon khóa mở cho ghi chú đã mở trong phiên, **Khóa** từng ghi chú trong editor, và **Khóa tất cả** trên header sidebar
 - Đồng bộ realtime theo `userId`
@@ -635,6 +635,7 @@ Icon bánh răng trong footer chat mở Cài đặt tài khoản, tập trung v�
 | Bản nháp chat AI (khi bật) | `localStorage` key `chat_{noteId}` | Không |
 | Mã khóa mã hóa | `notedata-encryption-keys` (trình duyệt) | Không (chỉ hash trong localStorage) |
 | Mã mở khóa ghi chú (phiên) | Trạng thái Svelte trong bộ nhớ (`note-passcodes.svelte.ts`), key theo `noteId` | Không |
+| Trạng thái thu gọn header (chưa lưu/đã mở khóa) | Svelte store trong bộ nhớ (`note-header-collapse.ts`), key theo `noteId` | Không |
 | Plaintext API key đã mở khóa | Trạng thái Svelte trong bộ nhớ | Không |
 
 ### Tắt hộp chat
@@ -853,6 +854,7 @@ src/
     notes.ts             # CRUD ghi chú, thùng rác, tìm kiếm, sắp xếp, thao tác hàng loạt
     note-io.ts           # Import/export JSON
     draft-content.ts     # Bản nháp nội dung chưa lưu trong bộ nhớ
+    note-header-collapse.ts  # Trạng thái thu gọn header editor theo ghi chú (chưa lưu/đã mở khóa)
     markdown.ts          # Render Markdown và HTML cho chế độ xem trước (DOMPurify)
     pagination.ts        # Số lượng mỗi lần tải thêm
     passcode.ts          # Hằng số độ dài mã khóa

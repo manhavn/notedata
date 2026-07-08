@@ -28,7 +28,7 @@ A personal notes app built with **Svelte 5 + Vite**, using **Firebase Authentica
 - **Sort** — title A–Z / Z–A, created/updated ascending or descending; preference saved in `localStorage` (`notedata-note-sort`)
 - **Content view modes** — **TXT / MD / HTML** segmented toggle (same style as EN / VI): plain-text edit, Markdown preview (GFM via `marked`), or raw HTML preview (sanitized via DOMPurify)
 - **Unsaved drafts** — edits are kept in memory while you switch notes; sidebar and editor show indicators; **Cancel edit** discards changes without saving (cleared on save or page reload)
-- **Collapsible editor header** — collapse the title/tags toolbar for more writing space
+- **Collapsible editor header** — collapse the title/tags toolbar for more writing space; while a note has unsaved edits or is session-unlocked, the collapse state is kept in memory when you switch notes and restored when you return (cleared on save, cancel, or lock)
 - **Move to trash** — delete link in the editor header
 - **Encrypted notes** — session unlock cache (auto-reopen without re-entry), sidebar list shows an open-lock icon for unlocked encrypted notes, per-note **Lock** in the editor, and **Lock all notes** in the sidebar header
 - Realtime sync scoped by `userId`
@@ -635,6 +635,7 @@ The gear icon in the chat footer opens Account settings focused on this section.
 | AI chat drafts (when enabled) | `localStorage` keys `chat_{noteId}` | No |
 | Passcodes for encryption | `notedata-encryption-keys` (browser) | No (hash only in localStorage) |
 | Unlocked note passcodes (session) | In-memory Svelte state (`note-passcodes.svelte.ts`), keyed by `noteId` | No |
+| Editor header collapse (unsaved/unlocked) | In-memory Svelte store (`note-header-collapse.ts`), keyed by `noteId` | No |
 | Unlocked API key plaintext | In-memory Svelte state | No |
 
 ### Disable the chat box
@@ -853,6 +854,7 @@ src/
     notes.ts             # Note CRUD, trash, search, sort, bulk operations
     note-io.ts           # JSON import/export helpers
     draft-content.ts     # In-memory unsaved note content drafts
+    note-header-collapse.ts  # In-memory editor header collapse state per note (unsaved/unlocked)
     markdown.ts          # Markdown and HTML preview rendering (DOMPurify)
     pagination.ts        # Page size for load-more lists
     passcode.ts          # Passcode length constants
