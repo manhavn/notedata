@@ -9,7 +9,8 @@ export interface NoteAiActiveIds {
 export interface Note extends NoteAiActiveIds {
   id: string
   title: string
-  content: string
+  /** Loaded on demand; omitted from list subscriptions. */
+  content?: string
   tags?: string[]
   createdAt: number
   updatedAt: number

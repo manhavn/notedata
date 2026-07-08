@@ -62,7 +62,7 @@ export function buildExportPayload(notes: Note[]): NoteExportPayload {
     exportedAt: Date.now(),
     notes: notes.map(({ title, content, tags, createdAt, updatedAt }) => ({
       title,
-      content,
+      content: content ?? '',
       ...(tags && tags.length > 0 ? { tags } : {}),
       createdAt,
       updatedAt,

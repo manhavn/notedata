@@ -16,9 +16,19 @@ function notesPath(userId: string) {
   return `users/${userId}/notes`
 }
 
+function noteContentsPath(userId: string) {
+  return `users/${userId}/noteContents`
+}
+
 function trashPath(userId: string) {
   return `users/${userId}/trash`
 }
+
+function trashContentsPath(userId: string) {
+  return `users/${userId}/trashContents`
+}
+
+const migratingContentIds = new Set<string>()
 
 export function normalizeTags(tags?: string[] | string): string[] {
   const items = Array.isArray(tags)
@@ -72,11 +82,13 @@ function parseNoteAiActiveFields(raw: Record<string, unknown>) {
   }
 }
 
-function parseNoteRecord(
+type RawNoteRecord = Omit<Note, 'id'> & { tags?: unknown; contentViewMode?: unknown }
+
+function parseNoteListRecord(
   id: string,
-  note: Omit<Note, 'id'> & { tags?: unknown; contentViewMode?: unknown },
+  note: RawNoteRecord,
 ): Note {
-  const { tags: rawTags, contentViewMode: rawContentViewMode, ...rest } = note
+  const { tags: rawTags, contentViewMode: rawContentViewMode, content: _content, ...rest } = note
   const tags = parseTags(rawTags)
   const aiFields = parseNoteAiActiveFields(rest as Record<string, unknown>)
   const contentViewMode = parseContentViewMode(rawContentViewMode)
@@ -86,6 +98,60 @@ function parseNoteRecord(
     : { id, ...rest, ...aiFields }
 
   return contentViewMode ? { ...base, contentViewMode } : base
+}
+
+function parseContentValue(value: unknown): string {
+  if (typeof value === 'string') return value
+  if (typeof value === 'object' && value !== null) {
+    const record = value as Record<string, unknown>
+    return typeof record.content === 'string' ? record.content : ''
+  }
+  return ''
+}
+
+async function migrateLegacyNoteContent(
+  userId: string,
+  noteId: string,
+  content: string,
+): Promise<void> {
+  const contentRef = ref(db, `${noteContentsPath(userId)}/${noteId}`)
+  const existing = await get(contentRef)
+
+  if (!existing.exists()) {
+    await set(contentRef, content)
+  }
+
+  await update(ref(db, `${notesPath(userId)}/${noteId}`), { content: null })
+}
+
+async function migrateLegacyTrashContent(
+  userId: string,
+  noteId: string,
+  content: string,
+): Promise<void> {
+  const contentRef = ref(db, `${trashContentsPath(userId)}/${noteId}`)
+  const existing = await get(contentRef)
+
+  if (!existing.exists()) {
+    await set(contentRef, content)
+  }
+
+  await update(ref(db, `${trashPath(userId)}/${noteId}`), { content: null })
+}
+
+function scheduleLegacyContentMigration(
+  userId: string,
+  data: Record<string, RawNoteRecord>,
+  inTrash: boolean,
+): void {
+  for (const [id, note] of Object.entries(data)) {
+    if (typeof note.content !== 'string') continue
+    if (migratingContentIds.has(id)) continue
+
+    migratingContentIds.add(id)
+    const migrate = inTrash ? migrateLegacyTrashContent : migrateLegacyNoteContent
+    void migrate(userId, id, note.content).finally(() => migratingContentIds.delete(id))
+  }
 }
 
 export type NoteSortOrder =
@@ -124,9 +190,9 @@ export function sortNotes(
   }
 }
 
-function parseNotes(data: Record<string, Omit<Note, 'id'> & { tags?: unknown }>): Note[] {
+function parseNotes(data: Record<string, RawNoteRecord>): Note[] {
   return sortNotes(
-    Object.entries(data).map(([id, note]) => parseNoteRecord(id, note)),
+    Object.entries(data).map(([id, note]) => parseNoteListRecord(id, note)),
     'update-desc',
   )
 }
@@ -146,14 +212,13 @@ function parseTrashedNotes(
   data: Record<string, Omit<TrashedNote, 'id'> & { tags?: unknown }>,
 ): TrashedNote[] {
   return Object.entries(data)
-    .map(([id, note]) => parseNoteRecord(id, note) as TrashedNote)
+    .map(([id, note]) => parseNoteListRecord(id, note) as TrashedNote)
     .sort((a, b) => b.deletedAt - a.deletedAt)
 }
 
-function buildNotePayload(input: NoteInput, now: number) {
+function buildNoteMetadataPayload(input: NoteInput, now: number) {
   const payload: Record<string, string | number | boolean> = {
     title: input.title.trim() || getUntitledNoteTitle(),
-    content: input.content,
     createdAt: now,
     updatedAt: now,
   }
@@ -186,6 +251,27 @@ function buildNotePayload(input: NoteInput, now: number) {
   return payload
 }
 
+function buildTrashMetadataPayload(note: Note, deletedAt: number) {
+  const payload: Record<string, string | number | boolean> = {
+    title: note.title,
+    createdAt: note.createdAt,
+    updatedAt: note.updatedAt,
+    deletedAt,
+  }
+
+  if (note.encrypted) payload.encrypted = true
+  if (note.keyId) payload.keyId = note.keyId
+
+  const tags = serializeTags(note.tags)
+  if (tags) payload.tags = tags
+  if (note.aiActiveProviderId) payload.aiActiveProviderId = note.aiActiveProviderId
+  if (note.aiActiveModelId) payload.aiActiveModelId = note.aiActiveModelId
+  if (note.aiActiveApiKeyId) payload.aiActiveApiKeyId = note.aiActiveApiKeyId
+  if (note.contentViewMode) payload.contentViewMode = note.contentViewMode
+
+  return payload
+}
+
 function shouldBumpUpdatedAt(input: Partial<NoteInput>): boolean {
   return (
     input.title !== undefined ||
@@ -196,7 +282,7 @@ function shouldBumpUpdatedAt(input: Partial<NoteInput>): boolean {
   )
 }
 
-function buildNoteUpdates(input: Partial<NoteInput>) {
+function buildNoteMetadataUpdates(input: Partial<NoteInput>) {
   const updates: Record<string, string | number | boolean | null> = {}
 
   if (shouldBumpUpdatedAt(input)) {
@@ -205,9 +291,6 @@ function buildNoteUpdates(input: Partial<NoteInput>) {
 
   if (input.title !== undefined) {
     updates.title = input.title.trim() || getUntitledNoteTitle()
-  }
-  if (input.content !== undefined) {
-    updates.content = input.content
   }
   if (input.encrypted === false) {
     updates.encrypted = null
@@ -238,6 +321,49 @@ function buildNoteUpdates(input: Partial<NoteInput>) {
   return updates
 }
 
+export async function fetchNoteContent(userId: string, noteId: string): Promise<string> {
+  const contentRef = ref(db, `${noteContentsPath(userId)}/${noteId}`)
+  const snapshot = await get(contentRef)
+
+  if (snapshot.exists()) {
+    return parseContentValue(snapshot.val())
+  }
+
+  const legacyRef = ref(db, `${notesPath(userId)}/${noteId}/content`)
+  const legacy = await get(legacyRef)
+  return parseContentValue(legacy.val())
+}
+
+export async function fetchTrashNoteContent(userId: string, noteId: string): Promise<string> {
+  const contentRef = ref(db, `${trashContentsPath(userId)}/${noteId}`)
+  const snapshot = await get(contentRef)
+
+  if (snapshot.exists()) {
+    return parseContentValue(snapshot.val())
+  }
+
+  const legacyRef = ref(db, `${trashPath(userId)}/${noteId}/content`)
+  const legacy = await get(legacyRef)
+  return parseContentValue(legacy.val())
+}
+
+export async function fetchNoteContents(
+  userId: string,
+  noteIds: string[],
+  inTrash = false,
+): Promise<Record<string, string>> {
+  const entries = await Promise.all(
+    noteIds.map(async (noteId) => {
+      const content = inTrash
+        ? await fetchTrashNoteContent(userId, noteId)
+        : await fetchNoteContent(userId, noteId)
+      return [noteId, content] as const
+    }),
+  )
+
+  return Object.fromEntries(entries)
+}
+
 export async function searchNotes(userId: string, searchQuery: string): Promise<Note[]> {
   const term = searchQuery.trim()
   if (!term) return []
@@ -255,7 +381,9 @@ export function subscribeToNotes(
   const notesRef = ref(db, notesPath(userId))
 
   return onValue(notesRef, (snapshot) => {
-    callback(parseNotes(snapshot.val() ?? {}))
+    const data = snapshot.val() ?? {}
+    scheduleLegacyContentMigration(userId, data, false)
+    callback(parseNotes(data))
   })
 }
 
@@ -266,7 +394,9 @@ export function subscribeToTrash(
   const trashRef = ref(db, trashPath(userId))
 
   return onValue(trashRef, (snapshot) => {
-    callback(parseTrashedNotes(snapshot.val() ?? {}))
+    const data = snapshot.val() ?? {}
+    scheduleLegacyContentMigration(userId, data, true)
+    callback(parseTrashedNotes(data))
   })
 }
 
@@ -274,9 +404,11 @@ export async function createNote(userId: string, input: NoteInput): Promise<stri
   const now = Date.now()
   const notesRef = ref(db, notesPath(userId))
   const newRef = push(notesRef)
+  const noteId = newRef.key!
 
-  await set(newRef, buildNotePayload(input, now))
-  return newRef.key!
+  await set(newRef, buildNoteMetadataPayload(input, now))
+  await set(ref(db, `${noteContentsPath(userId)}/${noteId}`), input.content)
+  return noteId
 }
 
 export async function updateNote(
@@ -284,63 +416,72 @@ export async function updateNote(
   noteId: string,
   input: Partial<NoteInput>,
 ): Promise<void> {
-  const noteRef = ref(db, `${notesPath(userId)}/${noteId}`)
-  await update(noteRef, buildNoteUpdates(input))
+  const metadataUpdates = buildNoteMetadataUpdates(input)
+
+  if (Object.keys(metadataUpdates).length > 0) {
+    const noteRef = ref(db, `${notesPath(userId)}/${noteId}`)
+    await update(noteRef, metadataUpdates)
+  }
+
+  if (input.content !== undefined) {
+    await set(ref(db, `${noteContentsPath(userId)}/${noteId}`), input.content)
+  }
+}
+
+async function resolveNoteContent(userId: string, note: Note): Promise<string> {
+  if (note.content !== undefined) return note.content
+  return fetchNoteContent(userId, note.id)
+}
+
+async function resolveTrashNoteContent(userId: string, note: TrashedNote): Promise<string> {
+  if (note.content !== undefined) return note.content
+  return fetchTrashNoteContent(userId, note.id)
 }
 
 export async function moveNoteToTrash(userId: string, note: Note): Promise<void> {
   const now = Date.now()
-  const payload: Record<string, string | number | boolean> = {
-    title: note.title,
-    content: note.content,
-    createdAt: note.createdAt,
-    updatedAt: note.updatedAt,
-    deletedAt: now,
-  }
+  const content = await resolveNoteContent(userId, note)
 
-  if (note.encrypted) payload.encrypted = true
-  if (note.keyId) payload.keyId = note.keyId
-
-  const tags = serializeTags(note.tags)
-  if (tags) payload.tags = tags
-  if (note.aiActiveProviderId) payload.aiActiveProviderId = note.aiActiveProviderId
-  if (note.aiActiveModelId) payload.aiActiveModelId = note.aiActiveModelId
-  if (note.aiActiveApiKeyId) payload.aiActiveApiKeyId = note.aiActiveApiKeyId
-  if (note.contentViewMode) payload.contentViewMode = note.contentViewMode
-
-  await set(ref(db, `${trashPath(userId)}/${note.id}`), payload)
+  await set(ref(db, `${trashPath(userId)}/${note.id}`), buildTrashMetadataPayload(note, now))
+  await set(ref(db, `${trashContentsPath(userId)}/${note.id}`), content)
+  await remove(ref(db, `${noteContentsPath(userId)}/${note.id}`))
   await remove(ref(db, `${notesPath(userId)}/${note.id}`))
 }
 
 export async function restoreNoteFromTrash(userId: string, note: TrashedNote): Promise<void> {
   const now = Date.now()
-  const payload: Record<string, string | number | boolean> = {
-    title: note.title,
-    content: note.content,
-    createdAt: note.createdAt,
-    updatedAt: now,
-  }
+  const content = await resolveTrashNoteContent(userId, note)
+  const payload = buildNoteMetadataPayload(
+    {
+      title: note.title,
+      content,
+      tags: note.tags,
+      encrypted: note.encrypted,
+      keyId: note.keyId,
+      aiActiveProviderId: note.aiActiveProviderId,
+      aiActiveModelId: note.aiActiveModelId,
+      aiActiveApiKeyId: note.aiActiveApiKeyId,
+      contentViewMode: note.contentViewMode,
+    },
+    now,
+  )
 
-  if (note.encrypted) payload.encrypted = true
-  if (note.keyId) payload.keyId = note.keyId
-
-  const tags = serializeTags(note.tags)
-  if (tags) payload.tags = tags
-  if (note.aiActiveProviderId) payload.aiActiveProviderId = note.aiActiveProviderId
-  if (note.aiActiveModelId) payload.aiActiveModelId = note.aiActiveModelId
-  if (note.aiActiveApiKeyId) payload.aiActiveApiKeyId = note.aiActiveApiKeyId
-  if (note.contentViewMode) payload.contentViewMode = note.contentViewMode
+  payload.createdAt = note.createdAt
 
   await set(ref(db, `${notesPath(userId)}/${note.id}`), payload)
+  await set(ref(db, `${noteContentsPath(userId)}/${note.id}`), content)
+  await remove(ref(db, `${trashContentsPath(userId)}/${note.id}`))
   await remove(ref(db, `${trashPath(userId)}/${note.id}`))
 }
 
 export async function permanentlyDeleteNote(userId: string, noteId: string): Promise<void> {
   await remove(ref(db, `${trashPath(userId)}/${noteId}`))
+  await remove(ref(db, `${trashContentsPath(userId)}/${noteId}`))
 }
 
 export async function emptyTrash(userId: string): Promise<void> {
   await remove(ref(db, trashPath(userId)))
+  await remove(ref(db, trashContentsPath(userId)))
 }
 
 export async function moveNotesToTrash(userId: string, notes: Note[]): Promise<void> {

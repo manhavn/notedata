@@ -6,12 +6,22 @@
         ".write": "auth != null && auth.uid == $uid",
         "notes": {
           "$noteId": {
-            ".validate": "newData.hasChildren(['title', 'content', 'createdAt', 'updatedAt']) && newData.child('title').isString() && newData.child('content').isString() && newData.child('createdAt').isNumber() && newData.child('updatedAt').isNumber() && (!newData.hasChild('encrypted') || newData.child('encrypted').isBoolean()) && (!newData.hasChild('keyId') || newData.child('keyId').isString()) && (!newData.hasChild('tags') || newData.child('tags').isString()) && (!newData.hasChild('aiActiveProviderId') || newData.child('aiActiveProviderId').isString()) && (!newData.hasChild('aiActiveModelId') || newData.child('aiActiveModelId').isString()) && (!newData.hasChild('aiActiveApiKeyId') || newData.child('aiActiveApiKeyId').isString())"
+            ".validate": "newData.hasChildren(['title', 'createdAt', 'updatedAt']) && newData.child('title').isString() && newData.child('createdAt').isNumber() && newData.child('updatedAt').isNumber() && (!newData.hasChild('content') || newData.child('content').isString()) && (!newData.hasChild('encrypted') || newData.child('encrypted').isBoolean()) && (!newData.hasChild('keyId') || newData.child('keyId').isString()) && (!newData.hasChild('tags') || newData.child('tags').isString()) && (!newData.hasChild('contentViewMode') || newData.child('contentViewMode').isString()) && (!newData.hasChild('aiActiveProviderId') || newData.child('aiActiveProviderId').isString()) && (!newData.hasChild('aiActiveModelId') || newData.child('aiActiveModelId').isString()) && (!newData.hasChild('aiActiveApiKeyId') || newData.child('aiActiveApiKeyId').isString())"
+          }
+        },
+        "noteContents": {
+          "$noteId": {
+            ".validate": "newData.isString()"
           }
         },
         "trash": {
           "$noteId": {
-            ".validate": "newData.hasChildren(['title', 'content', 'createdAt', 'updatedAt', 'deletedAt']) && newData.child('title').isString() && newData.child('content').isString() && newData.child('createdAt').isNumber() && newData.child('updatedAt').isNumber() && newData.child('deletedAt').isNumber() && (!newData.hasChild('encrypted') || newData.child('encrypted').isBoolean()) && (!newData.hasChild('keyId') || newData.child('keyId').isString()) && (!newData.hasChild('tags') || newData.child('tags').isString()) && (!newData.hasChild('aiActiveProviderId') || newData.child('aiActiveProviderId').isString()) && (!newData.hasChild('aiActiveModelId') || newData.child('aiActiveModelId').isString()) && (!newData.hasChild('aiActiveApiKeyId') || newData.child('aiActiveApiKeyId').isString())"
+            ".validate": "newData.hasChildren(['title', 'createdAt', 'updatedAt', 'deletedAt']) && newData.child('title').isString() && newData.child('createdAt').isNumber() && newData.child('updatedAt').isNumber() && newData.child('deletedAt').isNumber() && (!newData.hasChild('content') || newData.child('content').isString()) && (!newData.hasChild('encrypted') || newData.child('encrypted').isBoolean()) && (!newData.hasChild('keyId') || newData.child('keyId').isString()) && (!newData.hasChild('tags') || newData.child('tags').isString()) && (!newData.hasChild('contentViewMode') || newData.child('contentViewMode').isString()) && (!newData.hasChild('aiActiveProviderId') || newData.child('aiActiveProviderId').isString()) && (!newData.hasChild('aiActiveModelId') || newData.child('aiActiveModelId').isString()) && (!newData.hasChild('aiActiveApiKeyId') || newData.child('aiActiveApiKeyId').isString())"
+          }
+        },
+        "trashContents": {
+          "$noteId": {
+            ".validate": "newData.isString()"
           }
         },
         "settings": {

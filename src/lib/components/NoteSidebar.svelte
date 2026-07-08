@@ -133,6 +133,14 @@
     return isNoteEncrypted(note)
   }
 
+  function hasContentPreview(note: Note): boolean {
+    void $draftContentStore
+    void userSettingsState.persistNoteDraftLocal
+    if (peekDraftContent(note.id) !== undefined) return true
+    if (isNoteEncrypted(note)) return true
+    return note.content !== undefined
+  }
+
   function preview(note: Note) {
     void $draftContentStore
     void userSettingsState.persistNoteDraftLocal
@@ -145,8 +153,9 @@
     if (isNoteEncrypted(note)) {
       return t('encryptedContent')
     }
-    const text = note.content.trim()
-    return text.length > 80 ? `${text.slice(0, 80)}...` : text || t('noContent')
+    const text = (note.content ?? '').trim()
+    if (!text) return t('noContent')
+    return text.length > 80 ? `${text.slice(0, 80)}...` : text
   }
 
   function handleSelectAllChange() {
@@ -395,7 +404,7 @@
                 {/if}
                 {t('encryptedContent')}
               </span>
-            {:else}
+            {:else if hasContentPreview(note)}
               <span class="preview">{preview(note)}</span>
             {/if}
             <span class="date">{formatAppDate(note.updatedAt)}</span>

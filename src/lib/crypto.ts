@@ -51,8 +51,8 @@ export function isEncryptedContent(content: string): boolean {
   return content.startsWith(ENCRYPTION_PREFIX)
 }
 
-export function isNoteEncrypted(note: { encrypted?: boolean; content: string }): boolean {
-  return Boolean(note.encrypted) || isEncryptedContent(note.content)
+export function isNoteEncrypted(note: { encrypted?: boolean; content?: string }): boolean {
+  return Boolean(note.encrypted) || isEncryptedContent(note.content ?? '')
 }
 
 function packEncrypted(payload: EncryptedPayload): string {

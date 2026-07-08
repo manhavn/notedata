@@ -7,6 +7,9 @@
   import {
     createNote,
     emptyTrash,
+    fetchNoteContent,
+    fetchNoteContents,
+    fetchTrashNoteContent,
     importNotes,
     moveNoteToTrash,
     moveNotesToTrash,
@@ -64,6 +67,10 @@
 
   let searchDebounceTimer: ReturnType<typeof setTimeout> | undefined
   let searchRequestId = 0
+  let noteContentCache = $state<Record<string, string>>({})
+  let loadedContentIds = $state<Set<string>>(new Set())
+  let contentLoading = $state(false)
+  let contentLoadRequestId = 0
 
   const isSearchActive = $derived(view === 'notes' && debouncedSearch.trim().length > 0)
 
@@ -85,13 +92,67 @@
     isSearchActive && searchResults !== null ? searchResults : notes,
   )
 
-  const selectedNote = $derived(
-    notes.find((n) => n.id === selectedId) ?? null,
-  )
+  function mergeNoteWithCachedContent<T extends Note>(note: T): T {
+    if (!loadedContentIds.has(note.id)) return note
+    return { ...note, content: noteContentCache[note.id] ?? '' }
+  }
 
-  const selectedTrashedNote = $derived(
-    trashedNotes.find((n) => n.id === selectedId) ?? null,
-  )
+  function mergeNotesWithCachedContent(loaded: Note[]): Note[] {
+    return loaded.map((note) => mergeNoteWithCachedContent(note))
+  }
+
+  function cacheNoteContent(noteId: string, content: string) {
+    noteContentCache = { ...noteContentCache, [noteId]: content }
+    loadedContentIds = new Set(loadedContentIds).add(noteId)
+    notes = notes.map((note) => (note.id === noteId ? { ...note, content } : note))
+    trashedNotes = trashedNotes.map((note) =>
+      note.id === noteId ? { ...note, content } : note,
+    )
+    if (searchResults) {
+      searchResults = searchResults.map((note) =>
+        note.id === noteId ? { ...note, content } : note,
+      )
+    }
+  }
+
+  const selectedNote = $derived.by(() => {
+    const note = notes.find((n) => n.id === selectedId) ?? null
+    return note ? mergeNoteWithCachedContent(note) : null
+  })
+
+  const selectedTrashedNote = $derived.by(() => {
+    const note = trashedNotes.find((n) => n.id === selectedId) ?? null
+    return note ? mergeNoteWithCachedContent(note) : null
+  })
+
+  $effect(() => {
+    const userId = authState.user?.uid
+    const id = selectedId
+    const currentView = view
+    if (!userId || !id || loadedContentIds.has(id)) return
+
+    const requestId = ++contentLoadRequestId
+    contentLoading = true
+
+    void (async () => {
+      try {
+        const content =
+          currentView === 'trash'
+            ? await fetchTrashNoteContent(userId, id)
+            : await fetchNoteContent(userId, id)
+        if (requestId !== contentLoadRequestId || selectedId !== id) return
+        cacheNoteContent(id, content)
+      } catch (err) {
+        if (requestId === contentLoadRequestId) {
+          notifyOperationFailed(err)
+        }
+      } finally {
+        if (requestId === contentLoadRequestId) {
+          contentLoading = false
+        }
+      }
+    })()
+  })
 
   function resetSearchState() {
     searchInput = ''
@@ -116,7 +177,7 @@
     try {
       const results = await searchNotes(userId, query)
       if (requestId !== searchRequestId) return
-      searchResults = results
+      searchResults = mergeNotesWithCachedContent(results)
     } catch {
       if (requestId !== searchRequestId) return
       searchResults = []
@@ -164,7 +225,7 @@
     }
 
     const unsubscribeNotes = subscribeToNotes(userId, (loaded) => {
-      notes = loaded
+      notes = mergeNotesWithCachedContent(loaded)
       pruneCheckedIds(loaded.map((n) => n.id))
       if (view === 'notes' && selectedId && !loaded.some((n) => n.id === selectedId)) {
         selectedId = loaded[0]?.id ?? null
@@ -172,7 +233,7 @@
     })
 
     const unsubscribeTrash = subscribeToTrash(userId, (loaded) => {
-      trashedNotes = loaded
+      trashedNotes = mergeNotesWithCachedContent(loaded) as TrashedNote[]
       pruneCheckedIds(loaded.map((n) => n.id))
       if (view === 'trash' && selectedId && !loaded.some((n) => n.id === selectedId)) {
         selectedId = loaded[0]?.id ?? null
@@ -241,6 +302,7 @@
     view = 'notes'
     clearSelection()
     const id = await createNote(userId, { title: '', content: '' })
+    cacheNoteContent(id, '')
     selectedId = id
     sidebarOpen = false
   }
@@ -252,6 +314,9 @@
     saving = true
     try {
       await updateNote(userId, selectedId, payload)
+      if (payload.content !== undefined) {
+        cacheNoteContent(selectedId, payload.content)
+      }
       toastSuccess(t('toastNoteSaved'))
     } catch (err) {
       notifyOperationFailed(err)
@@ -346,12 +411,29 @@
     }
   }
 
-  function handleBulkExport() {
+  async function handleBulkExport() {
+    const userId = authState.user?.uid
     const selectedNotes = getCheckedNotes()
-    if (selectedNotes.length === 0) return
+    if (!userId || selectedNotes.length === 0) return
 
     try {
-      downloadNotesJson(selectedNotes)
+      const missingIds = selectedNotes
+        .filter((note) => !loadedContentIds.has(note.id))
+        .map((note) => note.id)
+
+      if (missingIds.length > 0) {
+        const contents = await fetchNoteContents(userId, missingIds)
+        for (const [id, content] of Object.entries(contents)) {
+          cacheNoteContent(id, content)
+        }
+      }
+
+      const notesToExport = selectedNotes.map((note) => ({
+        ...note,
+        content: noteContentCache[note.id] ?? note.content ?? '',
+      }))
+
+      downloadNotesJson(notesToExport)
       toastSuccess(t('toastExported', { count: selectedNotes.length }))
     } catch (err) {
       notifyOperationFailed(err)
@@ -708,6 +790,7 @@
       {#if view === 'notes'}
         <NoteEditor
           note={selectedNote}
+          contentLoading={contentLoading}
           onSave={handleSave}
           onSaveTitle={handleSaveTitle}
           onSaveTags={handleSaveTags}
@@ -720,6 +803,7 @@
       {:else}
         <NoteEditor
           note={selectedTrashedNote}
+          contentLoading={contentLoading}
           onSave={handleSave}
           saving={false}
           readonly

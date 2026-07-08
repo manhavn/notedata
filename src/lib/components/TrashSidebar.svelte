@@ -51,12 +51,18 @@
     visibleNotes.some((note) => checkedIds.has(note.id)) && !allVisibleChecked,
   )
 
+  function hasContentPreview(note: TrashedNote): boolean {
+    if (isNoteEncrypted(note)) return true
+    return note.content !== undefined
+  }
+
   function preview(note: TrashedNote) {
     if (isNoteEncrypted(note)) {
       return `🔒 ${t('encryptedContent')}`
     }
-    const text = note.content.trim()
-    return text.length > 80 ? `${text.slice(0, 80)}...` : text || t('noContent')
+    const text = (note.content ?? '').trim()
+    if (!text) return t('noContent')
+    return text.length > 80 ? `${text.slice(0, 80)}...` : text
   }
 
   function handleSelectAllChange() {
@@ -159,7 +165,9 @@
                 {/each}
               </span>
             {/if}
-            <span class="preview">{preview(note)}</span>
+            {#if hasContentPreview(note)}
+              <span class="preview">{preview(note)}</span>
+            {/if}
             <span class="date">{t('deletedAt', { date: formatAppDate(note.deletedAt) })}</span>
           </button>
           <div class="item-actions">

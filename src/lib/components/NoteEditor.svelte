@@ -52,6 +52,7 @@
       mode: NoteContentViewMode,
     ) => void | Promise<void>
     saving: boolean
+    contentLoading?: boolean
     readonly?: boolean
     deletedAt?: number
     onRestore?: () => void
@@ -70,6 +71,7 @@
     onSaveNoteAiActive,
     onSaveContentViewMode,
     saving,
+    contentLoading = false,
     readonly = false,
     deletedAt,
     onRestore,
@@ -85,6 +87,7 @@
   let tagInput = $state('')
   let plainContent = $state('')
   let lastLoadedId = $state<string | null>(null)
+  let contentReadyId = $state<string | null>(null)
   let savedPlainSnapshot = $state<string | null>(null)
   let isUnlocked = $state(false)
   let keyModalOpen = $state(false)
@@ -157,8 +160,8 @@
     if ($noteDraftPurgeTick === 0 || !note || note.id !== lastLoadedId || readonly) return
 
     if (!isNoteEncrypted(note)) {
-      plainContent = note.content
-      savedPlainSnapshot = note.content
+      plainContent = note.content ?? ''
+      savedPlainSnapshot = note.content ?? ''
       isUnlocked = true
     } else if (savedPlainSnapshot !== null) {
       plainContent = savedPlainSnapshot
@@ -167,7 +170,7 @@
       plainContent = ''
       savedPlainSnapshot = null
       isUnlocked = false
-      void attemptAutoUnlock(note.id, note.content)
+      void attemptAutoUnlock(note.id, note.content ?? '')
     }
     contentViewMode = savedContentViewMode()
     decryptError = null
@@ -205,6 +208,7 @@
       tags = normalizeTags(note.tags)
       tagInput = ''
       lastLoadedId = note.id
+      contentReadyId = null
       decryptError = null
       keyModalOpen = false
       contentViewMode = savedContentViewMode()
@@ -215,21 +219,50 @@
           ? getNoteHeaderCollapsed(note.id)
           : false
 
+      if (contentLoading) {
+        plainContent = ''
+        savedPlainSnapshot = null
+        isUnlocked = false
+        return
+      }
+
+      if (draft !== undefined) {
+        plainContent = draft
+        savedPlainSnapshot = null
+        isUnlocked = true
+        contentReadyId = note.id
+      } else if (!isNoteEncrypted(note)) {
+        plainContent = note.content ?? ''
+        savedPlainSnapshot = note.content ?? ''
+        isUnlocked = true
+        contentReadyId = note.id
+      } else {
+        plainContent = ''
+        savedPlainSnapshot = null
+        isUnlocked = false
+        contentReadyId = note.id
+        void attemptAutoUnlock(note.id, note.content ?? '')
+      }
+      return
+    }
+
+    if (!contentLoading && contentReadyId !== note.id) {
+      const draft = loadDraftContent(note.id)
       if (draft !== undefined) {
         plainContent = draft
         savedPlainSnapshot = null
         isUnlocked = true
       } else if (!isNoteEncrypted(note)) {
-        plainContent = note.content
-        savedPlainSnapshot = note.content
+        plainContent = note.content ?? ''
+        savedPlainSnapshot = note.content ?? ''
         isUnlocked = true
       } else {
         plainContent = ''
         savedPlainSnapshot = null
         isUnlocked = false
-        void attemptAutoUnlock(note.id, note.content)
+        void attemptAutoUnlock(note.id, note.content ?? '')
       }
-      return
+      contentReadyId = note.id
     }
 
     if (userSettingsState.persistNoteDraftLocal && $draftContentStore[note.id] === undefined) {
@@ -253,7 +286,7 @@
       const matchesSaved =
         savedPlainSnapshot !== null
           ? content === savedPlainSnapshot
-          : !isNoteEncrypted(note) && content === note.content
+          : !isNoteEncrypted(note) && content === (note.content ?? '')
 
       if (matchesSaved) {
         clearDraftContent(noteId)
@@ -270,7 +303,7 @@
       return
     }
 
-    if (!isNoteEncrypted(note) && content !== note.content) {
+    if (!isNoteEncrypted(note) && content !== (note.content ?? '')) {
       setDraftContent(noteId, content)
     }
   })
@@ -294,8 +327,8 @@
     headerCollapsed = false
 
     if (!isNoteEncrypted(note)) {
-      plainContent = note.content
-      savedPlainSnapshot = note.content
+      plainContent = note.content ?? ''
+      savedPlainSnapshot = note.content ?? ''
       isUnlocked = true
     } else if (savedPlainSnapshot !== null) {
       plainContent = savedPlainSnapshot
@@ -351,7 +384,7 @@
     if (!note) return
 
     try {
-      const decrypted = await decryptContent(note.content, payload.code, payload.keyId)
+      const decrypted = await decryptContent(note.content ?? '', payload.code, payload.keyId)
       plainContent = decrypted
       savedPlainSnapshot = decrypted
       isUnlocked = true
@@ -782,7 +815,11 @@
       {/if}
     </div>
 
-    {#if showLockedState}
+    {#if contentLoading}
+      <div class="placeholder content-loading">
+        <p>{t('loading')}</p>
+      </div>
+    {:else if showLockedState}
       <div class="locked-panel">
         <div class="locked-icon">🔒</div>
         <h3>{t('encryptedNote')}</h3>

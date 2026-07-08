@@ -32,9 +32,12 @@ A personal notes app built with **Svelte 5 + Vite**, using **Firebase Authentica
 - **Collapsible editor header** — collapse the title/tags toolbar for more writing space; while a note has unsaved edits or is session-unlocked, the collapse state is kept in memory when you switch notes and restored when you return (cleared on save, cancel, or lock)
 - **Move to trash** — delete link in the editor header
 - **Encrypted notes** — session unlock cache (auto-reopen without re-entry), sidebar list shows an open-lock icon for unlocked encrypted notes, per-note **Lock** in the editor, and **Lock all notes** in the sidebar header
-- Realtime sync scoped by `userId`
+- **Lazy-loaded content** — note list subscriptions fetch metadata only (title, tags, timestamps, encryption flags); `content` is stored separately and fetched on demand when you open a note
+- **Client content cache** — once loaded, content stays in memory while you switch notes (no re-fetch unless you reload the page)
+- **Bulk export** — only fetches `content` for selected notes that are not already cached locally
+- Realtime sync scoped by `userId` (metadata only; content is not streamed on list updates)
 - Paginated note list with **Load more** (20 items per page)
-- Soft delete via **Trash** — restore, permanently delete, or **Empty trash**; quick **↩ restore** and **× delete** buttons on each trashed note in the sidebar
+- Soft delete via **Trash** — restore, permanently delete, or **Empty trash**; quick **↩ restore** and **× delete** buttons on each trashed note in the sidebar; trashed note content is lazy-loaded like active notes
 - **Mobile layout** — hamburger menu opens/closes the sidebar overlay on small screens
 
 ### AI chat assistant
@@ -372,11 +375,14 @@ Or edit `.firebaserc` directly if you already know the Project ID.
 The project includes `database.rules.json` so each user can only read/write their own data:
 
 ```
-users/{userId}/notes/{noteId}
+users/{userId}/notes/{noteId}        # metadata (no content)
+users/{userId}/noteContents/{noteId} # note body
+users/{userId}/trash/{noteId}
+users/{userId}/trashContents/{noteId}
 users/{userId}/settings/...
 ```
 
-Deploy the rules (required for notes, trash, and AI provider settings):
+Deploy the rules (required for notes, content paths, trash, and AI provider settings):
 
 ```bash
 npm run firebase:deploy:database
@@ -423,13 +429,14 @@ https://your-project-id.web.app
 
 ## Data structure
 
+Note **metadata** and **content** are stored in separate paths so list subscriptions stay lightweight. Legacy notes that still have inline `content` under `notes/{noteId}` are migrated to `noteContents/{noteId}` automatically in the background.
+
 ```
 users/
   {userId}/
     notes/
       {noteId}/
         title: string
-        content: string
         tags?: string (comma-separated in Firebase)
         aiActiveProviderId?: string
         aiActiveModelId?: string
@@ -439,10 +446,11 @@ users/
         updatedAt: number (timestamp)
         encrypted?: boolean
         keyId?: string
+    noteContents/
+      {noteId}: string (note body; encrypted ciphertext when encrypted: true)
     trash/
       {noteId}/
         title: string
-        content: string
         tags?: string (comma-separated in Firebase)
         aiActiveProviderId?: string
         aiActiveModelId?: string
@@ -453,6 +461,8 @@ users/
         deletedAt: number (timestamp)
         encrypted?: boolean
         keyId?: string
+    trashContents/
+      {noteId}: string (trashed note body)
     settings/
       disableAiChat?: boolean
       persistAiChatLocal?: boolean
@@ -640,6 +650,8 @@ The gear icon in the chat footer opens Account settings focused on this section.
 | Unlocked note passcodes (session) | In-memory Svelte state (`note-passcodes.svelte.ts`), keyed by `noteId` | No |
 | Editor header collapse (unsaved/unlocked) | In-memory Svelte store (`note-header-collapse.ts`), keyed by `noteId` | No |
 | Content view mode (TXT/MD/HTML) | `users/{uid}/notes/{noteId}/contentViewMode` | Yes |
+| Note content (body) | `users/{uid}/noteContents/{noteId}` | Yes — fetched on demand, cached in memory after first load |
+| Trashed note content | `users/{uid}/trashContents/{noteId}` | Yes — fetched on demand when opening trash |
 | Unlocked API key plaintext | In-memory Svelte state | No |
 
 ### Disable the chat box
@@ -794,7 +806,8 @@ To use a new Firebase project:
 
 - Database rules not deployed yet: run `npm run firebase:deploy:database`
 - User is not signed in
-- Rules do not match the `users/{uid}/notes` structure
+- Rules do not match the `users/{uid}/notes`, `noteContents`, `trash`, or `trashContents` structure
+- After upgrading from an older schema, redeploy rules so `content` is no longer required on `notes/{noteId}`
 
 ### Cannot decrypt a note after changing browser or clearing storage
 
@@ -855,7 +868,7 @@ src/
     i18n.svelte.ts       # Locale state, t(), date formatting
     i18n/
       translations.ts    # English and Vietnamese strings
-    notes.ts             # Note CRUD, trash, search, sort, bulk operations
+    notes.ts             # Note CRUD, trash, lazy content fetch, search, sort, bulk operations
     note-io.ts           # JSON import/export helpers
     draft-content.ts     # In-memory unsaved note content drafts
     note-header-collapse.ts  # In-memory editor header collapse state per note (unsaved/unlocked)
@@ -883,7 +896,7 @@ src/
       ...                # NotesApp, NoteEditor, NoteSidebar, TrashSidebar, ...
 scripts/
   run-manual-lint.sh     # oxlint + svelte-check manual lint script
-database.rules.json      # Security rules for notes and trash
+database.rules.json      # Security rules for notes, noteContents, trash, trashContents
 firebase.json            # Firebase Hosting + Database config
 .env.example             # Environment variable template
 public/

@@ -32,9 +32,12 @@
 - **Thu gọn header editor** — thu gọn thanh tiêu đề/thẻ để có thêm không gian viết; khi ghi chú đang có thay đổi chưa lưu hoặc đã mở khóa trong phiên, trạng thái thu gọn được giữ trong bộ nhớ khi chuyển sang ghi chú khác và khôi phục khi quay lại (xóa khi lưu, hủy sửa, hoặc khóa)
 - **Chuyển vào thùng rác** — link xóa ghi chú trong header editor
 - **Ghi chú mã hóa** — cache mở khóa trong phiên (tự mở lại không cần nhập lại), danh sách sidebar hiện icon khóa mở cho ghi chú đã mở trong phiên, **Khóa** từng ghi chú trong editor, và **Khóa tất cả** trên header sidebar
-- Đồng bộ realtime theo `userId`
+- **Tải nội dung theo nhu cầu** — danh sách ghi chú chỉ subscribe metadata (tiêu đề, thẻ, thời gian, cờ mã hóa); `content` lưu riêng và chỉ fetch khi mở ghi chú
+- **Cache nội dung trên client** — sau khi tải, nội dung giữ trong bộ nhớ khi chuyển ghi chú (không fetch lại trừ khi tải lại trang)
+- **Export hàng loạt** — chỉ fetch `content` của các ghi chú được chọn mà chưa có trong cache
+- Đồng bộ realtime theo `userId` (chỉ metadata; không stream content khi cập nhật danh sách)
 - Danh sách phân trang với nút **Tải thêm** (20 ghi chú mỗi lần)
-- **Thùng rác** — xóa mềm; khôi phục, xóa vĩnh viễn, hoặc **Dọn thùng rác**; nút **↩ khôi phục** và **× xóa** nhanh trên từng ghi chú trong sidebar
+- **Thùng rác** — xóa mềm; khôi phục, xóa vĩnh viễn, hoặc **Dọn thùng rác**; nút **↩ khôi phục** và **× xóa** nhanh trên từng ghi chú trong sidebar; nội dung ghi chú trong thùng rác cũng lazy-load như ghi chú thường
 - **Giao diện mobile** — menu hamburger mở/đóng sidebar dạng overlay trên màn hình nhỏ
 
 ### Trợ lý AI chat
@@ -372,11 +375,14 @@ Hoặc sửa trực tiếp `.firebaserc` nếu bạn biết Project ID.
 Project đã có file `database.rules.json` để mỗi user chỉ đọc/ghi dữ liệu của mình:
 
 ```
-users/{userId}/notes/{noteId}
+users/{userId}/notes/{noteId}        # metadata (không có content)
+users/{userId}/noteContents/{noteId} # nội dung ghi chú
+users/{userId}/trash/{noteId}
+users/{userId}/trashContents/{noteId}
 users/{userId}/settings/...
 ```
 
-Deploy rules (bắt buộc cho notes, trash và cài đặt AI provider):
+Deploy rules (bắt buộc cho notes, path content, trash và cài đặt AI provider):
 
 ```bash
 npm run firebase:deploy:database
@@ -423,13 +429,14 @@ https://your-project-id.web.app
 
 ## Cấu trúc dữ liệu
 
+**Metadata** và **content** được lưu ở path riêng để subscription danh sách nhẹ hơn. Ghi chú cũ còn `content` inline dưới `notes/{noteId}` sẽ được migrate tự động sang `noteContents/{noteId}` trong nền.
+
 ```
 users/
   {userId}/
     notes/
       {noteId}/
         title: string
-        content: string
         tags?: string (phân cách bằng dấu phẩy trên Firebase)
         aiActiveProviderId?: string
         aiActiveModelId?: string
@@ -439,10 +446,11 @@ users/
         updatedAt: number (timestamp)
         encrypted?: boolean
         keyId?: string
+    noteContents/
+      {noteId}: string (nội dung ghi chú; ciphertext khi encrypted: true)
     trash/
       {noteId}/
         title: string
-        content: string
         tags?: string (phân cách bằng dấu phẩy trên Firebase)
         aiActiveProviderId?: string
         aiActiveModelId?: string
@@ -453,6 +461,8 @@ users/
         deletedAt: number (timestamp)
         encrypted?: boolean
         keyId?: string
+    trashContents/
+      {noteId}: string (nội dung ghi chú trong thùng rác)
     settings/
       disableAiChat?: boolean
       persistAiChatLocal?: boolean
@@ -640,6 +650,8 @@ Icon bánh răng trong footer chat mở Cài đặt tài khoản, tập trung v�
 | Mã mở khóa ghi chú (phiên) | Trạng thái Svelte trong bộ nhớ (`note-passcodes.svelte.ts`), key theo `noteId` | Không |
 | Trạng thái thu gọn header (chưa lưu/đã mở khóa) | Svelte store trong bộ nhớ (`note-header-collapse.ts`), key theo `noteId` | Không |
 | Chế độ xem nội dung (TXT/MD/HTML) | `users/{uid}/notes/{noteId}/contentViewMode` | Có |
+| Nội dung ghi chú (body) | `users/{uid}/noteContents/{noteId}` | Có — fetch khi cần, cache trong bộ nhớ sau lần tải đầu |
+| Nội dung ghi chú thùng rác | `users/{uid}/trashContents/{noteId}` | Có — fetch khi cần khi mở thùng rác |
 | Plaintext API key đã mở khóa | Trạng thái Svelte trong bộ nhớ | Không |
 
 ### Tắt hộp chat
@@ -794,7 +806,8 @@ Khi muốn dùng project Firebase mới, làm lần lượt:
 
 - Chưa deploy database rules: chạy `npm run firebase:deploy:database`
 - User chưa đăng nhập
-- Rules chưa khớp cấu trúc `users/{uid}/notes`
+- Rules chưa khớp cấu trúc `users/{uid}/notes`, `noteContents`, `trash`, `trashContents`
+- Sau khi nâng cấp từ schema cũ, cần deploy lại rules để `content` không còn bắt buộc trên `notes/{noteId}`
 
 ### Không giải mã được ghi chú sau khi đổi trình duyệt hoặc xóa storage
 
@@ -855,7 +868,7 @@ src/
     i18n.svelte.ts       # Locale, hàm t(), format ngày
     i18n/
       translations.ts    # Chuỗi tiếng Anh và tiếng Việt
-    notes.ts             # CRUD ghi chú, thùng rác, tìm kiếm, sắp xếp, thao tác hàng loạt
+    notes.ts             # CRUD ghi chú, thùng rác, lazy fetch content, tìm kiếm, sắp xếp, thao tác hàng loạt
     note-io.ts           # Import/export JSON
     draft-content.ts     # Bản nháp nội dung chưa lưu trong bộ nhớ
     note-header-collapse.ts  # Trạng thái thu gọn header editor theo ghi chú (chưa lưu/đã mở khóa)
@@ -883,7 +896,7 @@ src/
       ...                # NotesApp, NoteEditor, NoteSidebar, TrashSidebar, ...
 scripts/
   run-manual-lint.sh     # Script oxlint + svelte-check
-database.rules.json      # Security rules cho notes và trash
+database.rules.json      # Security rules cho notes, noteContents, trash, trashContents
 firebase.json            # Cấu hình Firebase Hosting + Database
 .env.example             # Mẫu biến môi trường
 public/
