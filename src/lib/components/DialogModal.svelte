@@ -9,7 +9,9 @@
         ? t('dialogTitleDanger')
         : dialogState.variant === 'warning'
           ? t('dialogTitleWarning')
-          : dialogState.variant === 'success'
+          : dialogState.variant === 'lock'
+            ? t('dialogTitleLockNotes')
+            : dialogState.variant === 'success'
             ? t('dialogTitleSuccess')
             : dialogState.variant === 'info' || dialogState.variant === 'default'
               ? dialogState.mode === 'alert'
@@ -80,7 +82,8 @@
       class="dialog"
       class:variant-danger={dialogState.variant === 'danger'}
       class:variant-warning={dialogState.variant === 'warning'}
-      class:variant-success={dialogState.variant === 'success'}
+      class:variant-success={dialogState.variant === 'success' || dialogState.variant === 'lock'}
+      class:variant-lock={dialogState.variant === 'lock'}
       class:variant-info={dialogState.variant === 'info'}
       role={dialogState.mode === 'alert' ? 'alertdialog' : 'dialog'}
       aria-modal="true"
@@ -103,6 +106,17 @@
           <svg viewBox="0 0 24 24">
             <path
               d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        {:else if dialogState.variant === 'lock'}
+          <svg viewBox="0 0 24 24">
+            <path
+              d="M7 11V7a5 5 0 0 1 10 0v4M6 11h12a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1z"
               fill="none"
               stroke="currentColor"
               stroke-width="2"
@@ -159,7 +173,7 @@
           type="button"
           class="confirm-btn"
           class:danger={dialogState.variant === 'danger'}
-          class:success={dialogState.variant === 'success'}
+          class:success={dialogState.variant === 'success' || dialogState.variant === 'lock'}
           onclick={handleConfirm}
         >
           {confirmLabel}

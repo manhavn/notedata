@@ -1,6 +1,12 @@
 <script lang="ts">
   import { decryptContent, encryptContent, isNoteEncrypted } from '../crypto'
   import {
+    clearNotePasscode,
+    getNotePasscode,
+    notePasscodeState,
+    setNotePasscode,
+  } from '../note-passcodes.svelte'
+  import {
     clearDraftContent,
     draftContentStore,
     hasDraftContent,
@@ -140,6 +146,7 @@
       plainContent = ''
       savedPlainSnapshot = null
       isUnlocked = false
+      void attemptAutoUnlock(note.id, note.content)
     }
     contentViewMode = 'txt'
     decryptError = null
@@ -192,6 +199,7 @@
         plainContent = ''
         savedPlainSnapshot = null
         isUnlocked = false
+        void attemptAutoUnlock(note.id, note.content)
       }
       return
     }
@@ -283,6 +291,23 @@
     keyModalOpen = true
   }
 
+  async function attemptAutoUnlock(noteId: string, encryptedContent: string) {
+    const stored = getNotePasscode(noteId)
+    if (!stored) return
+
+    try {
+      const decrypted = await decryptContent(encryptedContent, stored.code, stored.keyId)
+      if (note?.id !== noteId || lastLoadedId !== noteId) return
+
+      plainContent = decrypted
+      savedPlainSnapshot = decrypted
+      isUnlocked = true
+      decryptError = null
+    } catch {
+      // Keep stored passcode until the user locks the note explicitly.
+    }
+  }
+
   async function handleUnlockSuccess(payload: PasscodeSubmit) {
     keyModalOpen = false
     if (!note) return
@@ -293,10 +318,34 @@
       savedPlainSnapshot = decrypted
       isUnlocked = true
       decryptError = null
+      setNotePasscode(note.id, payload.code, payload.keyId)
     } catch {
       decryptError = t('wrongPasscode')
     }
   }
+
+  function lockNoteView() {
+    if (!note || readonly || !noteIsEncrypted || !isUnlocked) return
+
+    clearDraftContent(note.id)
+    plainContent = ''
+    savedPlainSnapshot = null
+    isUnlocked = false
+    decryptError = null
+    contentViewMode = 'txt'
+  }
+
+  function lockNote() {
+    if (!note || readonly || !noteIsEncrypted || !isUnlocked) return
+
+    clearNotePasscode(note.id)
+    lockNoteView()
+  }
+
+  $effect(() => {
+    if (notePasscodeState.lockAllTick === 0) return
+    lockNoteView()
+  })
 
   async function handleSaveSuccess(payload: PasscodeSubmit) {
     keyModalOpen = false
@@ -552,16 +601,40 @@
               <span class="deleted-at">{t('deletedAt', { date: formatAppDate(deletedAt) })}</span>
             {/if}
           </div>
-          {#if onDelete && !readonly}
-            <button
-              type="button"
-              class="delete-note-link"
-              onclick={onDelete}
-              title={t('moveToTrash')}
-              aria-label={t('deleteNote')}
-            >
-              {t('deleteNote')}
-            </button>
+          {#if (noteIsEncrypted && isUnlocked && !readonly) || (onDelete && !readonly)}
+            <div class="meta-note-actions">
+              {#if onDelete && !readonly}
+                <button
+                  type="button"
+                  class="delete-note-link"
+                  onclick={onDelete}
+                  title={t('moveToTrash')}
+                  aria-label={t('deleteNote')}
+                >
+                  {t('deleteNote')}
+                </button>
+              {/if}
+              {#if noteIsEncrypted && isUnlocked && !readonly}
+                <button
+                  type="button"
+                  class="lock-note-btn"
+                  onclick={lockNote}
+                  title={t('lockNote')}
+                  aria-label={t('lockNote')}
+                >
+                  <svg class="lock-note-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      d="M7 11V7a5 5 0 0 1 10 0v4M6 11h12a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1z"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </button>
+              {/if}
+            </div>
           {/if}
           {#if onPermanentDelete && readonly}
             <button
@@ -944,27 +1017,60 @@
     flex-wrap: wrap;
   }
 
+  .meta-note-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.85rem;
+    flex-shrink: 0;
+  }
+
   .meta-info {
     display: flex;
     flex-direction: column;
     gap: 0.2rem;
   }
 
-  .delete-note-link {
+  .delete-note-link,
+  .lock-note-btn {
     flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     margin: 0;
     padding: 0.25rem 0.5rem;
-    border: 1px solid var(--danger);
+    border: 1px solid transparent;
     border-radius: 6px;
     background: none;
     font-size: 0.85rem;
     font-weight: 600;
     line-height: 1.35;
-    color: var(--danger);
+    min-height: calc(0.5rem + 2px + 1.35 * 0.85rem);
     cursor: pointer;
+    transition: opacity 0.2s, background 0.2s;
+  }
+
+  .lock-note-btn {
+    border-color: var(--success);
+    color: var(--success);
+  }
+
+  .lock-note-btn:hover {
+    opacity: 0.9;
+    background: var(--success-bg);
+  }
+
+  .lock-note-icon {
+    display: block;
+    width: 1.35em;
+    height: 1.35em;
+    flex-shrink: 0;
+  }
+
+  .delete-note-link {
+    border-color: var(--danger);
+    color: var(--danger);
     text-decoration: underline;
     text-underline-offset: 0.15em;
-    transition: opacity 0.2s, background 0.2s;
   }
 
   .delete-note-link:hover {

@@ -1,4 +1,4 @@
-export type DialogVariant = 'default' | 'danger' | 'warning' | 'success' | 'info'
+export type DialogVariant = 'default' | 'danger' | 'warning' | 'success' | 'info' | 'lock'
 
 export interface DialogRequest {
   message: string

@@ -1001,7 +1001,7 @@
     .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.sidebar-header h2),
     .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.header-text),
     .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.sort-wrap),
-    .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.icon-btn),
+    .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.icon-btn:not(.new-btn)),
     .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.bulk-bar),
     .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.select-all),
     .sidebar-wrap.collapsed:not(:hover):not(.search-reveal) :global(.checkbox-wrap),

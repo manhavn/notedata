@@ -1,5 +1,7 @@
 <script lang="ts">
+  import { confirm } from '../dialog.svelte'
   import { isNoteEncrypted } from '../crypto'
+  import { lockAllNotes, notePasscodeState } from '../note-passcodes.svelte'
   import { draftContentStore, hasDraftContent, peekDraftContent } from '../draft-content'
   import { userSettingsState } from '../user-settings.svelte'
   import { formatAppDate, localeState, t } from '../i18n.svelte'
@@ -18,6 +20,26 @@
     { value: 'update-asc', labelKey: 'sortUpdateAsc' },
     { value: 'update-desc', labelKey: 'sortUpdateDesc' },
   ]
+
+  const unlockedNoteCount = $derived(Object.keys(notePasscodeState.passcodes).length)
+
+  async function handleLockAllNotes() {
+    const count = unlockedNoteCount
+    if (count === 0) return
+
+    if (
+      !(await confirm({
+        title: t('dialogTitleLockNotes'),
+        message: t('confirmLockAllNotes', { count }),
+        variant: 'lock',
+        confirmLabel: t('lockAllNotes'),
+      }))
+    ) {
+      return
+    }
+
+    lockAllNotes()
+  }
 
   function loadSortOrder(): NoteSortOrder {
     const stored = localStorage.getItem(SORT_STORAGE_KEY)
@@ -167,6 +189,25 @@
   <div class="sidebar-header">
     <h2>{t('notes')}</h2>
     <div class="header-actions">
+      <button
+        type="button"
+        class="icon-btn lock-btn"
+        onclick={handleLockAllNotes}
+        disabled={unlockedNoteCount === 0}
+        title={t('lockAllNotes')}
+        aria-label={t('lockAllNotes')}
+      >
+        <svg class="lock-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M7 11V7a5 5 0 0 1 10 0v4M6 11h12a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1z"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </button>
       <div class="sort-wrap" bind:this={sortWrapEl}>
         <button
           type="button"
@@ -241,7 +282,7 @@
       </button>
       <button
         type="button"
-        class="new-btn"
+        class="icon-btn new-btn"
         onclick={onCreate}
         title={t('newNote')}
         aria-label={t('newNote')}
@@ -251,7 +292,7 @@
             d="M12 5v14M5 12h14"
             fill="none"
             stroke="currentColor"
-            stroke-width="2.5"
+            stroke-width="2"
             stroke-linecap="round"
           />
         </svg>
@@ -439,6 +480,16 @@
     background: var(--surface);
   }
 
+  .lock-btn:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--success) 55%, var(--border));
+    color: var(--success);
+  }
+
+  .lock-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
   .trash-btn:hover {
     border-color: rgba(239, 68, 68, 0.35);
     color: var(--danger);
@@ -446,7 +497,9 @@
 
   .import-icon,
   .trash-icon,
-  .sort-icon {
+  .sort-icon,
+  .new-icon,
+  .lock-icon {
     width: 18px;
     height: 18px;
   }
@@ -466,30 +519,6 @@
     line-height: 16px;
     text-align: center;
     pointer-events: none;
-  }
-
-  .new-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    padding: 0;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: #1c1917;
-    color: #ffffff;
-    cursor: pointer;
-    transition: background 0.2s;
-  }
-
-  .new-btn:hover {
-    background: #292524;
-  }
-
-  .new-icon {
-    width: 20px;
-    height: 20px;
   }
 
   .bulk-bar {
