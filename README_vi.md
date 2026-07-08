@@ -30,7 +30,7 @@
 - **Bản nháp chưa lưu** — nội dung sửa được giữ trong bộ nhớ khi chuyển ghi chú; sidebar và editor hiện chỉ báo; **Hủy sửa** hủy thay đổi mà không lưu (xóa khi lưu hoặc tải lại trang)
 - **Thu gọn header editor** — thu gọn thanh tiêu đề/thẻ để có thêm không gian viết
 - **Chuyển vào thùng rác** — link xóa ghi chú trong header editor
-- **Ghi chú mã hóa** — cache mở khóa trong phiên (tự mở lại không cần nhập lại), **Khóa** từng ghi chú trong editor, và **Khóa tất cả** trên header sidebar
+- **Ghi chú mã hóa** — cache mở khóa trong phiên (tự mở lại không cần nhập lại), danh sách sidebar hiện icon khóa mở cho ghi chú đã mở trong phiên, **Khóa** từng ghi chú trong editor, và **Khóa tất cả** trên header sidebar
 - Đồng bộ realtime theo `userId`
 - Danh sách phân trang với nút **Tải thêm** (20 ghi chú mỗi lần)
 - **Thùng rác** — xóa mềm; khôi phục, xóa vĩnh viễn, hoặc **Dọn thùng rác**; nút **↩ khôi phục** và **× xóa** nhanh trên từng ghi chú trong sidebar
@@ -79,6 +79,7 @@
 - **Khi lưu:** chọn mã đã lưu hoặc nhập mã tự nhập (nhập 2 lần để xác nhận)
 - **Khi mở khóa:** mặc định nhập mã thủ công; có thể chuyển sang **Chọn từ danh sách đã lưu**
 - **Cache mở khóa trong phiên** — sau khi mở khóa thành công, mã khóa của ghi chú được giữ trong bộ nhớ theo `noteId` (không gửi lên Firebase); chuyển sang ghi chú khác rồi quay lại sẽ tự mở khóa mà không cần nhập lại
+- **Chỉ báo trên danh sách sidebar** — ghi chú mã hóa hiện `🔒 Nội dung đã mã hóa` ở dòng preview; ghi chú đã mở trong phiên hiện icon khóa mở (màu success) kèm **Nội dung đã mã hóa**
 - **Khóa ghi chú** — nút khóa (style success) cạnh **Xóa ghi chú** xóa mã đã cache của ghi chú hiện tại và ẩn nội dung đã giải mã cho đến khi mở khóa lại
 - **Khóa tất cả ghi chú** — icon khóa là nút đầu tiên bên trái trên header sidebar (trước sort/import/thùng rác/tạo mới); hiện popup xác nhận với icon/tiêu đề khóa, sau đó xóa toàn bộ mã đã cache và khóa ghi chú mã hóa đang mở trong editor
 - Mã đã cache chỉ bị xóa khi bạn khóa từng ghi chú hoặc dùng **Khóa tất cả ghi chú** — không tự xóa khi chuyển ghi chú

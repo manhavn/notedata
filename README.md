@@ -30,7 +30,7 @@ A personal notes app built with **Svelte 5 + Vite**, using **Firebase Authentica
 - **Unsaved drafts** — edits are kept in memory while you switch notes; sidebar and editor show indicators; **Cancel edit** discards changes without saving (cleared on save or page reload)
 - **Collapsible editor header** — collapse the title/tags toolbar for more writing space
 - **Move to trash** — delete link in the editor header
-- **Encrypted notes** — session unlock cache (auto-reopen without re-entry), per-note **Lock** in the editor, and **Lock all notes** in the sidebar header
+- **Encrypted notes** — session unlock cache (auto-reopen without re-entry), sidebar list shows an open-lock icon for unlocked encrypted notes, per-note **Lock** in the editor, and **Lock all notes** in the sidebar header
 - Realtime sync scoped by `userId`
 - Paginated note list with **Load more** (20 items per page)
 - Soft delete via **Trash** — restore, permanently delete, or **Empty trash**; quick **↩ restore** and **× delete** buttons on each trashed note in the sidebar
@@ -79,6 +79,7 @@ A personal notes app built with **Svelte 5 + Vite**, using **Firebase Authentica
 - **Save flow:** pick a saved key or enter a one-time passcode (enter twice to confirm)
 - **Unlock flow:** default screen is manual passcode entry; switch to **Choose from saved keys** if needed
 - **Session unlock cache** — after a successful unlock, the passcode for that note is kept in memory keyed by `noteId` (never sent to Firebase); switching away and back auto-unlocks without re-entry
+- **Sidebar list indicator** — encrypted notes show `🔒 Encrypted content` in the preview line; session-unlocked notes show an open-lock icon (success color) with **Encrypted content** instead
 - **Lock note** — success-styled lock button next to **Delete note** clears the cached passcode for the current note and hides decrypted content until you unlock again
 - **Lock all notes** — lock icon as the first button in the sidebar header (left of sort/import/trash/new); confirms with a lock-themed dialog, then clears every cached passcode and locks any open encrypted note in the editor
 - Cached passcodes stay until you lock a note or use **Lock all notes** — they are not cleared when switching notes
