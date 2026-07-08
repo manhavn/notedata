@@ -32,6 +32,11 @@ export interface NoteInput extends NoteAiActiveIds {
   contentViewMode?: NoteContentViewMode
 }
 
+export interface ImportedNoteInput extends NoteInput {
+  createdAt?: number
+  updatedAt?: number
+}
+
 export interface EncryptionKey {
   id: string
   label: string

@@ -10,7 +10,7 @@ import {
 } from 'firebase/database'
 import { getUntitledNoteTitle } from './i18n.svelte'
 import { db } from './firebase'
-import type { Note, NoteContentViewMode, NoteInput, TrashedNote } from './types'
+import type { ImportedNoteInput, Note, NoteContentViewMode, NoteInput, TrashedNote } from './types'
 
 function notesPath(userId: string) {
   return `users/${userId}/notes`
@@ -217,7 +217,7 @@ function parseTrashedNotes(
 }
 
 function buildNoteMetadataPayload(input: NoteInput, now: number) {
-  const payload: Record<string, string | number | boolean> = {
+  const payload: Record<string, string | number | boolean | null> = {
     title: input.title.trim() || getUntitledNoteTitle(),
     createdAt: now,
     updatedAt: now,
@@ -235,13 +235,13 @@ function buildNoteMetadataPayload(input: NoteInput, now: number) {
     payload.tags = tags
   }
 
-  if (input.aiActiveProviderId) {
+  if (input.aiActiveProviderId !== undefined) {
     payload.aiActiveProviderId = input.aiActiveProviderId
   }
-  if (input.aiActiveModelId) {
+  if (input.aiActiveModelId !== undefined) {
     payload.aiActiveModelId = input.aiActiveModelId
   }
-  if (input.aiActiveApiKeyId) {
+  if (input.aiActiveApiKeyId !== undefined) {
     payload.aiActiveApiKeyId = input.aiActiveApiKeyId
   }
   if (input.contentViewMode) {
@@ -496,12 +496,26 @@ export async function permanentlyDeleteNotes(userId: string, noteIds: string[]):
   await Promise.all(noteIds.map((noteId) => permanentlyDeleteNote(userId, noteId)))
 }
 
-export async function importNotes(userId: string, inputs: NoteInput[]): Promise<string[]> {
+export async function importNotes(userId: string, inputs: ImportedNoteInput[]): Promise<string[]> {
   const ids: string[] = []
 
-  for (const input of inputs) {
-    const id = await createNote(userId, input)
-    ids.push(id)
+  for (const { createdAt, updatedAt, ...input } of inputs) {
+    const now = Date.now()
+    const notesRef = ref(db, notesPath(userId))
+    const newRef = push(notesRef)
+    const noteId = newRef.key!
+
+    const payload = buildNoteMetadataPayload(input, updatedAt ?? now)
+    if (createdAt !== undefined) {
+      payload.createdAt = createdAt
+    }
+    if (updatedAt !== undefined) {
+      payload.updatedAt = updatedAt
+    }
+
+    await set(newRef, payload)
+    await set(ref(db, `${noteContentsPath(userId)}/${noteId}`), input.content)
+    ids.push(noteId)
   }
 
   return ids

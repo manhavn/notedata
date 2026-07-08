@@ -1,6 +1,6 @@
 import { t } from './i18n.svelte'
 import { normalizeTags } from './notes'
-import type { Note, NoteInput } from './types'
+import type { ImportedNoteInput, Note, NoteContentViewMode } from './types'
 
 export interface NoteExportPayload {
   version: 1
@@ -11,6 +11,12 @@ export interface NoteExportPayload {
     tags?: string[]
     createdAt: number
     updatedAt: number
+    encrypted?: boolean
+    keyId?: string
+    contentViewMode?: NoteContentViewMode
+    aiActiveProviderId?: string | null
+    aiActiveModelId?: string | null
+    aiActiveApiKeyId?: string | null
   }>
 }
 
@@ -18,7 +24,20 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function parseNoteInput(value: unknown): NoteInput | null {
+function parseOptionalAiActiveId(value: unknown): string | null | undefined {
+  if (value === null) return null
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function parseContentViewMode(value: unknown): NoteContentViewMode | undefined {
+  return value === 'txt' || value === 'md' || value === 'html' ? value : undefined
+}
+
+function parseTimestamp(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+function parseNoteInput(value: unknown): ImportedNoteInput | null {
   if (!isRecord(value)) return null
 
   const title = typeof value.title === 'string' ? value.title : ''
@@ -31,10 +50,56 @@ function parseNoteInput(value: unknown): NoteInput | null {
 
   if (!title.trim() && !content.trim()) return null
 
-  return tags && tags.length > 0 ? { title, content, tags } : { title, content }
+  const input: ImportedNoteInput = { title, content }
+
+  if (tags && tags.length > 0) {
+    input.tags = tags
+  }
+
+  const keyId = typeof value.keyId === 'string' && value.keyId.trim() ? value.keyId.trim() : undefined
+  const encrypted = value.encrypted === true || Boolean(keyId)
+
+  if (encrypted) {
+    input.encrypted = true
+  }
+  if (keyId) {
+    input.keyId = keyId
+  }
+
+  const contentViewMode = parseContentViewMode(value.contentViewMode)
+  if (contentViewMode) {
+    input.contentViewMode = contentViewMode
+  }
+
+  const aiActiveProviderId = parseOptionalAiActiveId(value.aiActiveProviderId)
+  if (aiActiveProviderId !== undefined) {
+    input.aiActiveProviderId = aiActiveProviderId
+  }
+
+  const aiActiveModelId = parseOptionalAiActiveId(value.aiActiveModelId)
+  if (aiActiveModelId !== undefined) {
+    input.aiActiveModelId = aiActiveModelId
+  }
+
+  const aiActiveApiKeyId = parseOptionalAiActiveId(value.aiActiveApiKeyId)
+  if (aiActiveApiKeyId !== undefined) {
+    input.aiActiveApiKeyId = aiActiveApiKeyId
+  }
+
+  const createdAt = parseTimestamp(value.createdAt)
+  if (createdAt !== undefined) {
+    input.createdAt = createdAt
+  }
+
+  const updatedAt = parseTimestamp(value.updatedAt)
+  if (updatedAt !== undefined) {
+    input.updatedAt = updatedAt
+  }
+
+  return input
 }
 
-export function parseImportedNotes(data: unknown): NoteInput[] {
+export function parseImportedNotes(data: unknown): ImportedNoteInput[] {
   let items: unknown[] = []
 
   if (Array.isArray(data)) {
@@ -47,7 +112,7 @@ export function parseImportedNotes(data: unknown): NoteInput[] {
     throw new Error(t('jsonInvalidFormat'))
   }
 
-  const notes = items.map(parseNoteInput).filter((note): note is NoteInput => note !== null)
+  const notes = items.map(parseNoteInput).filter((note): note is ImportedNoteInput => note !== null)
 
   if (notes.length === 0) {
     throw new Error(t('jsonNoValidNotes'))
@@ -60,13 +125,38 @@ export function buildExportPayload(notes: Note[]): NoteExportPayload {
   return {
     version: 1,
     exportedAt: Date.now(),
-    notes: notes.map(({ title, content, tags, createdAt, updatedAt }) => ({
-      title,
-      content: content ?? '',
-      ...(tags && tags.length > 0 ? { tags } : {}),
-      createdAt,
-      updatedAt,
-    })),
+    notes: notes.map((note) => {
+      const item: NoteExportPayload['notes'][number] = {
+        title: note.title,
+        content: note.content ?? '',
+        createdAt: note.createdAt,
+        updatedAt: note.updatedAt,
+      }
+
+      if (note.tags && note.tags.length > 0) {
+        item.tags = note.tags
+      }
+      if (note.encrypted) {
+        item.encrypted = true
+      }
+      if (note.keyId) {
+        item.keyId = note.keyId
+      }
+      if (note.contentViewMode) {
+        item.contentViewMode = note.contentViewMode
+      }
+      if (note.aiActiveProviderId !== undefined) {
+        item.aiActiveProviderId = note.aiActiveProviderId
+      }
+      if (note.aiActiveModelId !== undefined) {
+        item.aiActiveModelId = note.aiActiveModelId
+      }
+      if (note.aiActiveApiKeyId !== undefined) {
+        item.aiActiveApiKeyId = note.aiActiveApiKeyId
+      }
+
+      return item
+    }),
   }
 }
 
@@ -83,7 +173,7 @@ export function downloadNotesJson(notes: Note[], filename?: string) {
   URL.revokeObjectURL(url)
 }
 
-export async function readNotesFromFile(file: File): Promise<NoteInput[]> {
+export async function readNotesFromFile(file: File): Promise<ImportedNoteInput[]> {
   const text = await file.text()
 
   let parsed: unknown
