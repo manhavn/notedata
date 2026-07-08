@@ -467,6 +467,8 @@
     clearNoteHeaderCollapsed(note.id)
     headerCollapsed = false
 
+    clearNotePasscode(note.id, passcodeScope)
+
     if (options.encrypted) {
       isUnlocked = false
       plainContent = ''
