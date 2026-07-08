@@ -6,6 +6,8 @@
     hasNotePasscode,
     notePasscodeState,
     setNotePasscode,
+    trashNotePasscodeState,
+    type NotePasscodeScope,
   } from '../note-passcodes.svelte'
   import {
     clearNoteHeaderCollapsed,
@@ -53,6 +55,7 @@
     ) => void | Promise<void>
     saving: boolean
     contentLoading?: boolean
+    passcodeScope?: NotePasscodeScope
     readonly?: boolean
     deletedAt?: number
     onRestore?: () => void
@@ -72,6 +75,7 @@
     onSaveContentViewMode,
     saving,
     contentLoading = false,
+    passcodeScope = 'notes',
     readonly = false,
     deletedAt,
     onRestore,
@@ -110,6 +114,9 @@
   const hasUnsavedChanges = $derived(hasDraft)
   const showLockedState = $derived(
     Boolean(note && noteIsEncrypted && !isUnlocked && !hasDraft),
+  )
+  const canShowLockNote = $derived(
+    Boolean(note && noteIsEncrypted && isUnlocked && (!readonly || passcodeScope === 'trash')),
   )
 
   function savedContentViewMode(): ContentViewMode {
@@ -215,7 +222,7 @@
 
       const draft = loadDraftContent(note.id)
       headerCollapsed =
-        draft !== undefined || hasNotePasscode(note.id)
+        draft !== undefined || hasNotePasscode(note.id, passcodeScope)
           ? getNoteHeaderCollapsed(note.id)
           : false
 
@@ -309,7 +316,7 @@
   })
 
   function shouldPreserveHeaderCollapse(noteId: string): boolean {
-    return hasDraftContent(noteId) || hasNotePasscode(noteId)
+    return hasDraftContent(noteId) || hasNotePasscode(noteId, passcodeScope)
   }
 
   function toggleHeaderCollapse() {
@@ -362,7 +369,7 @@
   }
 
   async function attemptAutoUnlock(noteId: string, encryptedContent: string) {
-    const stored = getNotePasscode(noteId)
+    const stored = getNotePasscode(noteId, passcodeScope)
     if (!stored) return
 
     try {
@@ -390,14 +397,15 @@
       isUnlocked = true
       contentViewMode = savedContentViewMode()
       decryptError = null
-      setNotePasscode(note.id, payload.code, payload.keyId)
+      setNotePasscode(note.id, payload.code, payload.keyId, passcodeScope)
     } catch {
       decryptError = t('wrongPasscode')
     }
   }
 
   function lockNoteView() {
-    if (!note || readonly || !noteIsEncrypted || !isUnlocked) return
+    if (!note || !noteIsEncrypted || !isUnlocked) return
+    if (readonly && passcodeScope !== 'trash') return
 
     clearDraftContent(note.id)
     clearNoteHeaderCollapsed(note.id)
@@ -410,14 +418,18 @@
   }
 
   function lockNote() {
-    if (!note || readonly || !noteIsEncrypted || !isUnlocked) return
+    if (!note || !canShowLockNote) return
 
-    clearNotePasscode(note.id)
+    clearNotePasscode(note.id, passcodeScope)
     lockNoteView()
   }
 
   $effect(() => {
-    if (notePasscodeState.lockAllTick === 0) return
+    const lockAllTick =
+      passcodeScope === 'trash'
+        ? trashNotePasscodeState.lockAllTick
+        : notePasscodeState.lockAllTick
+    if (lockAllTick === 0) return
     lockNoteView()
   })
 
@@ -677,7 +689,7 @@
               <span class="deleted-at">{t('deletedAt', { date: formatAppDate(deletedAt) })}</span>
             {/if}
           </div>
-          {#if (noteIsEncrypted && isUnlocked && !readonly) || (onDelete && !readonly)}
+          {#if (onDelete && !readonly) || (onPermanentDelete && readonly) || canShowLockNote}
             <div class="meta-note-actions">
               {#if onDelete && !readonly}
                 <button
@@ -690,7 +702,18 @@
                   {t('deleteNote')}
                 </button>
               {/if}
-              {#if noteIsEncrypted && isUnlocked && !readonly}
+              {#if onPermanentDelete && readonly}
+                <button
+                  type="button"
+                  class="delete-note-link"
+                  onclick={onPermanentDelete}
+                  title={t('permanentDelete')}
+                  aria-label={t('permanentDeleteNote')}
+                >
+                  {t('permanentDelete')}
+                </button>
+              {/if}
+              {#if canShowLockNote}
                 <button
                   type="button"
                   class="lock-note-btn"
@@ -711,17 +734,6 @@
                 </button>
               {/if}
             </div>
-          {/if}
-          {#if onPermanentDelete && readonly}
-            <button
-              type="button"
-              class="delete-note-link"
-              onclick={onPermanentDelete}
-              title={t('permanentDelete')}
-              aria-label={t('permanentDeleteNote')}
-            >
-              {t('permanentDelete')}
-            </button>
           {/if}
         </div>
         {#if readonly}

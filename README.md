@@ -37,7 +37,7 @@ A personal notes app built with **Svelte 5 + Vite**, using **Firebase Authentica
 - **Bulk export** — only fetches `content` for selected notes that are not already cached locally
 - Realtime sync scoped by `userId` (metadata only; content is not streamed on list updates)
 - Paginated note list with **Load more** (20 items per page)
-- Soft delete via **Trash** — restore, permanently delete, or **Empty trash**; quick **↩ restore** and **× delete** buttons on each trashed note in the sidebar; trashed note content is lazy-loaded like active notes
+- Soft delete via **Trash** — restore, permanently delete, or **Empty trash** (text button in the trash sidebar header, stays visible during bulk selection); quick **↩ restore** and **× delete** buttons on each trashed note in the sidebar; trashed note content is lazy-loaded like active notes; trash has its own session unlock state (lock icon, open-lock preview, per-note **Lock** after **Permanent delete**, and **Lock all notes**) independent from the main notes list
 - **Mobile layout** — hamburger menu opens/closes the sidebar overlay on small screens
 
 ### AI chat assistant
@@ -84,9 +84,10 @@ A personal notes app built with **Svelte 5 + Vite**, using **Firebase Authentica
 - **Unlock flow:** default screen is manual passcode entry; switch to **Choose from saved keys** if needed
 - **Session unlock cache** — after a successful unlock, the passcode for that note is kept in memory keyed by `noteId` (never sent to Firebase); switching away and back auto-unlocks without re-entry
 - **Sidebar list indicator** — encrypted notes show `🔒 Encrypted content` in the preview line; session-unlocked notes show an open-lock icon (success color) with **Encrypted content** instead
-- **Lock note** — success-styled lock button next to **Delete note** clears the cached passcode for the current note and hides decrypted content until you unlock again
-- **Lock all notes** — lock icon as the first button in the sidebar header (left of sort/import/trash/new); confirms with a lock-themed dialog, then clears every cached passcode and locks any open encrypted note in the editor
-- Cached passcodes stay until you lock a note or use **Lock all notes** — they are not cleared when switching notes
+- **Lock note** — success-styled lock button next to **Delete note** (in trash: after **Permanent delete**) clears the cached passcode for the current note and hides decrypted content until you unlock again
+- **Lock all notes** — lock icon in the notes sidebar header (left of sort/import/trash/new); trash has a separate **Lock all notes** control in its own sidebar header
+- **Separate notes vs trash unlock cache** — `notePasscodeState` (main list) and `trashNotePasscodeState` (trash) are independent; moving a note to trash does **not** clear its main-list unlock cache, so restoring an unlocked note stays unlocked; trash unlock entries are cleared only on restore, permanent delete, or **Empty trash**
+- Cached passcodes stay until you lock a note, use **Lock all notes**, or (for trash) restore/delete/empty — they are not cleared when switching notes within the same view
 - Passcode entry uses a text field plus an on-screen numeric keypad; optional **auto-focus** toggle (`notedata-passcode-autofocus`)
 - AES-GCM encryption via Web Crypto API; database stores `encrypted: true` and `keyId` only
 - Wrong passcode shows a generic error on the note — no hints in the modal (anti-enumeration)
@@ -647,7 +648,8 @@ The gear icon in the chat footer opens Account settings focused on this section.
 | Local chat history toggle | `users/{uid}/settings/persistAiChatLocal` | Yes |
 | AI chat drafts (when enabled) | `localStorage` keys `chat_{noteId}` | No |
 | Passcodes for encryption | `notedata-encryption-keys` (browser) | No (hash only in localStorage) |
-| Unlocked note passcodes (session) | In-memory Svelte state (`note-passcodes.svelte.ts`), keyed by `noteId` | No |
+| Unlocked note passcodes (session) | In-memory `notePasscodeState` in `note-passcodes.svelte.ts`, keyed by `noteId` | No |
+| Unlocked trash passcodes (session) | In-memory `trashNotePasscodeState` in `note-passcodes.svelte.ts`, keyed by `noteId` | No |
 | Editor header collapse (unsaved/unlocked) | In-memory Svelte store (`note-header-collapse.ts`), keyed by `noteId` | No |
 | Content view mode (TXT/MD/HTML) | `users/{uid}/notes/{noteId}/contentViewMode` | Yes |
 | Note content (body) | `users/{uid}/noteContents/{noteId}` | Yes — fetched on demand, cached in memory after first load |
@@ -878,7 +880,7 @@ src/
     passcode-focus.svelte.ts  # Auto-focus passcode input preference
     crypto.ts            # AES-GCM encrypt/decrypt (Web Crypto)
     encryption-keys.ts   # Passcode CRUD in localStorage
-    note-passcodes.svelte.ts  # In-memory per-note unlock passcodes (session cache)
+    note-passcodes.svelte.ts  # In-memory per-note unlock passcodes (notes + trash session caches)
     portal.ts            # Portal action for modals
     components/
       AuthPage.svelte             # Login, register, forgot password

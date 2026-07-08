@@ -37,7 +37,7 @@
 - **Export hàng loạt** — chỉ fetch `content` của các ghi chú được chọn mà chưa có trong cache
 - Đồng bộ realtime theo `userId` (chỉ metadata; không stream content khi cập nhật danh sách)
 - Danh sách phân trang với nút **Tải thêm** (20 ghi chú mỗi lần)
-- **Thùng rác** — xóa mềm; khôi phục, xóa vĩnh viễn, hoặc **Dọn thùng rác**; nút **↩ khôi phục** và **× xóa** nhanh trên từng ghi chú trong sidebar; nội dung ghi chú trong thùng rác cũng lazy-load như ghi chú thường
+- **Thùng rác** — xóa mềm; khôi phục, xóa vĩnh viễn, hoặc **Dọn thùng rác** (nút chữ trên header sidebar thùng rác, luôn hiện khi còn ghi chú kể cả khi chọn nhiều); nút **↩ khôi phục** và **× xóa** nhanh trên từng ghi chú trong sidebar; nội dung lazy-load như ghi chú thường; thùng rác có cache mở khóa riêng (icon khóa, preview khóa mở, **Khóa** từng ghi chú sau **Xóa vĩnh viễn**, **Khóa tất cả**) tách biệt với danh sách ghi chú
 - **Giao diện mobile** — menu hamburger mở/đóng sidebar dạng overlay trên màn hình nhỏ
 
 ### Trợ lý AI chat
@@ -84,9 +84,10 @@
 - **Khi mở khóa:** mặc định nhập mã thủ công; có thể chuyển sang **Chọn từ danh sách đã lưu**
 - **Cache mở khóa trong phiên** — sau khi mở khóa thành công, mã khóa của ghi chú được giữ trong bộ nhớ theo `noteId` (không gửi lên Firebase); chuyển sang ghi chú khác rồi quay lại sẽ tự mở khóa mà không cần nhập lại
 - **Chỉ báo trên danh sách sidebar** — ghi chú mã hóa hiện `🔒 Nội dung đã mã hóa` ở dòng preview; ghi chú đã mở trong phiên hiện icon khóa mở (màu success) kèm **Nội dung đã mã hóa**
-- **Khóa ghi chú** — nút khóa (style success) cạnh **Xóa ghi chú** xóa mã đã cache của ghi chú hiện tại và ẩn nội dung đã giải mã cho đến khi mở khóa lại
-- **Khóa tất cả ghi chú** — icon khóa là nút đầu tiên bên trái trên header sidebar (trước sort/import/thùng rác/tạo mới); hiện popup xác nhận với icon/tiêu đề khóa, sau đó xóa toàn bộ mã đã cache và khóa ghi chú mã hóa đang mở trong editor
-- Mã đã cache chỉ bị xóa khi bạn khóa từng ghi chú hoặc dùng **Khóa tất cả ghi chú** — không tự xóa khi chuyển ghi chú
+- **Khóa ghi chú** — nút khóa (style success) cạnh **Xóa ghi chú** (trong thùng rác: sau **Xóa vĩnh viễn**) xóa mã đã cache của ghi chú hiện tại và ẩn nội dung đã giải mã cho đến khi mở khóa lại
+- **Khóa tất cả ghi chú** — icon khóa trên header sidebar ghi chú (trước sort/import/thùng rác/tạo mới); thùng rác có nút **Khóa tất cả** riêng trên header sidebar thùng rác
+- **Cache mở khóa tách biệt notes / thùng rác** — `notePasscodeState` (danh sách chính) và `trashNotePasscodeState` (thùng rác) độc lập; chuyển ghi chú vào thùng rác **không** xóa cache mở khóa của danh sách chính — khôi phục về vẫn mở khóa nếu trước đó đã unlock; cache thùng rác chỉ xóa khi khôi phục, xóa vĩnh viễn, hoặc **Dọn thùng rác**
+- Mã đã cache chỉ bị xóa khi bạn khóa từng ghi chú, dùng **Khóa tất cả ghi chú**, hoặc (với thùng rác) khôi phục/xóa/dọn — không tự xóa khi chuyển ghi chú trong cùng view
 - Nhập mã bằng ô text và bàn phím số trên màn hình; tùy chọn **tự focus** ô nhập mã (`notedata-passcode-autofocus`)
 - Mã hóa AES-GCM qua Web Crypto API; database chỉ lưu `encrypted: true` và `keyId`
 - Sai mã chỉ hiện thông báo chung trên ghi chú — không gợi ý trong popup (chống đoán mã)
@@ -647,7 +648,8 @@ Icon bánh răng trong footer chat mở Cài đặt tài khoản, tập trung v�
 | Toggle lịch sử chat trên máy | `users/{uid}/settings/persistAiChatLocal` | Có |
 | Bản nháp chat AI (khi bật) | `localStorage` key `chat_{noteId}` | Không |
 | Mã khóa mã hóa | `notedata-encryption-keys` (trình duyệt) | Không (chỉ hash trong localStorage) |
-| Mã mở khóa ghi chú (phiên) | Trạng thái Svelte trong bộ nhớ (`note-passcodes.svelte.ts`), key theo `noteId` | Không |
+| Mã mở khóa ghi chú (phiên) | `notePasscodeState` trong bộ nhớ (`note-passcodes.svelte.ts`), key theo `noteId` | Không |
+| Mã mở khóa thùng rác (phiên) | `trashNotePasscodeState` trong bộ nhớ (`note-passcodes.svelte.ts`), key theo `noteId` | Không |
 | Trạng thái thu gọn header (chưa lưu/đã mở khóa) | Svelte store trong bộ nhớ (`note-header-collapse.ts`), key theo `noteId` | Không |
 | Chế độ xem nội dung (TXT/MD/HTML) | `users/{uid}/notes/{noteId}/contentViewMode` | Có |
 | Nội dung ghi chú (body) | `users/{uid}/noteContents/{noteId}` | Có — fetch khi cần, cache trong bộ nhớ sau lần tải đầu |
@@ -878,7 +880,7 @@ src/
     passcode-focus.svelte.ts  # Preference tự focus ô nhập mã
     crypto.ts            # Mã hóa/giải mã AES-GCM (Web Crypto)
     encryption-keys.ts   # CRUD mã khóa trong localStorage
-    note-passcodes.svelte.ts  # Cache mã mở khóa theo ghi chú trong phiên (bộ nhớ)
+    note-passcodes.svelte.ts  # Cache mã mở khóa theo ghi chú trong phiên (notes + trash)
     portal.ts            # Portal action cho modal
     components/
       AuthPage.svelte             # Đăng nhập, đăng ký, quên mật khẩu

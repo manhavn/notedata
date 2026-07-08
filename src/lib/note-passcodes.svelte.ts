@@ -3,40 +3,79 @@ export interface StoredNotePasscode {
   keyId: string
 }
 
+export type NotePasscodeScope = 'notes' | 'trash'
+
 export const notePasscodeState = $state({
   passcodes: {} as Record<string, StoredNotePasscode>,
   lockAllTick: 0,
 })
 
-export function setNotePasscode(noteId: string, code: string, keyId: string) {
-  notePasscodeState.passcodes = {
-    ...notePasscodeState.passcodes,
+export const trashNotePasscodeState = $state({
+  passcodes: {} as Record<string, StoredNotePasscode>,
+  lockAllTick: 0,
+})
+
+function getPasscodeState(scope: NotePasscodeScope) {
+  return scope === 'trash' ? trashNotePasscodeState : notePasscodeState
+}
+
+export function setNotePasscode(
+  noteId: string,
+  code: string,
+  keyId: string,
+  scope: NotePasscodeScope = 'notes',
+) {
+  const state = getPasscodeState(scope)
+  state.passcodes = {
+    ...state.passcodes,
     [noteId]: { code, keyId },
   }
 }
 
-export function getNotePasscode(noteId: string): StoredNotePasscode | null {
-  return notePasscodeState.passcodes[noteId] ?? null
+export function getNotePasscode(
+  noteId: string,
+  scope: NotePasscodeScope = 'notes',
+): StoredNotePasscode | null {
+  return getPasscodeState(scope).passcodes[noteId] ?? null
 }
 
-export function hasNotePasscode(noteId: string): boolean {
-  return noteId in notePasscodeState.passcodes
+export function hasNotePasscode(noteId: string, scope: NotePasscodeScope = 'notes'): boolean {
+  return noteId in getPasscodeState(scope).passcodes
 }
 
-export function clearNotePasscode(noteId: string) {
-  if (!(noteId in notePasscodeState.passcodes)) return
+export function clearNotePasscode(noteId: string, scope: NotePasscodeScope = 'notes') {
+  const state = getPasscodeState(scope)
+  if (!(noteId in state.passcodes)) return
 
-  const { [noteId]: _removed, ...rest } = notePasscodeState.passcodes
-  notePasscodeState.passcodes = rest
+  const { [noteId]: _removed, ...rest } = state.passcodes
+  state.passcodes = rest
 }
 
-export function getUnlockedNoteCount(): number {
-  return Object.keys(notePasscodeState.passcodes).length
+export function clearNotePasscodes(noteIds: string[], scope: NotePasscodeScope = 'notes') {
+  for (const noteId of noteIds) {
+    clearNotePasscode(noteId, scope)
+  }
 }
 
-export function lockAllNotes() {
-  if (getUnlockedNoteCount() === 0) return
+export function getUnlockedNoteCount(scope: NotePasscodeScope = 'notes'): number {
+  return Object.keys(getPasscodeState(scope).passcodes).length
+}
 
-  notePasscodeState.passcodes = {}
-  notePasscodeState.lockAllTick += 1
+export function lockAllNotes(scope: NotePasscodeScope = 'notes') {
+  const state = getPasscodeState(scope)
+  if (Object.keys(state.passcodes).length === 0) return
+
+  state.passcodes = {}
+  state.lockAllTick += 1
+}
+
+export function pruneTrashNotePasscodes(validIds: string[]) {
+  const valid = new Set(validIds)
+  const next = Object.fromEntries(
+    Object.entries(trashNotePasscodeState.passcodes).filter(([id]) => valid.has(id)),
+  )
+
+  if (Object.keys(next).length !== Object.keys(trashNotePasscodeState.passcodes).length) {
+    trashNotePasscodeState.passcodes = next
+  }
 }

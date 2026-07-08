@@ -1,8 +1,36 @@
 <script lang="ts">
+  import { confirm } from '../dialog.svelte'
   import { isNoteEncrypted } from '../crypto'
+  import {
+    hasNotePasscode,
+    lockAllNotes,
+    trashNotePasscodeState,
+  } from '../note-passcodes.svelte'
   import { formatAppDate, t } from '../i18n.svelte'
   import { PAGE_SIZE } from '../pagination'
   import type { TrashedNote } from '../types'
+
+  const unlockedTrashNoteCount = $derived(
+    Object.keys(trashNotePasscodeState.passcodes).length,
+  )
+
+  async function handleLockAllTrashNotes() {
+    const count = unlockedTrashNoteCount
+    if (count === 0) return
+
+    if (
+      !(await confirm({
+        title: t('dialogTitleLockNotes'),
+        message: t('confirmLockAllNotes', { count }),
+        variant: 'lock',
+        confirmLabel: t('lockAllNotes'),
+      }))
+    ) {
+      return
+    }
+
+    lockAllNotes('trash')
+  }
 
   interface Props {
     notes: TrashedNote[]
@@ -51,15 +79,21 @@
     visibleNotes.some((note) => checkedIds.has(note.id)) && !allVisibleChecked,
   )
 
+  function isTrashNoteUnlockedInSession(noteId: string) {
+    void trashNotePasscodeState.passcodes
+    return hasNotePasscode(noteId, 'trash')
+  }
+
+  function showsEncryptedPreview(note: TrashedNote) {
+    return isNoteEncrypted(note)
+  }
+
   function hasContentPreview(note: TrashedNote): boolean {
     if (isNoteEncrypted(note)) return true
     return note.content !== undefined
   }
 
   function preview(note: TrashedNote) {
-    if (isNoteEncrypted(note)) {
-      return `🔒 ${t('encryptedContent')}`
-    }
     const text = (note.content ?? '').trim()
     if (!text) return t('noContent')
     return text.length > 80 ? `${text.slice(0, 80)}...` : text
@@ -102,6 +136,32 @@
       <h2>{t('trash')}</h2>
       <span class="count">{t('noteCount', { count: notes.length })}</span>
     </div>
+    <div class="header-actions">
+      {#if notes.length > 0}
+        <button type="button" class="empty-btn" onclick={onEmptyTrash}>
+          {t('emptyTrash')}
+        </button>
+      {/if}
+      <button
+        type="button"
+        class="lock-btn"
+        onclick={handleLockAllTrashNotes}
+        disabled={unlockedTrashNoteCount === 0}
+        title={t('lockAllNotes')}
+        aria-label={t('lockAllNotes')}
+      >
+        <svg class="lock-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M7 11V7a5 5 0 0 1 10 0v4M6 11h12a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1z"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </button>
+    </div>
   </div>
 
   {#if checkedCount > 0}
@@ -118,12 +178,6 @@
           {t('clearSelection')}
         </button>
       </div>
-    </div>
-  {:else if notes.length > 0}
-    <div class="actions">
-      <button type="button" class="empty-btn" onclick={onEmptyTrash}>
-        {t('emptyTrash')}
-      </button>
     </div>
   {/if}
 
@@ -165,7 +219,25 @@
                 {/each}
               </span>
             {/if}
-            {#if hasContentPreview(note)}
+            {#if showsEncryptedPreview(note)}
+              <span class="preview encrypted-preview">
+                {#if isTrashNoteUnlockedInSession(note.id)}
+                  <svg class="encrypted-preview-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      d="M7 11V7a5 5 0 0 1 9.9-1M6 11h12a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1z"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                {:else}
+                  <span class="encrypted-preview-icon locked" aria-hidden="true">🔒</span>
+                {/if}
+                {t('encryptedContent')}
+              </span>
+            {:else if hasContentPreview(note)}
               <span class="preview">{preview(note)}</span>
             {/if}
             <span class="date">{t('deletedAt', { date: formatAppDate(note.deletedAt) })}</span>
@@ -220,6 +292,49 @@
     gap: 0.75rem;
     padding: 0.5rem 1rem;
     border-bottom: 1px solid var(--border);
+  }
+
+  .header-text {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+  }
+
+  .lock-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg);
+    color: var(--text);
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+    flex-shrink: 0;
+  }
+
+  .lock-btn:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--success) 55%, var(--border));
+    color: var(--success);
+  }
+
+  .lock-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .lock-icon {
+    width: 18px;
+    height: 18px;
   }
 
   .back-btn {
@@ -329,21 +444,17 @@
     transform: scale(0.98);
   }
 
-  .actions {
-    padding: 0.75rem 1rem 0;
-  }
-
   .empty-btn {
-    width: 100%;
-    padding: 0.6rem 0.85rem;
+    padding: 0.45rem 0.65rem;
     border: 1px solid rgba(239, 68, 68, 0.25);
     border-radius: 10px;
     background: rgba(239, 68, 68, 0.06);
     color: var(--danger);
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     font-weight: 600;
+    white-space: nowrap;
     cursor: pointer;
-    transition: background 0.2s;
+    transition: background 0.2s, border-color 0.2s;
   }
 
   .empty-btn:hover {
@@ -460,6 +571,27 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .encrypted-preview {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    min-width: 0;
+  }
+
+  .encrypted-preview-icon {
+    flex-shrink: 0;
+    width: 0.85rem;
+    height: 0.85rem;
+    color: var(--success);
+  }
+
+  .encrypted-preview-icon.locked {
+    width: auto;
+    height: auto;
+    font-size: 0.8rem;
+    line-height: 1;
   }
 
   .date {

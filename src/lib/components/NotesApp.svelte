@@ -25,6 +25,12 @@
   import type { Note, NoteAiActiveIds, NoteContentViewMode, NoteInput, TrashedNote } from '../types'
   import { accountModalState, closeAccountSettings, openAccountSettings } from '../account-modal.svelte'
   import { confirm } from '../dialog.svelte'
+  import {
+    clearNotePasscode,
+    clearNotePasscodes,
+    lockAllNotes,
+    pruneTrashNotePasscodes,
+  } from '../note-passcodes.svelte'
   import { t } from '../i18n.svelte'
   import { toastError, toastSuccess } from '../toast.svelte'
   import LocaleThemeControls from './LocaleThemeControls.svelte'
@@ -234,6 +240,7 @@
 
     const unsubscribeTrash = subscribeToTrash(userId, (loaded) => {
       trashedNotes = mergeNotesWithCachedContent(loaded) as TrashedNote[]
+      pruneTrashNotePasscodes(loaded.map((n) => n.id))
       pruneCheckedIds(loaded.map((n) => n.id))
       if (view === 'trash' && selectedId && !loaded.some((n) => n.id === selectedId)) {
         selectedId = loaded[0]?.id ?? null
@@ -476,6 +483,7 @@
 
     try {
       await restoreNoteFromTrash(userId, note)
+      clearNotePasscode(id, 'trash')
       checkedIds.delete(id)
       checkedIds = new Set(checkedIds)
       if (selectedId === id) {
@@ -496,6 +504,7 @@
 
     try {
       await restoreNotesFromTrash(userId, selectedTrash)
+      clearNotePasscodes([...restoredIds], 'trash')
       clearSelection()
       if (selectedId && restoredIds.has(selectedId)) {
         selectedId = trashedNotes.find((note) => !restoredIds.has(note.id))?.id ?? null
@@ -518,6 +527,7 @@
 
     try {
       await permanentlyDeleteNote(userId, id)
+      clearNotePasscode(id, 'trash')
       checkedIds.delete(id)
       checkedIds = new Set(checkedIds)
       if (selectedId === id) {
@@ -542,6 +552,7 @@
 
     try {
       await permanentlyDeleteNotes(userId, ids)
+      clearNotePasscodes(ids, 'trash')
       clearSelection()
       if (selectedId && !trashedNotes.some((n) => n.id === selectedId)) {
         selectedId = trashedNotes[0]?.id ?? null
@@ -564,6 +575,7 @@
 
     try {
       await emptyTrash(userId)
+      lockAllNotes('trash')
       clearSelection()
       selectedId = null
       toastSuccess(t('toastTrashEmptied'))
@@ -804,6 +816,7 @@
         <NoteEditor
           note={selectedTrashedNote}
           contentLoading={contentLoading}
+          passcodeScope="trash"
           onSave={handleSave}
           saving={false}
           readonly
