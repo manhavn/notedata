@@ -1,7 +1,11 @@
 <script lang="ts">
   import { tick } from 'svelte'
   import { t } from '../i18n.svelte'
-  import { MAX_PASSCODE_LENGTH, MIN_PASSCODE_LENGTH } from '../passcode'
+  import {
+    MAX_PASSCODE_LENGTH,
+    MIN_PASSCODE_LENGTH,
+    passcodeLengthParams,
+  } from '../passcode'
   import { passcodeFocusState, togglePasscodeAutoFocus } from '../passcode-focus.svelte'
 
   interface Props {
@@ -45,7 +49,7 @@
 
   function submit() {
     if (code.length < MIN_PASSCODE_LENGTH) {
-      lengthError = t('passcodeTooShort')
+      lengthError = t('passcodeTooShort', passcodeLengthParams)
       return
     }
 

@@ -78,7 +78,7 @@ A personal notes app built with **Svelte 5 + Vite**, using **Firebase Authentica
 ### Note encryption
 
 - Encrypt **note content** (title stays plain text for the sidebar list)
-- Multiple **passcodes (6–32 characters)** per browser, stored in `localStorage` (`notedata-encryption-keys`) — never sent to Firebase
+- Multiple **passcodes** per browser (length configurable via `VITE_MIN_PASSCODE_LENGTH` / `VITE_MAX_PASSCODE_LENGTH`, default 6–32), stored in `localStorage` (`notedata-encryption-keys`) — never sent to Firebase
 - **Manage keys** from the lock icon in the header (create, list, delete)
 - **Save flow:** pick a saved key or enter a one-time passcode (enter twice to confirm)
 - **Unlock flow:** default screen is manual passcode entry; switch to **Choose from saved keys** if needed
@@ -306,6 +306,10 @@ VITE_DISABLE_CHANGE_PASSWORD=false
 
 # Optional — set to true to hide the AI chat box in the note editor
 VITE_DISABLE_AI_CHAT=false
+
+# Optional — passcode length limits (digits)
+VITE_MIN_PASSCODE_LENGTH=6
+VITE_MAX_PASSCODE_LENGTH=32
 ```
 
 > **Note:** `VITE_*` variables are embedded into the frontend at build time. Do not commit `.env` to git.
@@ -344,6 +348,17 @@ Set `VITE_DISABLE_AI_CHAT=true` to hide the **AI** chat button in the note edito
 ```env
 VITE_DISABLE_AI_CHAT=true
 ```
+
+#### Passcode length limits (optional)
+
+Set minimum and maximum passcode length (digits) for note encryption, saved keys, and API key unlock. Defaults are `6` and `32`. Invalid or missing values fall back to defaults; if `min` is greater than `max`, the two values are swapped automatically. UI hints and validation read from `src/lib/passcode.ts` at build time.
+
+```env
+VITE_MIN_PASSCODE_LENGTH=6
+VITE_MAX_PASSCODE_LENGTH=64
+```
+
+Restart `npm run dev` or rebuild after changing these variables.
 
 ### Step 8: Link Firebase CLI to your project
 
@@ -876,7 +891,7 @@ src/
     note-header-collapse.ts  # In-memory editor header collapse state per note (unsaved/unlocked)
     markdown.ts          # Markdown and HTML preview rendering (DOMPurify)
     pagination.ts        # Page size for load-more lists
-    passcode.ts          # Passcode length constants
+    passcode.ts          # Passcode length limits from env (VITE_MIN/MAX_PASSCODE_LENGTH)
     passcode-focus.svelte.ts  # Auto-focus passcode input preference
     crypto.ts            # AES-GCM encrypt/decrypt (Web Crypto)
     encryption-keys.ts   # Passcode CRUD in localStorage

@@ -8,6 +8,7 @@
   } from '../encryption-keys'
   import { confirm } from '../dialog.svelte'
   import { t } from '../i18n.svelte'
+  import { passcodeLengthParams } from '../passcode'
   import { toastError, toastSuccess } from '../toast.svelte'
   import { PAGE_SIZE } from '../pagination'
   import type { EncryptionKey } from '../types'
@@ -135,7 +136,7 @@
         </button>
       </div>
 
-      <p class="hint">{t('encryptionKeysHint')}</p>
+      <p class="hint">{t('encryptionKeysHint', passcodeLengthParams)}</p>
 
       {#if keys.length === 0}
         <p class="empty">{t('noEncryptionKeys')}</p>
@@ -201,7 +202,9 @@
         bind:this={passcodePad}
         showAutoFocusToggle
         title={mode === 'create' ? t('enterNewPasscode') : t('confirmNewPasscode')}
-        subtitle={mode === 'create' ? t('passcodeCreateHint') : t('passcodeConfirmHint')}
+        subtitle={mode === 'create'
+          ? t('passcodeCreateHint', passcodeLengthParams)
+          : t('passcodeConfirmHint')}
         {error}
         onComplete={mode === 'create' ? handleCreateComplete : handleConfirmComplete}
         onCancel={resetCreateFlow}

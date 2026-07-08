@@ -2,6 +2,7 @@
   import { untrack } from 'svelte'
   import { getEncryptionKeys, maskKeyCode, verifyEncryptionKeyCode } from '../encryption-keys'
   import { t } from '../i18n.svelte'
+  import { passcodeLengthParams } from '../passcode'
   import { PAGE_SIZE } from '../pagination'
   import { portal } from '../portal'
   import type { EncryptionKey } from '../types'
@@ -233,7 +234,7 @@
           title={view === 'custom-create' ? t('enterNewPasscode') : t('confirmNewPasscode')}
           subtitle={view === 'custom-create'
             ? customPasscodeConfirm
-              ? t('customPasscodeSaveHint')
+              ? t('customPasscodeSaveHint', passcodeLengthParams)
               : t('customPasscodeUnlockHint')
             : t('passcodeConfirmHint')}
           error={view === 'custom-confirm' ? error : null}
@@ -338,7 +339,7 @@
           bind:this={passcodePad}
           showAutoFocusToggle
           title={t('enterPasscode')}
-          subtitle={t('passcodeUnlockHint')}
+          subtitle={t('passcodeUnlockHint', passcodeLengthParams)}
           error={error}
           onComplete={handleSavedPasscodeComplete}
           onCancel={handleClose}
