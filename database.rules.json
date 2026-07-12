@@ -34,6 +34,9 @@
           "persistNoteDraftLocal": {
             ".validate": "newData.isBoolean()"
           },
+          "autoUnlockAfterSave": {
+            ".validate": "newData.isBoolean()"
+          },
           "aiChatSettings": {
             "activeProviderId": {
               ".validate": "!newData.exists() || newData.val() == null || newData.isString()"

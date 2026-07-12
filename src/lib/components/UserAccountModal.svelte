@@ -30,6 +30,7 @@
   import { t } from '../i18n.svelte'
   import EditorAiSettings, { type AiSettingsModal } from './EditorAiSettings.svelte'
   import {
+    saveUserAutoUnlockAfterSave,
     saveUserDisableAiChat,
     saveUserPersistAiChatLocal,
     saveUserPersistNoteDraftLocal,
@@ -59,6 +60,7 @@
   let savingAiChat = $state(false)
   let savingAiChatHistoryLocal = $state(false)
   let savingNoteDraftLocal = $state(false)
+  let savingAutoUnlockAfterSave = $state(false)
   let clearingAiChatDrafts = $state(false)
   let clearingNoteDrafts = $state(false)
   let aiChatDraftCount = $state(0)
@@ -318,6 +320,24 @@
       toastError(t('toastOperationFailed'))
     } finally {
       savingNoteDraftLocal = false
+    }
+  }
+
+  async function handleToggleAutoUnlockAfterSave() {
+    savingAutoUnlockAfterSave = true
+    const nextEnabled = !userSettingsState.autoUnlockAfterSave
+
+    try {
+      await saveUserAutoUnlockAfterSave(nextEnabled)
+      toastSuccess(
+        nextEnabled
+          ? t('accountAutoUnlockAfterSaveEnabledSaved')
+          : t('accountAutoUnlockAfterSaveDisabledSaved'),
+      )
+    } catch {
+      toastError(t('toastOperationFailed'))
+    } finally {
+      savingAutoUnlockAfterSave = false
     }
   }
 
@@ -693,6 +713,39 @@
           {clearingNoteDrafts ? t('processing') : t('accountNoteDraftClear')}
         </button>
       </div>
+    </section>
+
+    <section class="section">
+      <h3>{t('accountEncryptedNotesSection')}</h3>
+      <p class="hint">{t('accountEncryptedNotesHint')}</p>
+      <label class="ai-toggle-row">
+        <span class="ai-toggle-copy">
+          <strong>
+            {userSettingsState.autoUnlockAfterSave
+              ? t('accountAutoUnlockAfterSaveOn')
+              : t('accountAutoUnlockAfterSaveOff')}
+          </strong>
+          <span>
+            {userSettingsState.autoUnlockAfterSave
+              ? t('accountAutoUnlockAfterSaveOnHint')
+              : t('accountAutoUnlockAfterSaveOffHint')}
+          </span>
+        </span>
+        <button
+          type="button"
+          class="ai-toggle-btn"
+          class:on={userSettingsState.autoUnlockAfterSave}
+          role="switch"
+          aria-checked={userSettingsState.autoUnlockAfterSave}
+          aria-label={userSettingsState.autoUnlockAfterSave
+            ? t('accountAutoUnlockAfterSaveDisable')
+            : t('accountAutoUnlockAfterSaveEnable')}
+          onclick={handleToggleAutoUnlockAfterSave}
+          disabled={savingAutoUnlockAfterSave || !userSettingsState.loaded}
+        >
+          <span class="ai-toggle-thumb" aria-hidden="true"></span>
+        </button>
+      </label>
     </section>
 
     {#if !authFeatures.disableChangePassword}

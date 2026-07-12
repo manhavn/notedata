@@ -443,6 +443,7 @@
         content: encryptedContent,
         encrypted: true,
         keyId: payload.keyId,
+        code: payload.code,
       })
       decryptError = null
     } catch {
@@ -454,6 +455,7 @@
     content?: string
     encrypted: boolean
     keyId?: string
+    code?: string
   }) {
     if (!note) return
     await onSave({
@@ -467,14 +469,19 @@
     clearNoteHeaderCollapsed(note.id)
     headerCollapsed = false
 
-    clearNotePasscode(note.id, passcodeScope)
-
-    if (options.encrypted) {
-      isUnlocked = false
-      plainContent = ''
-      savedPlainSnapshot = null
+    if (options.encrypted && options.keyId && options.code && userSettingsState.autoUnlockAfterSave) {
+      setNotePasscode(note.id, options.code, options.keyId, passcodeScope)
+      savedPlainSnapshot = plainContent
+      isUnlocked = true
     } else {
-      savedPlainSnapshot = options.content ?? plainContent
+      clearNotePasscode(note.id, passcodeScope)
+      if (options.encrypted) {
+        isUnlocked = false
+        plainContent = ''
+        savedPlainSnapshot = null
+      } else {
+        savedPlainSnapshot = options.content ?? plainContent
+      }
     }
   }
 

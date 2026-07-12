@@ -4,17 +4,20 @@ import { db } from './firebase'
 export const USER_SETTING_DISABLE_AI_CHAT = 'disableAiChat'
 export const USER_SETTING_PERSIST_AI_CHAT_LOCAL = 'persistAiChatLocal'
 export const USER_SETTING_PERSIST_NOTE_DRAFT_LOCAL = 'persistNoteDraftLocal'
+export const USER_SETTING_AUTO_UNLOCK_AFTER_SAVE = 'autoUnlockAfterSave'
 
 export type UserSettings = {
   disableAiChat: boolean
   persistAiChatLocal: boolean
   persistNoteDraftLocal: boolean
+  autoUnlockAfterSave: boolean
 }
 
 const DEFAULT_USER_SETTINGS: UserSettings = {
   disableAiChat: false,
   persistAiChatLocal: false,
   persistNoteDraftLocal: false,
+  autoUnlockAfterSave: false,
 }
 
 function settingsPath(userId: string) {
@@ -28,6 +31,7 @@ function parseUserSettings(data: Record<string, unknown> | null | undefined): Us
     disableAiChat: data[USER_SETTING_DISABLE_AI_CHAT] === true,
     persistAiChatLocal: data[USER_SETTING_PERSIST_AI_CHAT_LOCAL] === true,
     persistNoteDraftLocal: data[USER_SETTING_PERSIST_NOTE_DRAFT_LOCAL] === true,
+    autoUnlockAfterSave: data[USER_SETTING_AUTO_UNLOCK_AFTER_SAVE] === true,
   }
 }
 
@@ -80,5 +84,11 @@ export async function setUserPersistAiChatLocal(userId: string, enabled: boolean
 export async function setUserPersistNoteDraftLocal(userId: string, enabled: boolean): Promise<void> {
   await update(ref(db, settingsPath(userId)), {
     [USER_SETTING_PERSIST_NOTE_DRAFT_LOCAL]: enabled,
+  })
+}
+
+export async function setUserAutoUnlockAfterSave(userId: string, enabled: boolean): Promise<void> {
+  await update(ref(db, settingsPath(userId)), {
+    [USER_SETTING_AUTO_UNLOCK_AFTER_SAVE]: enabled,
   })
 }
