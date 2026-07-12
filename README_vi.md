@@ -95,6 +95,7 @@
 - **Khóa tất cả ghi chú** — icon khóa trên header sidebar ghi chú (trước sort/import/thùng rác/tạo mới); thùng rác có nút **Khóa tất cả** riêng trên header sidebar thùng rác
 - **Cache mở khóa tách biệt notes / thùng rác** — `notePasscodeState` (danh sách chính) và `trashNotePasscodeState` (thùng rác) độc lập; chuyển ghi chú vào thùng rác **không** xóa cache mở khóa của danh sách chính — khôi phục về vẫn mở khóa nếu trước đó đã unlock; cache thùng rác chỉ xóa khi khôi phục, xóa vĩnh viễn, hoặc **Dọn thùng rác**
 - Mã đã cache chỉ bị xóa khi bạn khóa từng ghi chú, dùng **Khóa tất cả ghi chú**, hoặc (với thùng rác) khôi phục/xóa/dọn — không tự xóa khi chuyển ghi chú trong cùng view
+- **Tự động mở khóa sau khi lưu** — tùy chọn cấu hình trong **Cài đặt tài khoản** (mặc định tắt) giúp tự động giữ trạng thái mở khóa của ghi chú ngay sau khi bạn lưu ghi chú bằng passcode, đưa mật khẩu đó vào cache mở khóa trong phiên thay vì khóa ghi chú lại ngay lập tức.
 - Nhập mã bằng ô text và bàn phím số trên màn hình; tùy chọn **tự focus** ô nhập mã (`notedata-passcode-autofocus`)
 - Mã hóa AES-GCM qua Web Crypto API; database chỉ lưu `encrypted: true` và `keyId`
 - Sai mã chỉ hiện thông báo chung trên ghi chú — không gợi ý trong popup (chống đoán mã)
@@ -477,6 +478,7 @@ users/
       disableAiChat?: boolean
       persistAiChatLocal?: boolean
       persistNoteDraftLocal?: boolean
+      autoUnlockAfterSave?: boolean
       aiChatSettings/
         activeProviderId: string | null
         activeModelId: string | null

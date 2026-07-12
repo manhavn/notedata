@@ -95,6 +95,7 @@ A personal notes app built with **Svelte 5 + Vite**, using **Firebase Authentica
 - **Lock all notes** — lock icon in the notes sidebar header (left of sort/import/trash/new); trash has a separate **Lock all notes** control in its own sidebar header
 - **Separate notes vs trash unlock cache** — `notePasscodeState` (main list) and `trashNotePasscodeState` (trash) are independent; moving a note to trash does **not** clear its main-list unlock cache, so restoring an unlocked note stays unlocked; trash unlock entries are cleared only on restore, permanent delete, or **Empty trash**
 - Cached passcodes stay until you lock a note, use **Lock all notes**, or (for trash) restore/delete/empty — they are not cleared when switching notes within the same view
+- **Auto unlock after save** — optional setting in **Account settings** (disabled by default) to keep the note unlocked immediately after you save it with a passcode, saving the passcode into the session unlock cache rather than locking it immediately
 - Passcode entry uses a text field plus an on-screen numeric keypad; optional **auto-focus** toggle (`notedata-passcode-autofocus`)
 - AES-GCM encryption via Web Crypto API; database stores `encrypted: true` and `keyId` only
 - Wrong passcode shows a generic error on the note — no hints in the modal (anti-enumeration)
@@ -492,6 +493,7 @@ users/
       disableAiChat?: boolean
       persistAiChatLocal?: boolean
       persistNoteDraftLocal?: boolean
+      autoUnlockAfterSave?: boolean
       aiChatSettings/
         activeProviderId: string | null
         activeModelId: string | null
