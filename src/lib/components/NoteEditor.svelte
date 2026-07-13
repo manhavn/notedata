@@ -98,7 +98,7 @@
   let keyModalMode = $state<'unlock' | 'save'>('unlock')
   let decryptError = $state<string | null>(null)
   type ContentViewMode = NoteContentViewMode
-  let contentViewMode = $state<ContentViewMode>('txt')
+  let contentViewMode = $state<ContentViewMode>('edit')
   let headerCollapsed = $state(false)
   let titleSaveTimer: ReturnType<typeof setTimeout> | undefined
   let savedTitleBaseline = $state('')
@@ -120,7 +120,7 @@
   )
 
   function savedContentViewMode(): ContentViewMode {
-    return note?.contentViewMode ?? 'txt'
+    return note?.contentViewMode ?? 'edit'
   }
 
   function switchContentViewMode(mode: ContentViewMode) {
@@ -197,7 +197,7 @@
       isUnlocked = false
       decryptError = null
       keyModalOpen = false
-      contentViewMode = 'txt'
+      contentViewMode = 'edit'
       headerCollapsed = false
       return
     }
@@ -414,7 +414,7 @@
     savedPlainSnapshot = null
     isUnlocked = false
     decryptError = null
-    contentViewMode = 'txt'
+    contentViewMode = 'edit'
   }
 
   function lockNote() {
@@ -578,7 +578,7 @@
     if (!trimmed) return
 
     plainContent = plainContent.trim() ? `${plainContent.trimEnd()}\n\n${trimmed}` : trimmed
-    contentViewMode = 'txt'
+    contentViewMode = 'edit'
   }
 </script>
 
@@ -750,10 +750,21 @@
             <div class="view-toggle" role="group" aria-label={t('editMode')}>
               <button
                 type="button"
+                class:active={contentViewMode === 'edit'}
+                onclick={() => switchContentViewMode('edit')}
+                disabled={showLockedState}
+                aria-label={t('editTextMode')}
+                title={t('editTextMode')}
+              >
+                E
+              </button>
+              <button
+                type="button"
                 class:active={contentViewMode === 'txt'}
                 onclick={() => switchContentViewMode('txt')}
                 disabled={showLockedState}
-                aria-label={t('editMode')}
+                aria-label={t('viewText')}
+                title={t('viewText')}
               >
                 TXT
               </button>
@@ -763,6 +774,7 @@
                 onclick={() => switchContentViewMode('md')}
                 disabled={showLockedState}
                 aria-label={t('viewMarkdown')}
+                title={t('viewMarkdown')}
               >
                 MD
               </button>
@@ -772,11 +784,17 @@
                 onclick={() => switchContentViewMode('html')}
                 disabled={showLockedState}
                 aria-label={t('viewHtml')}
+                title={t('viewHtml')}
               >
                 HTML
               </button>
             </div>
-            <button type="button" class="restore-btn" onclick={onRestore}>
+            <button
+              type="button"
+              class="restore-btn"
+              onclick={onRestore}
+              title={t('restore')}
+            >
               {t('restore')}
             </button>
           </div>
@@ -785,10 +803,21 @@
             <div class="view-toggle" role="group" aria-label={t('editMode')}>
               <button
                 type="button"
+                class:active={contentViewMode === 'edit'}
+                onclick={() => switchContentViewMode('edit')}
+                disabled={showLockedState}
+                aria-label={t('editTextMode')}
+                title={t('editTextMode')}
+              >
+                E
+              </button>
+              <button
+                type="button"
                 class:active={contentViewMode === 'txt'}
                 onclick={() => switchContentViewMode('txt')}
                 disabled={showLockedState}
-                aria-label={t('editMode')}
+                aria-label={t('viewText')}
+                title={t('viewText')}
               >
                 TXT
               </button>
@@ -798,6 +827,7 @@
                 onclick={() => switchContentViewMode('md')}
                 disabled={showLockedState}
                 aria-label={t('viewMarkdown')}
+                title={t('viewMarkdown')}
               >
                 MD
               </button>
@@ -807,6 +837,7 @@
                 onclick={() => switchContentViewMode('html')}
                 disabled={showLockedState}
                 aria-label={t('viewHtml')}
+                title={t('viewHtml')}
               >
                 HTML
               </button>
@@ -816,6 +847,7 @@
               class="cancel-edit-btn"
               onclick={cancelEdit}
               disabled={!hasUnsavedChanges}
+              title={t('cancelEdit')}
             >
               {t('cancelEdit')}
             </button>
@@ -825,6 +857,7 @@
               class:unsaved={hasUnsavedChanges}
               onclick={openSaveModal}
               disabled={saving || showLockedState || !hasUnsavedChanges}
+              title={saving ? t('saving') : t('save')}
             >
               {saving ? t('saving') : t('save')}
             </button>
@@ -848,9 +881,22 @@
         {#if decryptError}
           <p class="error">{decryptError}</p>
         {/if}
-        <button type="button" class="unlock-btn" onclick={openUnlockModal}>
+        <button
+          type="button"
+          class="unlock-btn"
+          onclick={openUnlockModal}
+          title={t('unlockNote')}
+        >
           {t('unlockNote')}
         </button>
+      </div>
+    {:else if contentViewMode === 'txt'}
+      <div class="markdown-preview">
+        {#if plainContent.trim()}
+          <div class="markdown-body plain-text-body">{plainContent}</div>
+        {:else}
+          <p class="markdown-empty">{t('noteContentPlaceholder')}</p>
+        {/if}
       </div>
     {:else if contentViewMode === 'md'}
       <div class="markdown-preview">
@@ -1387,6 +1433,12 @@
     font-size: 1rem;
     line-height: 1.7;
     word-break: break-word;
+  }
+
+  .plain-text-body {
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: inherit;
   }
 
   .markdown-body :global(h1),

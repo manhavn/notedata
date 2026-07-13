@@ -26,12 +26,13 @@
     </button>
   </div>
 
-  <div class="theme-toggle" role="group" aria-label={t('darkMode')} title={t('darkMode')}>
+  <div class="theme-toggle" role="group" aria-label={t('darkMode')}>
     <button
       type="button"
       class:active={themeState.mode === 'light'}
       onclick={() => setTheme('light')}
-      aria-label="Light mode"
+      aria-label={t('lightMode')}
+      title={t('lightMode')}
     >
       <svg class="theme-icon" viewBox="0 0 24 24" aria-hidden="true">
         <circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2" />
@@ -48,7 +49,8 @@
       type="button"
       class:active={themeState.mode === 'dark'}
       onclick={() => setTheme('dark')}
-      aria-label="Dark mode"
+      aria-label={t('darkMode')}
+      title={t('darkMode')}
     >
       <svg class="theme-icon" viewBox="0 0 24 24" aria-hidden="true">
         <path

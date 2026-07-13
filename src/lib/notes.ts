@@ -67,7 +67,7 @@ function parseOptionalAiActiveId(value: unknown): string | null | undefined {
 }
 
 function parseContentViewMode(value: unknown): NoteContentViewMode | undefined {
-  return value === 'txt' || value === 'md' || value === 'html' ? value : undefined
+  return value === 'edit' || value === 'txt' || value === 'md' || value === 'html' ? value : undefined
 }
 
 function parseNoteAiActiveFields(raw: Record<string, unknown>) {

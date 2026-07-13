@@ -138,8 +138,27 @@
     </div>
     <div class="header-actions">
       {#if notes.length > 0}
-        <button type="button" class="empty-btn" onclick={onEmptyTrash}>
-          {t('emptyTrash')}
+        <button
+          type="button"
+          class="empty-btn"
+          onclick={onEmptyTrash}
+          title={t('emptyTrash')}
+          aria-label={t('emptyTrash')}
+        >
+          <svg class="empty-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M3 6h15M16 6V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2M5 6v14a2 2 0 0 0 2 2h6"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <path
+              d="M19 13l-1.5 1.5L19 16l1.5-1.5zm-3 4l-1 1 1 1 1-1zM21 9l-1 1 1 1 1-1z"
+              fill="currentColor"
+            />
+          </svg>
         </button>
       {/if}
       <button
@@ -168,14 +187,38 @@
     <div class="bulk-bar">
       <span class="bulk-count">{t('selectedCount', { count: checkedCount })}</span>
       <div class="bulk-actions">
-        <button type="button" class="bulk-btn success" onclick={onBulkRestore}>
-          {t('bulkRestore')}
+        <button
+          type="button"
+          class="bulk-btn ghost"
+          onclick={onClearSelection}
+          title={t('bulkClearTooltip', { count: checkedCount })}
+          aria-label={t('clearSelection')}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" class="btn-icon">
+            <path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
         </button>
-        <button type="button" class="bulk-btn danger" onclick={onBulkPermanentDelete}>
-          {t('bulkPermanentDelete')}
+        <button
+          type="button"
+          class="bulk-btn success"
+          onclick={onBulkRestore}
+          title={t('bulkRestoreTooltip', { count: checkedCount })}
+          aria-label={t('bulkRestore')}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" class="btn-icon">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
         </button>
-        <button type="button" class="bulk-btn ghost" onclick={onClearSelection}>
-          {t('clearSelection')}
+        <button
+          type="button"
+          class="bulk-btn danger"
+          onclick={onBulkPermanentDelete}
+          title={t('bulkPermanentDeleteTooltip', { count: checkedCount })}
+          aria-label={t('bulkPermanentDelete')}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" class="btn-icon">
+            <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
         </button>
       </div>
     </div>
@@ -373,35 +416,49 @@
   }
 
   .bulk-bar {
-    padding: 0.75rem 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
     border-bottom: 1px solid var(--border);
     background: rgba(239, 68, 68, 0.05);
   }
 
   .bulk-count {
-    display: block;
-    margin-bottom: 0.5rem;
     font-size: 0.85rem;
     font-weight: 600;
     color: var(--text);
+    white-space: nowrap;
   }
 
   .bulk-actions {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     gap: 0.4rem;
   }
 
   .bulk-btn {
-    padding: 0.4rem 0.75rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: 6px;
     background: var(--surface);
     color: var(--text);
-    font-size: 0.8rem;
-    font-weight: 600;
     cursor: pointer;
     transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.15s ease;
+  }
+
+  .bulk-btn svg {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
   }
 
   .bulk-btn.success {
@@ -445,20 +502,29 @@
   }
 
   .empty-btn {
-    padding: 0.45rem 0.65rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
     border: 1px solid rgba(239, 68, 68, 0.25);
     border-radius: 10px;
     background: rgba(239, 68, 68, 0.06);
     color: var(--danger);
-    font-size: 0.8rem;
-    font-weight: 600;
-    white-space: nowrap;
     cursor: pointer;
-    transition: background 0.2s, border-color 0.2s;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+    flex-shrink: 0;
   }
 
   .empty-btn:hover {
     background: rgba(239, 68, 68, 0.12);
+    border-color: rgba(239, 68, 68, 0.45);
+  }
+
+  .empty-icon {
+    width: 18px;
+    height: 18px;
   }
 
   .note-list {

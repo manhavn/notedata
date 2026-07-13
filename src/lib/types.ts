@@ -1,4 +1,4 @@
-export type NoteContentViewMode = 'txt' | 'md' | 'html'
+export type NoteContentViewMode = 'edit' | 'txt' | 'md' | 'html'
 
 export interface NoteAiActiveIds {
   aiActiveProviderId?: string | null

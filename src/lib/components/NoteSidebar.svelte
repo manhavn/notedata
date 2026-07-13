@@ -272,7 +272,7 @@
       <button type="button" class="icon-btn" onclick={onImport} title={t('importJson')} aria-label={t('importJson')}>
         <svg class="import-icon" viewBox="0 0 24 24" aria-hidden="true">
           <path
-            d="M12 16V4M8 8l4-4 4 4M4 20h16"
+            d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2ZM12 10v6M9 13l3 3 3-3"
             fill="none"
             stroke="currentColor"
             stroke-width="2"
@@ -326,14 +326,38 @@
     <div class="bulk-bar">
       <span class="bulk-count">{t('selectedCount', { count: checkedCount })}</span>
       <div class="bulk-actions">
-        <button type="button" class="bulk-btn danger" onclick={onBulkDelete}>
-          {t('delete')}
+        <button
+          type="button"
+          class="bulk-btn ghost"
+          onclick={onClearSelection}
+          title={t('bulkClearTooltip', { count: checkedCount })}
+          aria-label={t('clearSelection')}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" class="btn-icon">
+            <path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
         </button>
-        <button type="button" class="bulk-btn" onclick={onBulkExport}>
-          {t('export')}
+        <button
+          type="button"
+          class="bulk-btn"
+          onclick={onBulkExport}
+          title={t('bulkExportTooltip', { count: checkedCount })}
+          aria-label={t('export')}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" class="btn-icon">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
         </button>
-        <button type="button" class="bulk-btn ghost" onclick={onClearSelection}>
-          {t('clearSelection')}
+        <button
+          type="button"
+          class="bulk-btn danger"
+          onclick={onBulkDelete}
+          title={t('bulkDeleteTooltip', { count: checkedCount })}
+          aria-label={t('delete')}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" class="btn-icon">
+            <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
         </button>
       </div>
     </div>
@@ -564,35 +588,49 @@
   }
 
   .bulk-bar {
-    padding: 0.75rem 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
     border-bottom: 1px solid var(--border);
     background: rgba(245, 158, 11, 0.06);
   }
 
   .bulk-count {
-    display: block;
-    margin-bottom: 0.5rem;
     font-size: 0.85rem;
     font-weight: 600;
     color: var(--text);
+    white-space: nowrap;
   }
 
   .bulk-actions {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     gap: 0.4rem;
   }
 
   .bulk-btn {
-    padding: 0.4rem 0.75rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: 6px;
     background: var(--surface);
     color: var(--text);
-    font-size: 0.8rem;
-    font-weight: 600;
     cursor: pointer;
     transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.15s ease;
+  }
+
+  .bulk-btn svg {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
   }
 
   .bulk-btn:hover {
