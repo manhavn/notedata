@@ -129,10 +129,11 @@
           <button
             type="button"
             class="focus-toggle-btn"
-            class:active={passcodeFocusState.enabled}
+            class:active={passcodeFocusState.enabled || keyboardMode}
+            disabled={keyboardMode}
             onclick={togglePasscodeAutoFocus}
             aria-label={t('passcodeAutoFocus')}
-            aria-pressed={passcodeFocusState.enabled}
+            aria-pressed={passcodeFocusState.enabled || keyboardMode}
             title={t('passcodeAutoFocus')}
           >
             <svg class="toggle-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -335,7 +336,7 @@
     flex-shrink: 0;
   }
 
-  .focus-toggle-btn:hover {
+  .focus-toggle-btn:hover:not(:disabled) {
     opacity: 0.75;
     background: rgba(120, 113, 108, 0.1);
     color: var(--text);
@@ -346,12 +347,21 @@
     opacity: 1;
   }
 
-  .focus-toggle-btn.active:hover {
+  .focus-toggle-btn.active:hover:not(:disabled) {
     background: rgba(245, 158, 11, 0.12);
     color: var(--accent);
   }
 
-  :global([data-theme='dark']) .focus-toggle-btn:hover:not(.active) {
+  .focus-toggle-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+
+  .focus-toggle-btn.active:disabled {
+    opacity: 0.7;
+  }
+
+  :global([data-theme='dark']) .focus-toggle-btn:hover:not(:disabled):not(.active) {
     background: rgba(255, 255, 255, 0.08);
   }
 
