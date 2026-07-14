@@ -372,14 +372,25 @@
     return Boolean(note && !readonly && !saving && !showLockedState && hasUnsavedChanges)
   }
 
-  function handleSaveShortcut(event: KeyboardEvent) {
+  function handleEditorShortcut(event: KeyboardEvent) {
     if (!(event.ctrlKey || event.metaKey) || event.altKey) return
-    if (event.key !== 's' && event.key !== 'S') return
 
-    // Replace the browser "Save page" action with the note Save button.
-    event.preventDefault()
-    if (!canTriggerSave()) return
-    openSaveModal()
+    const key = event.key.toLowerCase()
+
+    if (key === 's') {
+      // Replace the browser "Save page" action with the note Save button.
+      event.preventDefault()
+      if (!canTriggerSave()) return
+      openSaveModal()
+      return
+    }
+
+    if (key === 'o') {
+      // Always suppress browser default for Ctrl/Cmd+O (e.g. Open file), even when unused.
+      event.preventDefault()
+      if (!showLockedState) return
+      openUnlockModal()
+    }
   }
 
   async function attemptAutoUnlock(noteId: string, encryptedContent: string) {
@@ -596,7 +607,7 @@
   }
 </script>
 
-<svelte:window onkeydown={handleSaveShortcut} />
+<svelte:window onkeydown={handleEditorShortcut} />
 
 <section class="editor">
   {#if note}

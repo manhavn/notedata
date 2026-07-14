@@ -23,6 +23,7 @@
 ### Ghi chú
 
 - Tạo, sửa và lưu ghi chú
+- **Phím tắt editor** — **Ctrl/Cmd+S** luôn chặn hành vi “Lưu trang” của trình duyệt và chạy **Lưu** khi ghi chú có thay đổi chưa lưu và không bị khóa; **Ctrl/Cmd+O** luôn chặn hành vi “Mở” của trình duyệt và mở **Mở khóa** khi ghi chú hiện tại đang mã hóa và bị khóa
 - **Thẻ (tags)** — gắn thẻ phân cách bằng dấu phẩy; định dạng `tênTag:giá_trị` tùy chọn gắn dữ liệu vào thẻ (dùng cho biến system prompt AI); thêm/xóa trong editor; hỗ trợ import/export
 - **Tìm kiếm** — tìm theo tiêu đề hoặc thẻ từ topbar (debounce; dùng cùng sort và phân trang)
 - **Sắp xếp** — tiêu đề A–Z / Z–A, ngày tạo/cập nhật tăng/giảm; lưu trong `localStorage` (`notedata-note-sort`)
@@ -31,7 +32,7 @@
 - **Bản nháp chưa lưu** — nội dung sửa được giữ trong bộ nhớ khi chuyển ghi chú; sidebar và editor hiện chỉ báo; **Hủy sửa** hủy thay đổi mà không lưu (xóa khi lưu hoặc tải lại trang)
 - **Thu gọn header editor** — thu gọn thanh tiêu đề/thẻ để có thêm không gian viết; khi ghi chú đang có thay đổi chưa lưu hoặc đã mở khóa trong phiên, trạng thái thu gọn được giữ trong bộ nhớ khi chuyển sang ghi chú khác và khôi phục khi quay lại (xóa khi lưu, hủy sửa, hoặc khóa)
 - **Chuyển vào thùng rác** — link xóa ghi chú trong header editor
-- **Ghi chú mã hóa** — cache mở khóa trong phiên (tự mở lại không cần nhập lại), danh sách sidebar hiện icon khóa mở cho ghi chú đã mở trong phiên, **Khóa** từng ghi chú trong editor, và **Khóa tất cả** trên header sidebar
+- **Ghi chú mã hóa** — cache mở khóa trong phiên (tự mở lại không cần nhập lại), danh sách sidebar hiện icon khóa mở cho ghi chú đã mở trong phiên, **Khóa** từng ghi chú trong editor, **Khóa tất cả** trên header sidebar, và **Ctrl/Cmd+O** để mở khóa từ màn ghi chú đang khóa
 - **Tải nội dung theo nhu cầu** — danh sách ghi chú chỉ subscribe metadata (tiêu đề, thẻ, thời gian, cờ mã hóa); `content` lưu riêng và chỉ fetch khi mở ghi chú
 - **Cache nội dung trên client** — sau khi tải, nội dung giữ trong bộ nhớ khi chuyển ghi chú (không fetch lại trừ khi tải lại trang)
 - **Export hàng loạt** — chỉ fetch `content` của các ghi chú được chọn mà chưa có trong cache
@@ -88,7 +89,7 @@
 - Nhiều **mã khóa (6–32 ký tự)** trên mỗi trình duyệt, lưu trong `localStorage` (`notedata-encryption-keys`) — không gửi lên Firebase
 - **Quản lý mã khóa** qua biểu tượng khóa trên header (tạo, xem danh sách, xóa)
 - **Khi lưu:** chọn mã đã lưu hoặc nhập mã tự nhập (nhập 2 lần để xác nhận)
-- **Khi mở khóa:** mặc định nhập mã thủ công; có thể chuyển sang **Chọn từ danh sách đã lưu**
+- **Khi mở khóa:** mặc định nhập mã thủ công; có thể chuyển sang **Chọn từ danh sách đã lưu**; từ ghi chú đang khóa, **Ctrl/Cmd+O** mở modal mở khóa (giống nút **Mở khóa ghi chú**) và luôn chặn hành vi mặc định của trình duyệt cho tổ hợp phím này
 - **Cache mở khóa trong phiên** — sau khi mở khóa thành công, mã khóa của ghi chú được giữ trong bộ nhớ theo `noteId` (không gửi lên Firebase); chuyển sang ghi chú khác rồi quay lại sẽ tự mở khóa mà không cần nhập lại
 - **Chỉ báo trên danh sách sidebar** — ghi chú mã hóa hiện `🔒 Nội dung đã mã hóa` ở dòng preview; ghi chú đã mở trong phiên hiện icon khóa mở (màu success) kèm **Nội dung đã mã hóa**
 - **Khóa ghi chú** — nút khóa (style success) cạnh **Xóa ghi chú** (trong thùng rác: sau **Xóa vĩnh viễn**) xóa mã đã cache của ghi chú hiện tại và ẩn nội dung đã giải mã cho đến khi mở khóa lại
@@ -414,7 +415,7 @@ Thử:
 3. Hoặc đăng nhập Google (bỏ qua xác minh email)
 4. Thử **Quên mật khẩu?** trên màn đăng nhập (dưới nút submit)
 5. Khi đăng ký, thử ô **nhập lại mật khẩu** và nút mắt **hiện/ẩn mật khẩu**
-6. Tạo và lưu ghi chú — thêm thẻ, tìm kiếm, sắp xếp, chuyển **TXT / MD / HTML**, thử **Hủy sửa** khi có thay đổi chưa lưu
+6. Tạo và lưu ghi chú — thêm thẻ, tìm kiếm, sắp xếp, chuyển **TXT / MD / HTML**, thử **Hủy sửa** khi có thay đổi chưa lưu, và **Ctrl/Cmd+S** để lưu; với ghi chú mã hóa đang khóa, thử **Ctrl/Cmd+O** để mở modal mở khóa
 7. Mở **Cài đặt tài khoản** từ icon user trên topbar
 8. Mở một ghi chú và bấm **AI** — thêm provider (hoặc import cURL), chọn model và API key từ toolbar footer, rồi chat; thử **Sao chép tất cả** / **Chèn tất cả vào ghi chú** khi đã có tin nhắn
 9. Mở **Cài đặt tài khoản** → **Trợ lý AI** để bật/tắt AI cho tài khoản

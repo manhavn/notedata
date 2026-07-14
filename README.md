@@ -23,6 +23,7 @@ A personal notes app built with **Svelte 5 + Vite**, using **Firebase Authentica
 ### Notes
 
 - Create, edit, and save notes
+- **Editor keyboard shortcuts** — **Ctrl/Cmd+S** always suppresses the browser “Save page” action and runs **Save** when the note has unsaved changes and is not locked; **Ctrl/Cmd+O** always suppresses the browser “Open” action and opens **Unlock** when the current note is encrypted and locked
 - **Tags** — comma-separated tags per note; optional `tagName:value` format attaches data to a tag (used by AI system prompt variables); add/remove in the editor; included in import/export
 - **Search** — find notes by title or tag from the top bar (debounced; works alongside sort and pagination)
 - **Sort** — title A–Z / Z–A, created/updated ascending or descending; preference saved in `localStorage` (`notedata-note-sort`)
@@ -31,7 +32,7 @@ A personal notes app built with **Svelte 5 + Vite**, using **Firebase Authentica
 - **Unsaved drafts** — edits are kept in memory while you switch notes; sidebar and editor show indicators; **Cancel edit** discards changes without saving (cleared on save or page reload)
 - **Collapsible editor header** — collapse the title/tags toolbar for more writing space; while a note has unsaved edits or is session-unlocked, the collapse state is kept in memory when you switch notes and restored when you return (cleared on save, cancel, or lock)
 - **Move to trash** — delete link in the editor header
-- **Encrypted notes** — session unlock cache (auto-reopen without re-entry), sidebar list shows an open-lock icon for unlocked encrypted notes, per-note **Lock** in the editor, and **Lock all notes** in the sidebar header
+- **Encrypted notes** — session unlock cache (auto-reopen without re-entry), sidebar list shows an open-lock icon for unlocked encrypted notes, per-note **Lock** in the editor, **Lock all notes** in the sidebar header, and **Ctrl/Cmd+O** to open unlock from a locked note
 - **Lazy-loaded content** — note list subscriptions fetch metadata only (title, tags, timestamps, encryption flags); `content` is stored separately and fetched on demand when you open a note
 - **Client content cache** — once loaded, content stays in memory while you switch notes (no re-fetch unless you reload the page)
 - **Bulk export** — only fetches `content` for selected notes that are not already cached locally
@@ -88,7 +89,7 @@ A personal notes app built with **Svelte 5 + Vite**, using **Firebase Authentica
 - Multiple **passcodes** per browser (length configurable via `VITE_MIN_PASSCODE_LENGTH` / `VITE_MAX_PASSCODE_LENGTH`, default 6–32), stored in `localStorage` (`notedata-encryption-keys`) — never sent to Firebase
 - **Manage keys** from the lock icon in the header (create, list, delete)
 - **Save flow:** pick a saved key or enter a one-time passcode (enter twice to confirm)
-- **Unlock flow:** default screen is manual passcode entry; switch to **Choose from saved keys** if needed
+- **Unlock flow:** default screen is manual passcode entry; switch to **Choose from saved keys** if needed; from a locked note, **Ctrl/Cmd+O** opens the unlock modal (same as the **Unlock note** button) and always prevents the browser default for that chord
 - **Session unlock cache** — after a successful unlock, the passcode for that note is kept in memory keyed by `noteId` (never sent to Firebase); switching away and back auto-unlocks without re-entry
 - **Sidebar list indicator** — encrypted notes show `🔒 Encrypted content` in the preview line; session-unlocked notes show an open-lock icon (success color) with **Encrypted content** instead
 - **Lock note** — success-styled lock button next to **Delete note** (in trash: after **Permanent delete**) clears the cached passcode for the current note and hides decrypted content until you unlock again
@@ -429,7 +430,7 @@ Try:
 3. Or sign in with Google (skips email verification)
 4. Try **Forgot password?** on the login screen (below the submit button)
 5. On sign-up, try the **confirm password** field and the **show/hide password** eye icon
-6. Create and save a note — add tags, search, sort, switch **TXT / MD / HTML** preview, and try **Cancel edit** on unsaved changes
+6. Create and save a note — add tags, search, sort, switch **TXT / MD / HTML** preview, try **Cancel edit** on unsaved changes, and **Ctrl/Cmd+S** to save; for an encrypted locked note, try **Ctrl/Cmd+O** to open unlock
 7. Open **Account settings** from the top-bar user icon to set a display name or change email
 8. Open a note and click **AI** — add a provider (or import cURL), pick a model and API key from the footer toolbar, then chat; try **Copy all** / **Insert all to note** when messages exist
 9. Open **Account settings** → **AI assistant** to toggle AI on or off for your account
