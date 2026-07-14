@@ -427,11 +427,23 @@
 </script>
 
 {#if open && user}
-  <button type="button" class="overlay" aria-label={t('closeMenu')} onclick={handleClose}></button>
+  <button
+    type="button"
+    class="overlay"
+    aria-label={t('closeWithEsc')}
+    title={t('closeWithEsc')}
+    onclick={handleClose}
+  ></button>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="account-modal-title">
     <div class="modal-header">
       <h2 id="account-modal-title">{t('accountSettings')}</h2>
-      <button type="button" class="close-btn" onclick={handleClose} aria-label={t('cancel')}>
+      <button
+        type="button"
+        class="close-btn"
+        onclick={handleClose}
+        title={t('closeWithEsc')}
+        aria-label={t('closeWithEsc')}
+      >
         <svg class="close-icon" viewBox="0 0 24 24" aria-hidden="true">
           <path
             d="M18 6L6 18M6 6l12 12"

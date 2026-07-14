@@ -78,7 +78,8 @@
     <button
       type="button"
       class="overlay"
-      aria-label={t('closeMenu')}
+      aria-label={t('closeWithEsc')}
+      title={t('closeWithEsc')}
       onclick={handleOverlayClick}
     ></button>
 

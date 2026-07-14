@@ -124,12 +124,24 @@
 </script>
 
 {#if open}
-  <button type="button" class="overlay" aria-label={t('closeMenu')} onclick={handleClose}></button>
+  <button
+    type="button"
+    class="overlay"
+    aria-label={t('closeWithEsc')}
+    title={t('closeWithEsc')}
+    onclick={handleClose}
+  ></button>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="key-manager-title">
     {#if mode === 'list'}
       <div class="modal-header">
         <h2 id="key-manager-title">{t('encryptionKeys')}</h2>
-        <button type="button" class="close-btn" onclick={handleClose} aria-label={t('cancel')}>
+        <button
+          type="button"
+          class="close-btn"
+          onclick={handleClose}
+          title={t('closeWithEsc')}
+          aria-label={t('closeWithEsc')}
+        >
           <svg class="close-icon" viewBox="0 0 24 24" aria-hidden="true">
             <path
               d="M18 6L6 18M6 6l12 12"
@@ -181,7 +193,13 @@
     {:else if mode === 'label'}
       <div class="modal-header">
         <h2>{t('createEncryptionKey')}</h2>
-        <button type="button" class="close-btn" onclick={resetCreateFlow} aria-label={t('cancel')}>
+        <button
+          type="button"
+          class="close-btn"
+          onclick={resetCreateFlow}
+          title={t('closeWithEsc')}
+          aria-label={t('closeWithEsc')}
+        >
           <svg class="close-icon" viewBox="0 0 24 24" aria-hidden="true">
             <path
               d="M18 6L6 18M6 6l12 12"

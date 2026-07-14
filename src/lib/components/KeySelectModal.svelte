@@ -218,7 +218,8 @@
     type="button"
     class="overlay"
     class:ready={overlayReady}
-    aria-label={t('closeMenu')}
+    aria-label={t('closeWithEsc')}
+    title={t('closeWithEsc')}
     onclick={handleOverlayClick}
   ></button>
   <div class="modal" role="dialog" aria-modal="true">
@@ -251,7 +252,13 @@
     {:else if keys.length === 0}
       <div class="modal-header">
         <h2>{title}</h2>
-        <button type="button" class="close-btn" onclick={handleClose} aria-label={t('cancel')}>
+        <button
+          type="button"
+          class="close-btn"
+          onclick={handleClose}
+          title={t('closeWithEsc')}
+          aria-label={t('closeWithEsc')}
+        >
           <svg class="close-icon" viewBox="0 0 24 24" aria-hidden="true">
             <path
               d="M18 6L6 18M6 6l12 12"
@@ -289,7 +296,13 @@
             <p>{subtitle}</p>
           {/if}
         </div>
-        <button type="button" class="close-btn" onclick={handleClose} aria-label={t('cancel')}>
+        <button
+          type="button"
+          class="close-btn"
+          onclick={handleClose}
+          title={t('closeWithEsc')}
+          aria-label={t('closeWithEsc')}
+        >
           <svg class="close-icon" viewBox="0 0 24 24" aria-hidden="true">
             <path
               d="M18 6L6 18M6 6l12 12"

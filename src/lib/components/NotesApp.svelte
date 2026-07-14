@@ -802,7 +802,8 @@
         type="button"
         class="overlay"
         onclick={() => (sidebarOpen = false)}
-        aria-label={t('closeMenu')}
+        aria-label={t('closeWithEsc')}
+        title={t('closeWithEsc')}
       ></button>
     {/if}
 

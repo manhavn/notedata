@@ -26,6 +26,7 @@
   import { aiFeatures } from '../ai-features'
   import { isUserAiChatEnabled } from '../user-settings.svelte'
   import { formatAppDate, t } from '../i18n.svelte'
+  import { getModShortcut, isApplePlatform } from '../keyboard'
   import { renderHtml, renderMarkdown } from '../markdown'
   import { portal } from '../portal'
   import { normalizeTags } from '../notes'
@@ -117,6 +118,14 @@
   )
   const canShowLockNote = $derived(
     Boolean(note && noteIsEncrypted && isUnlocked && (!readonly || passcodeScope === 'trash')),
+  )
+  const saveShortcut = getModShortcut('S')
+  const unlockShortcut = getModShortcut('O')
+  const saveButtonTitle = $derived(
+    saving ? t('saving') : t('saveWithShortcut', { shortcut: saveShortcut }),
+  )
+  const unlockButtonTitle = $derived(
+    t('unlockNoteWithShortcut', { shortcut: unlockShortcut }),
   )
 
   function savedContentViewMode(): ContentViewMode {
@@ -884,7 +893,8 @@
               class:unsaved={hasUnsavedChanges}
               onclick={openSaveModal}
               disabled={saving || showLockedState || !hasUnsavedChanges}
-              title={saving ? t('saving') : t('save')}
+              title={saveButtonTitle}
+              aria-keyshortcuts={isApplePlatform() ? 'Meta+S' : 'Control+S'}
             >
               {saving ? t('saving') : t('save')}
             </button>
@@ -905,6 +915,7 @@
         <div class="locked-icon">🔒</div>
         <h3>{t('encryptedNote')}</h3>
         <p>{t('lockedContentHint')}</p>
+        <p class="shortcut-hint">{t('unlockShortcutHint', { shortcut: unlockShortcut })}</p>
         {#if decryptError}
           <p class="error">{decryptError}</p>
         {/if}
@@ -912,7 +923,8 @@
           type="button"
           class="unlock-btn"
           onclick={openUnlockModal}
-          title={t('unlockNote')}
+          title={unlockButtonTitle}
+          aria-keyshortcuts={isApplePlatform() ? 'Meta+O' : 'Control+O'}
         >
           {t('unlockNote')}
         </button>
@@ -1407,6 +1419,14 @@
     margin: 0 0 1rem;
     max-width: 360px;
     line-height: 1.6;
+  }
+
+  .locked-panel .shortcut-hint {
+    margin-top: -0.35rem;
+    margin-bottom: 1.25rem;
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    opacity: 0.9;
   }
 
   .error {

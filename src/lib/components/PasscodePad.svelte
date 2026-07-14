@@ -188,7 +188,13 @@
           </button>
         {/if}
         {#if onCancel}
-          <button type="button" class="cancel-btn" onclick={onCancel} aria-label={t('cancel')}>
+          <button
+            type="button"
+            class="cancel-btn"
+            onclick={onCancel}
+            title={t('closeWithEsc')}
+            aria-label={t('closeWithEsc')}
+          >
             <svg class="cancel-icon" viewBox="0 0 24 24" aria-hidden="true">
               <path
                 d="M18 6L6 18M6 6l12 12"
