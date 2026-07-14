@@ -32,6 +32,7 @@
     pruneTrashNotePasscodes,
   } from '../note-passcodes.svelte'
   import { t } from '../i18n.svelte'
+  import { registerEscapeHandler } from '../modal-escape'
   import { toastError, toastSuccess } from '../toast.svelte'
   import LocaleThemeControls from './LocaleThemeControls.svelte'
   import NoteEditor from './NoteEditor.svelte'
@@ -216,6 +217,13 @@
       void runSearch(query)
     }, 1000)
   }
+
+  $effect(() => {
+    if (!sidebarOpen) return
+    return registerEscapeHandler(() => {
+      sidebarOpen = false
+    })
+  })
 
   onMount(() => {
     const desktopMq = window.matchMedia(`(min-width: ${DESKTOP_MIN_WIDTH}px)`)

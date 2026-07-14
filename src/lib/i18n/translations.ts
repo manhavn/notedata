@@ -182,6 +182,10 @@ export const translations = {
       'Create a passcode ({min}–{max} characters) for this note. It is not saved in your key list.',
     customPasscodeUnlockHint: 'Enter the passcode you used when saving this note.',
     passcodeAutoFocus: 'Auto-focus passcode input',
+    passcodeKeyboardMode: 'Keyboard mode (any characters)',
+    passcodeKeyboardHint:
+      'Passcode accepts letters (A–Z, a–z), numbers, special characters, icons/emoji, and more. Example: you can use icons like 😀 🔒 ✨ 🐱 🚀 as a passcode',
+    passcodeNumericHint: 'Number mode: digits only (0–9).',
     collapseHeader: 'Collapse header',
     expandHeader: 'Expand header',
     collapseSidebar: 'Collapse note list',
@@ -638,6 +642,10 @@ export const translations = {
       'Tạo mã khóa ({min}–{max} ký tự) cho ghi chú này. Mã không được lưu trong danh sách khóa.',
     customPasscodeUnlockHint: 'Nhập mã khóa bạn đã dùng khi lưu ghi chú này.',
     passcodeAutoFocus: 'Tự động focus ô nhập mã',
+    passcodeKeyboardMode: 'Chế độ bàn phím (mọi ký tự)',
+    passcodeKeyboardHint:
+      'Mã chấp nhận chữ (A–Z, a–z), số, ký tự đặc biệt, ký tự icon/emoji,... Ví dụ: bạn có thể để một số icon như 😀 🔒 ✨ 🐱 🚀 làm passcode',
+    passcodeNumericHint: 'Chế độ số: chỉ nhận chữ số (0–9).',
     collapseHeader: 'Thu gọn thanh tiêu đề',
     expandHeader: 'Mở rộng thanh tiêu đề',
     collapseSidebar: 'Thu gọn danh sách ghi chú',

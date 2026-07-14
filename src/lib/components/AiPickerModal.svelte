@@ -2,6 +2,7 @@
   import type { Snippet } from 'svelte'
   import { untrack } from 'svelte'
   import { t } from '../i18n.svelte'
+  import { registerEscapeHandler } from '../modal-escape'
   import { PAGE_SIZE } from '../pagination'
   import { portal } from '../portal'
 
@@ -98,6 +99,11 @@
     }, 120)
 
     return () => window.clearTimeout(timeout)
+  })
+
+  $effect(() => {
+    if (!open) return
+    return registerEscapeHandler(handleClose)
   })
 
   $effect(() => {

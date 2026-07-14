@@ -2,6 +2,7 @@
   import { untrack } from 'svelte'
   import { getEncryptionKeys, maskKeyCode, verifyEncryptionKeyCode } from '../encryption-keys'
   import { t } from '../i18n.svelte'
+  import { registerEscapeHandler } from '../modal-escape'
   import { passcodeLengthParams } from '../passcode'
   import { PAGE_SIZE } from '../pagination'
   import { portal } from '../portal'
@@ -204,6 +205,11 @@
     handleClose()
     onManageKeys()
   }
+
+  $effect(() => {
+    if (!open) return
+    return registerEscapeHandler(handleClose)
+  })
 </script>
 
 {#if open}

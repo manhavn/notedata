@@ -7,6 +7,10 @@
     passcodeLengthParams,
   } from '../passcode'
   import { passcodeFocusState, togglePasscodeAutoFocus } from '../passcode-focus.svelte'
+  import {
+    passcodeKeyboardState,
+    togglePasscodeKeyboardMode,
+  } from '../passcode-keyboard.svelte'
 
   interface Props {
     title: string
@@ -26,7 +30,10 @@
     onCancel,
   }: Props = $props()
 
-  const autoFocus = $derived(showAutoFocusToggle && passcodeFocusState.enabled)
+  const keyboardMode = $derived(passcodeKeyboardState.enabled)
+  const autoFocus = $derived(
+    showAutoFocusToggle && (passcodeFocusState.enabled || keyboardMode),
+  )
 
   let code = $state('')
   let lengthError = $state<string | null>(null)
@@ -35,6 +42,11 @@
   const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'del', '0', 'enter'] as const
   const canSubmit = $derived(code.length >= MIN_PASSCODE_LENGTH)
   const displayError = $derived(error || lengthError)
+
+  function sanitizeCode(value: string): string {
+    const next = keyboardMode ? value : value.replace(/\D/g, '')
+    return next.length > MAX_PASSCODE_LENGTH ? next.slice(0, MAX_PASSCODE_LENGTH) : next
+  }
 
   function addDigit(digit: string) {
     if (code.length >= MAX_PASSCODE_LENGTH) return
@@ -72,9 +84,7 @@
   }
 
   function handleInput() {
-    if (code.length > MAX_PASSCODE_LENGTH) {
-      code = code.slice(0, MAX_PASSCODE_LENGTH)
-    }
+    code = sanitizeCode(code)
     lengthError = null
   }
 
@@ -86,13 +96,19 @@
   }
 
   async function focusInput() {
-    if (!autoFocus) return
+    if (!autoFocus && !keyboardMode) return
     await tick()
     codeInput?.focus()
   }
 
+  function handleToggleKeyboardMode() {
+    togglePasscodeKeyboardMode()
+    code = sanitizeCode(code)
+    void focusInput()
+  }
+
   $effect(() => {
-    if (autoFocus) {
+    if (autoFocus || keyboardMode) {
       void focusInput()
     }
   })
@@ -140,6 +156,36 @@
               />
             </svg>
           </button>
+          <button
+            type="button"
+            class="focus-toggle-btn"
+            class:active={passcodeKeyboardState.enabled}
+            onclick={handleToggleKeyboardMode}
+            aria-label={t('passcodeKeyboardMode')}
+            aria-pressed={passcodeKeyboardState.enabled}
+            title={t('passcodeKeyboardMode')}
+          >
+            <svg class="toggle-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <rect
+                x="2"
+                y="6"
+                width="20"
+                height="12"
+                rx="2"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              />
+              <path
+                d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </button>
         {/if}
         {#if onCancel}
           <button type="button" class="cancel-btn" onclick={onCancel} aria-label={t('cancel')}>
@@ -159,15 +205,21 @@
     {#if subtitle}
       <p>{subtitle}</p>
     {/if}
+    <p class="mode-hint">
+      {keyboardMode ? t('passcodeKeyboardHint') : t('passcodeNumericHint')}
+    </p>
   </div>
 
   <div class="code-field">
     <input
       type="password"
       class="code-input"
+      class:keyboard-mode={keyboardMode}
       bind:this={codeInput}
       bind:value={code}
       maxlength={MAX_PASSCODE_LENGTH}
+      inputmode={keyboardMode ? 'text' : 'numeric'}
+      pattern={keyboardMode ? undefined : '[0-9]*'}
       autocomplete="off"
       autocapitalize="off"
       spellcheck="false"
@@ -188,30 +240,42 @@
     <p class="error" role="alert">{displayError}</p>
   {/if}
 
-  <div class="pad">
-    {#each keys as key}
-      {#if key === 'del'}
-        <button type="button" class="pad-key action" onclick={() => handleKeyPress(key)} aria-label="Delete">
-          ⌫
-        </button>
-      {:else if key === 'enter'}
-        <button
-          type="button"
-          class="pad-key action enter"
-          class:ready={canSubmit}
-          disabled={!canSubmit}
-          onclick={() => handleKeyPress(key)}
-          aria-label={t('submitPasscode')}
-        >
-          ↵
-        </button>
-      {:else}
-        <button type="button" class="pad-key" onclick={() => handleKeyPress(key)}>
-          {key}
-        </button>
-      {/if}
-    {/each}
-  </div>
+  {#if keyboardMode}
+    <button
+      type="button"
+      class="keyboard-submit"
+      class:ready={canSubmit}
+      disabled={!canSubmit}
+      onclick={submit}
+    >
+      {t('submitPasscode')}
+    </button>
+  {:else}
+    <div class="pad">
+      {#each keys as key}
+        {#if key === 'del'}
+          <button type="button" class="pad-key action" onclick={() => handleKeyPress(key)} aria-label="Delete">
+            ⌫
+          </button>
+        {:else if key === 'enter'}
+          <button
+            type="button"
+            class="pad-key action enter"
+            class:ready={canSubmit}
+            disabled={!canSubmit}
+            onclick={() => handleKeyPress(key)}
+            aria-label={t('submitPasscode')}
+          >
+            ↵
+          </button>
+        {:else}
+          <button type="button" class="pad-key" onclick={() => handleKeyPress(key)}>
+            {key}
+          </button>
+        {/if}
+      {/each}
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -326,6 +390,13 @@
     line-height: 1.5;
   }
 
+  .mode-hint {
+    margin: 0.45rem 0 0;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    line-height: 1.45;
+  }
+
   .code-field {
     margin-bottom: 0.75rem;
   }
@@ -341,6 +412,10 @@
     font-size: 1.1rem;
     letter-spacing: 0.12em;
     text-align: center;
+  }
+
+  .code-input.keyboard-mode {
+    letter-spacing: 0.06em;
   }
 
   .code-input:focus {
@@ -359,6 +434,46 @@
     margin: 0 0 1rem;
     font-size: 0.85rem;
     color: var(--danger);
+  }
+
+  .keyboard-submit {
+    width: 100%;
+    margin-top: 0.25rem;
+    padding: 0.9rem 1rem;
+    border: none;
+    border-radius: 12px;
+    background: rgba(120, 113, 108, 0.12);
+    color: var(--text-muted);
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, opacity 0.15s, transform 0.1s;
+  }
+
+  :global([data-theme='dark']) .keyboard-submit {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .keyboard-submit.ready {
+    color: var(--accent);
+    background: rgba(245, 158, 11, 0.12);
+  }
+
+  .keyboard-submit.ready:hover:not(:disabled) {
+    background: rgba(245, 158, 11, 0.2);
+  }
+
+  :global([data-theme='dark']) .keyboard-submit.ready {
+    background: rgba(245, 158, 11, 0.16);
+  }
+
+  .keyboard-submit:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+
+  .keyboard-submit:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
   }
 
   .pad {

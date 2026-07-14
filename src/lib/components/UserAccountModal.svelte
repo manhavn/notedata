@@ -36,6 +36,7 @@
     saveUserPersistNoteDraftLocal,
     userSettingsState,
   } from '../user-settings.svelte'
+  import { registerEscapeHandler } from '../modal-escape'
   import { toastError, toastSuccess, toastWarning } from '../toast.svelte'
   import PasswordInput from './PasswordInput.svelte'
 
@@ -145,6 +146,12 @@
   function handleClose() {
     onClose()
   }
+
+  $effect(() => {
+    if (!open) return
+    // Nested AI picker/form registers on top of this handler and closes first.
+    return registerEscapeHandler(handleClose)
+  })
 
   async function handleLogout() {
     handleClose()

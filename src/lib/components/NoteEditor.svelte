@@ -368,6 +368,20 @@
     keyModalOpen = true
   }
 
+  function canTriggerSave() {
+    return Boolean(note && !readonly && !saving && !showLockedState && hasUnsavedChanges)
+  }
+
+  function handleSaveShortcut(event: KeyboardEvent) {
+    if (!(event.ctrlKey || event.metaKey) || event.altKey) return
+    if (event.key !== 's' && event.key !== 'S') return
+
+    // Replace the browser "Save page" action with the note Save button.
+    event.preventDefault()
+    if (!canTriggerSave()) return
+    openSaveModal()
+  }
+
   async function attemptAutoUnlock(noteId: string, encryptedContent: string) {
     const stored = getNotePasscode(noteId, passcodeScope)
     if (!stored) return
@@ -581,6 +595,8 @@
     contentViewMode = 'edit'
   }
 </script>
+
+<svelte:window onkeydown={handleSaveShortcut} />
 
 <section class="editor">
   {#if note}

@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte'
   import { t } from '../i18n.svelte'
+  import { registerEscapeHandler } from '../modal-escape'
   import { portal } from '../portal'
 
   interface Props {
@@ -41,6 +42,11 @@
     }, 120)
 
     return () => window.clearTimeout(timeout)
+  })
+
+  $effect(() => {
+    if (!open) return
+    return registerEscapeHandler(handleClose)
   })
 </script>
 

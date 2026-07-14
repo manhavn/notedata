@@ -8,6 +8,7 @@
   } from '../encryption-keys'
   import { confirm } from '../dialog.svelte'
   import { t } from '../i18n.svelte'
+  import { registerEscapeHandler } from '../modal-escape'
   import { passcodeLengthParams } from '../passcode'
   import { toastError, toastSuccess } from '../toast.svelte'
   import { PAGE_SIZE } from '../pagination'
@@ -115,6 +116,11 @@
     resetCreateFlow()
     onClose()
   }
+
+  $effect(() => {
+    if (!open) return
+    return registerEscapeHandler(handleClose)
+  })
 </script>
 
 {#if open}

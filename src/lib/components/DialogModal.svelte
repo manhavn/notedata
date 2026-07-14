@@ -1,6 +1,7 @@
 <script lang="ts">
   import { dialogState, resolveDialog } from '../dialog.svelte'
   import { t } from '../i18n.svelte'
+  import { registerEscapeHandler } from '../modal-escape'
   import { portal } from '../portal'
 
   const title = $derived(
@@ -47,24 +48,27 @@
     }
   }
 
+  function handleEscape() {
+    if (dialogState.mode === 'confirm') {
+      handleCancel()
+    } else {
+      handleConfirm()
+    }
+  }
+
   function handleKeydown(event: KeyboardEvent) {
     if (!dialogState.open) return
-
-    if (event.key === 'Escape') {
-      event.preventDefault()
-      if (dialogState.mode === 'confirm') {
-        handleCancel()
-      } else {
-        handleConfirm()
-      }
-      return
-    }
 
     if (event.key === 'Enter') {
       event.preventDefault()
       handleConfirm()
     }
   }
+
+  $effect(() => {
+    if (!dialogState.open) return
+    return registerEscapeHandler(handleEscape)
+  })
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
