@@ -612,14 +612,14 @@
     view = 'trash'
     clearSelection()
     clearSearch()
-    selectedId = trashedNotes[0]?.id ?? null
+    selectedId = null
     sidebarOpen = false
   }
 
   function backToNotes() {
     view = 'notes'
     clearSelection()
-    selectedId = notes[0]?.id ?? null
+    selectedId = null
     sidebarOpen = false
   }
 
