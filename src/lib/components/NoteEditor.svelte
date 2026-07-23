@@ -122,14 +122,34 @@
   const canShowLockNote = $derived(
     Boolean(note && noteIsEncrypted && isUnlocked && (!readonly || passcodeScope === 'trash')),
   )
+  const CONTENT_VIEW_MODES: ContentViewMode[] = ['edit', 'txt', 'md', 'html']
+
   const saveShortcut = getModShortcut('S')
   const unlockShortcut = getModShortcut('O')
+  const viewModeShortcut = getModShortcut('M')
   const saveButtonTitle = $derived(
     saving ? t('saving') : t('saveWithShortcut', { shortcut: saveShortcut }),
   )
   const unlockButtonTitle = $derived(
     t('unlockNoteWithShortcut', { shortcut: unlockShortcut }),
   )
+  const lockButtonTitle = $derived(
+    t('lockNoteWithShortcut', { shortcut: unlockShortcut }),
+  )
+  const editModeTitle = $derived(
+    t('editTextModeWithShortcut', { shortcut: viewModeShortcut }),
+  )
+  const viewTextTitle = $derived(
+    t('viewTextWithShortcut', { shortcut: viewModeShortcut }),
+  )
+  const viewMarkdownTitle = $derived(
+    t('viewMarkdownWithShortcut', { shortcut: viewModeShortcut }),
+  )
+  const viewHtmlTitle = $derived(
+    t('viewHtmlWithShortcut', { shortcut: viewModeShortcut }),
+  )
+  const viewModeKeyshortcuts = isApplePlatform() ? 'Meta+M' : 'Control+M'
+  const lockUnlockKeyshortcuts = isApplePlatform() ? 'Meta+O' : 'Control+O'
 
   function savedContentViewMode(): ContentViewMode {
     return note?.contentViewMode ?? 'edit'
@@ -139,6 +159,14 @@
     contentViewMode = mode
     if (!note || readonly || showLockedState) return
     void onSaveContentViewMode?.(note.id, mode)
+  }
+
+  function cycleContentViewMode() {
+    if (!note || showLockedState || contentLoading) return
+    const currentIndex = CONTENT_VIEW_MODES.indexOf(contentViewMode)
+    const nextMode =
+      CONTENT_VIEW_MODES[(currentIndex + 1) % CONTENT_VIEW_MODES.length] ?? 'edit'
+    switchContentViewMode(nextMode)
   }
   let renderedMarkdown = $state('')
   let renderedHtml = $state('')
@@ -414,8 +442,20 @@
     if (key === 'o') {
       // Always suppress browser default for Ctrl/Cmd+O (e.g. Open file), even when unused.
       event.preventDefault()
-      if (!showLockedState) return
-      openUnlockModal()
+      if (showLockedState) {
+        openUnlockModal()
+        return
+      }
+      if (canShowLockNote) {
+        lockNote()
+      }
+      return
+    }
+
+    if (key === 'm') {
+      // Cycle content view modes: edit → text → markdown → html.
+      event.preventDefault()
+      cycleContentViewMode()
     }
   }
 
@@ -780,8 +820,9 @@
                   type="button"
                   class="lock-note-btn"
                   onclick={lockNote}
-                  title={t('lockNote')}
-                  aria-label={t('lockNote')}
+                  title={lockButtonTitle}
+                  aria-label={lockButtonTitle}
+                  aria-keyshortcuts={lockUnlockKeyshortcuts}
                 >
                   <svg class="lock-note-icon" viewBox="0 0 24 24" aria-hidden="true">
                     <path
@@ -806,8 +847,9 @@
                 class:active={contentViewMode === 'edit'}
                 onclick={() => switchContentViewMode('edit')}
                 disabled={showLockedState}
-                aria-label={t('editTextMode')}
-                title={t('editTextMode')}
+                aria-label={editModeTitle}
+                title={editModeTitle}
+                aria-keyshortcuts={viewModeKeyshortcuts}
               >
                 E
               </button>
@@ -816,8 +858,9 @@
                 class:active={contentViewMode === 'txt'}
                 onclick={() => switchContentViewMode('txt')}
                 disabled={showLockedState}
-                aria-label={t('viewText')}
-                title={t('viewText')}
+                aria-label={viewTextTitle}
+                title={viewTextTitle}
+                aria-keyshortcuts={viewModeKeyshortcuts}
               >
                 TXT
               </button>
@@ -826,8 +869,9 @@
                 class:active={contentViewMode === 'md'}
                 onclick={() => switchContentViewMode('md')}
                 disabled={showLockedState}
-                aria-label={t('viewMarkdown')}
-                title={t('viewMarkdown')}
+                aria-label={viewMarkdownTitle}
+                title={viewMarkdownTitle}
+                aria-keyshortcuts={viewModeKeyshortcuts}
               >
                 MD
               </button>
@@ -836,8 +880,9 @@
                 class:active={contentViewMode === 'html'}
                 onclick={() => switchContentViewMode('html')}
                 disabled={showLockedState}
-                aria-label={t('viewHtml')}
-                title={t('viewHtml')}
+                aria-label={viewHtmlTitle}
+                title={viewHtmlTitle}
+                aria-keyshortcuts={viewModeKeyshortcuts}
               >
                 HTML
               </button>
@@ -859,8 +904,9 @@
                 class:active={contentViewMode === 'edit'}
                 onclick={() => switchContentViewMode('edit')}
                 disabled={showLockedState}
-                aria-label={t('editTextMode')}
-                title={t('editTextMode')}
+                aria-label={editModeTitle}
+                title={editModeTitle}
+                aria-keyshortcuts={viewModeKeyshortcuts}
               >
                 E
               </button>
@@ -869,8 +915,9 @@
                 class:active={contentViewMode === 'txt'}
                 onclick={() => switchContentViewMode('txt')}
                 disabled={showLockedState}
-                aria-label={t('viewText')}
-                title={t('viewText')}
+                aria-label={viewTextTitle}
+                title={viewTextTitle}
+                aria-keyshortcuts={viewModeKeyshortcuts}
               >
                 TXT
               </button>
@@ -879,8 +926,9 @@
                 class:active={contentViewMode === 'md'}
                 onclick={() => switchContentViewMode('md')}
                 disabled={showLockedState}
-                aria-label={t('viewMarkdown')}
-                title={t('viewMarkdown')}
+                aria-label={viewMarkdownTitle}
+                title={viewMarkdownTitle}
+                aria-keyshortcuts={viewModeKeyshortcuts}
               >
                 MD
               </button>
@@ -889,8 +937,9 @@
                 class:active={contentViewMode === 'html'}
                 onclick={() => switchContentViewMode('html')}
                 disabled={showLockedState}
-                aria-label={t('viewHtml')}
-                title={t('viewHtml')}
+                aria-label={viewHtmlTitle}
+                title={viewHtmlTitle}
+                aria-keyshortcuts={viewModeKeyshortcuts}
               >
                 HTML
               </button>
@@ -941,7 +990,7 @@
           class="unlock-btn"
           onclick={openUnlockModal}
           title={unlockButtonTitle}
-          aria-keyshortcuts={isApplePlatform() ? 'Meta+O' : 'Control+O'}
+          aria-keyshortcuts={lockUnlockKeyshortcuts}
         >
           {t('unlockNote')}
         </button>
