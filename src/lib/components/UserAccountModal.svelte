@@ -34,6 +34,7 @@
     saveUserDisableAiChat,
     saveUserPersistAiChatLocal,
     saveUserPersistNoteDraftLocal,
+    saveUserReuseUnlockedPasscodeOnSave,
     userSettingsState,
   } from '../user-settings.svelte'
   import { registerEscapeHandler } from '../modal-escape'
@@ -62,6 +63,7 @@
   let savingAiChatHistoryLocal = $state(false)
   let savingNoteDraftLocal = $state(false)
   let savingAutoUnlockAfterSave = $state(false)
+  let savingReuseUnlockedPasscodeOnSave = $state(false)
   let clearingAiChatDrafts = $state(false)
   let clearingNoteDrafts = $state(false)
   let aiChatDraftCount = $state(0)
@@ -345,6 +347,26 @@
       toastError(t('toastOperationFailed'))
     } finally {
       savingAutoUnlockAfterSave = false
+    }
+  }
+
+  async function handleToggleReuseUnlockedPasscodeOnSave() {
+    if (!userSettingsState.autoUnlockAfterSave) return
+
+    savingReuseUnlockedPasscodeOnSave = true
+    const nextEnabled = !userSettingsState.reuseUnlockedPasscodeOnSave
+
+    try {
+      await saveUserReuseUnlockedPasscodeOnSave(nextEnabled)
+      toastSuccess(
+        nextEnabled
+          ? t('accountReuseUnlockedPasscodeOnSaveEnabledSaved')
+          : t('accountReuseUnlockedPasscodeOnSaveDisabledSaved'),
+      )
+    } catch {
+      toastError(t('toastOperationFailed'))
+    } finally {
+      savingReuseUnlockedPasscodeOnSave = false
     }
   }
 
@@ -761,6 +783,43 @@
             : t('accountAutoUnlockAfterSaveEnable')}
           onclick={handleToggleAutoUnlockAfterSave}
           disabled={savingAutoUnlockAfterSave || !userSettingsState.loaded}
+        >
+          <span class="ai-toggle-thumb" aria-hidden="true"></span>
+        </button>
+      </label>
+      <label
+        class="ai-toggle-row"
+        class:ai-toggle-row-disabled={!userSettingsState.autoUnlockAfterSave}
+      >
+        <span class="ai-toggle-copy">
+          <strong>
+            {userSettingsState.reuseUnlockedPasscodeOnSave
+              ? t('accountReuseUnlockedPasscodeOnSaveOn')
+              : t('accountReuseUnlockedPasscodeOnSaveOff')}
+          </strong>
+          <span>
+            {!userSettingsState.autoUnlockAfterSave
+              ? t('accountReuseUnlockedPasscodeOnSaveRequiresAutoUnlock')
+              : userSettingsState.reuseUnlockedPasscodeOnSave
+                ? t('accountReuseUnlockedPasscodeOnSaveOnHint')
+                : t('accountReuseUnlockedPasscodeOnSaveOffHint')}
+          </span>
+        </span>
+        <button
+          type="button"
+          class="ai-toggle-btn"
+          class:on={userSettingsState.reuseUnlockedPasscodeOnSave}
+          role="switch"
+          aria-checked={userSettingsState.reuseUnlockedPasscodeOnSave}
+          aria-label={userSettingsState.reuseUnlockedPasscodeOnSave
+            ? t('accountReuseUnlockedPasscodeOnSaveDisable')
+            : t('accountReuseUnlockedPasscodeOnSaveEnable')}
+          onclick={handleToggleReuseUnlockedPasscodeOnSave}
+          disabled={
+            savingReuseUnlockedPasscodeOnSave ||
+            !userSettingsState.loaded ||
+            !userSettingsState.autoUnlockAfterSave
+          }
         >
           <span class="ai-toggle-thumb" aria-hidden="true"></span>
         </button>
@@ -1264,6 +1323,14 @@
   .ai-toggle-btn:disabled {
     opacity: 0.65;
     cursor: not-allowed;
+  }
+
+  .ai-toggle-row-disabled {
+    opacity: 0.72;
+  }
+
+  .ai-toggle-row-disabled .ai-toggle-copy {
+    opacity: 0.9;
   }
 
   .ai-toggle-thumb {

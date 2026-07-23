@@ -22,9 +22,12 @@
     noteDraftPurgeTick,
     setDraftContent,
   } from '../draft-content'
-  import { userSettingsState } from '../user-settings.svelte'
+  import {
+    isReuseUnlockedPasscodeOnSaveEnabled,
+    isUserAiChatEnabled,
+    userSettingsState,
+  } from '../user-settings.svelte'
   import { aiFeatures } from '../ai-features'
-  import { isUserAiChatEnabled } from '../user-settings.svelte'
   import { formatAppDate, t } from '../i18n.svelte'
   import { getModShortcut, isApplePlatform } from '../keyboard'
   import { renderHtml, renderMarkdown } from '../markdown'
@@ -371,6 +374,20 @@
       void persistNote({ encrypted: false })
       return
     }
+
+    // Reuse the already-unlocked passcode when both settings allow it.
+    if (
+      note &&
+      isUnlocked &&
+      isReuseUnlockedPasscodeOnSaveEnabled()
+    ) {
+      const stored = getNotePasscode(note.id, passcodeScope)
+      if (stored) {
+        void handleSaveSuccess({ code: stored.code, keyId: stored.keyId })
+        return
+      }
+    }
+
     if (keyModalOpen) return
     keyModalMode = 'save'
     decryptError = null

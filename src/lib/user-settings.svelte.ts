@@ -5,6 +5,7 @@ import {
   setUserDisableAiChat,
   setUserPersistAiChatLocal,
   setUserPersistNoteDraftLocal,
+  setUserReuseUnlockedPasscodeOnSave,
   subscribeToUserSettings,
 } from './user-settings'
 
@@ -13,6 +14,7 @@ export const userSettingsState = $state({
   persistAiChatLocal: false,
   persistNoteDraftLocal: false,
   autoUnlockAfterSave: false,
+  reuseUnlockedPasscodeOnSave: false,
   loaded: false,
 })
 
@@ -29,6 +31,7 @@ function bindUserSettings(userId: string | null) {
     userSettingsState.persistAiChatLocal = false
     userSettingsState.persistNoteDraftLocal = false
     userSettingsState.autoUnlockAfterSave = false
+    userSettingsState.reuseUnlockedPasscodeOnSave = false
     userSettingsState.loaded = false
     return
   }
@@ -38,6 +41,7 @@ function bindUserSettings(userId: string | null) {
     userSettingsState.persistAiChatLocal = settings.persistAiChatLocal
     userSettingsState.persistNoteDraftLocal = settings.persistNoteDraftLocal
     userSettingsState.autoUnlockAfterSave = settings.autoUnlockAfterSave
+    userSettingsState.reuseUnlockedPasscodeOnSave = settings.reuseUnlockedPasscodeOnSave
     userSettingsState.loaded = true
   })
 }
@@ -60,6 +64,13 @@ export function isPersistNoteDraftLocalEnabled(): boolean {
 
 export function isAutoUnlockAfterSaveEnabled(): boolean {
   return userSettingsState.autoUnlockAfterSave
+}
+
+/** Effective only when auto-unlock-after-save is also enabled. */
+export function isReuseUnlockedPasscodeOnSaveEnabled(): boolean {
+  return (
+    userSettingsState.autoUnlockAfterSave && userSettingsState.reuseUnlockedPasscodeOnSave
+  )
 }
 
 export async function saveUserDisableAiChat(disabled: boolean) {
@@ -88,4 +99,11 @@ export async function saveUserAutoUnlockAfterSave(enabled: boolean) {
   if (!userId) throw new Error('Not signed in')
 
   await setUserAutoUnlockAfterSave(userId, enabled)
+}
+
+export async function saveUserReuseUnlockedPasscodeOnSave(enabled: boolean) {
+  const userId = auth.currentUser?.uid
+  if (!userId) throw new Error('Not signed in')
+
+  await setUserReuseUnlockedPasscodeOnSave(userId, enabled)
 }

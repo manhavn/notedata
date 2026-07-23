@@ -386,6 +386,20 @@ export const translations = {
     accountAutoUnlockAfterSaveDisable: 'Disable auto unlock note after save',
     accountAutoUnlockAfterSaveEnabledSaved: 'Auto unlock note after save has been enabled.',
     accountAutoUnlockAfterSaveDisabledSaved: 'Auto unlock note after save has been disabled.',
+    accountReuseUnlockedPasscodeOnSaveOn: 'Reuse unlocked passcode on save is enabled',
+    accountReuseUnlockedPasscodeOnSaveOff: 'Reuse unlocked passcode on save is disabled',
+    accountReuseUnlockedPasscodeOnSaveOnHint:
+      'Unlocked notes save with the current passcode without asking again.',
+    accountReuseUnlockedPasscodeOnSaveOffHint:
+      'Saving always asks for a passcode to encrypt the note.',
+    accountReuseUnlockedPasscodeOnSaveRequiresAutoUnlock:
+      'Requires auto unlock note after save. Enable that option first.',
+    accountReuseUnlockedPasscodeOnSaveEnable: 'Enable reuse unlocked passcode on save',
+    accountReuseUnlockedPasscodeOnSaveDisable: 'Disable reuse unlocked passcode on save',
+    accountReuseUnlockedPasscodeOnSaveEnabledSaved:
+      'Reuse unlocked passcode on save has been enabled.',
+    accountReuseUnlockedPasscodeOnSaveDisabledSaved:
+      'Reuse unlocked passcode on save has been disabled.',
     accountSettingsBackupSection: 'Settings backup',
     accountSettingsBackupHint:
       'Export or import all account settings stored in the database, including AI configuration and preferences.',
@@ -850,6 +864,20 @@ export const translations = {
     accountAutoUnlockAfterSaveDisable: 'Tắt tự động mở khóa sau khi lưu',
     accountAutoUnlockAfterSaveEnabledSaved: 'Đã bật tự động mở khóa ghi chú sau khi lưu.',
     accountAutoUnlockAfterSaveDisabledSaved: 'Đã tắt tự động mở khóa ghi chú sau khi lưu.',
+    accountReuseUnlockedPasscodeOnSaveOn: 'Dùng lại passcode đã mở khóa khi lưu đang bật',
+    accountReuseUnlockedPasscodeOnSaveOff: 'Dùng lại passcode đã mở khóa khi lưu đang tắt',
+    accountReuseUnlockedPasscodeOnSaveOnHint:
+      'Ghi chú đang mở khóa sẽ lưu bằng passcode hiện tại mà không hỏi lại.',
+    accountReuseUnlockedPasscodeOnSaveOffHint:
+      'Khi lưu vẫn luôn hỏi passcode để mã hóa ghi chú.',
+    accountReuseUnlockedPasscodeOnSaveRequiresAutoUnlock:
+      'Cần bật tự động mở khóa sau khi lưu trước. Bật tùy chọn đó trước.',
+    accountReuseUnlockedPasscodeOnSaveEnable: 'Bật dùng lại passcode đã mở khóa khi lưu',
+    accountReuseUnlockedPasscodeOnSaveDisable: 'Tắt dùng lại passcode đã mở khóa khi lưu',
+    accountReuseUnlockedPasscodeOnSaveEnabledSaved:
+      'Đã bật dùng lại passcode đã mở khóa khi lưu.',
+    accountReuseUnlockedPasscodeOnSaveDisabledSaved:
+      'Đã tắt dùng lại passcode đã mở khóa khi lưu.',
     accountSettingsBackupSection: 'Sao lưu cài đặt',
     accountSettingsBackupHint:
       'Export hoặc import toàn bộ cài đặt tài khoản trong database, bao gồm cấu hình AI và tùy chọn.',

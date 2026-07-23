@@ -5,12 +5,14 @@ export const USER_SETTING_DISABLE_AI_CHAT = 'disableAiChat'
 export const USER_SETTING_PERSIST_AI_CHAT_LOCAL = 'persistAiChatLocal'
 export const USER_SETTING_PERSIST_NOTE_DRAFT_LOCAL = 'persistNoteDraftLocal'
 export const USER_SETTING_AUTO_UNLOCK_AFTER_SAVE = 'autoUnlockAfterSave'
+export const USER_SETTING_REUSE_UNLOCKED_PASSCODE_ON_SAVE = 'reuseUnlockedPasscodeOnSave'
 
 export type UserSettings = {
   disableAiChat: boolean
   persistAiChatLocal: boolean
   persistNoteDraftLocal: boolean
   autoUnlockAfterSave: boolean
+  reuseUnlockedPasscodeOnSave: boolean
 }
 
 const DEFAULT_USER_SETTINGS: UserSettings = {
@@ -18,6 +20,7 @@ const DEFAULT_USER_SETTINGS: UserSettings = {
   persistAiChatLocal: false,
   persistNoteDraftLocal: false,
   autoUnlockAfterSave: false,
+  reuseUnlockedPasscodeOnSave: false,
 }
 
 function settingsPath(userId: string) {
@@ -32,6 +35,7 @@ function parseUserSettings(data: Record<string, unknown> | null | undefined): Us
     persistAiChatLocal: data[USER_SETTING_PERSIST_AI_CHAT_LOCAL] === true,
     persistNoteDraftLocal: data[USER_SETTING_PERSIST_NOTE_DRAFT_LOCAL] === true,
     autoUnlockAfterSave: data[USER_SETTING_AUTO_UNLOCK_AFTER_SAVE] === true,
+    reuseUnlockedPasscodeOnSave: data[USER_SETTING_REUSE_UNLOCKED_PASSCODE_ON_SAVE] === true,
   }
 }
 
@@ -90,5 +94,14 @@ export async function setUserPersistNoteDraftLocal(userId: string, enabled: bool
 export async function setUserAutoUnlockAfterSave(userId: string, enabled: boolean): Promise<void> {
   await update(ref(db, settingsPath(userId)), {
     [USER_SETTING_AUTO_UNLOCK_AFTER_SAVE]: enabled,
+  })
+}
+
+export async function setUserReuseUnlockedPasscodeOnSave(
+  userId: string,
+  enabled: boolean,
+): Promise<void> {
+  await update(ref(db, settingsPath(userId)), {
+    [USER_SETTING_REUSE_UNLOCKED_PASSCODE_ON_SAVE]: enabled,
   })
 }
