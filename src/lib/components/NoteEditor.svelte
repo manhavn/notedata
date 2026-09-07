@@ -30,6 +30,7 @@
   import { aiFeatures } from '../ai-features'
   import { formatAppDate, t } from '../i18n.svelte'
   import { getModShortcut, isApplePlatform } from '../keyboard'
+  import { toastInfo } from '../toast.svelte'
   import { renderHtml, renderMarkdown } from '../markdown'
   import { portal } from '../portal'
   import { normalizeTags } from '../notes'
@@ -121,6 +122,15 @@
   )
   const canShowLockNote = $derived(
     Boolean(note && noteIsEncrypted && isUnlocked && (!readonly || passcodeScope === 'trash')),
+  )
+  const canClearSavedPasscode = $derived(
+    Boolean(
+      note &&
+        !readonly &&
+        canShowLockNote &&
+        isReuseUnlockedPasscodeOnSaveEnabled() &&
+        hasNotePasscode(note.id, passcodeScope),
+    ),
   )
   const CONTENT_VIEW_MODES: ContentViewMode[] = ['edit', 'txt', 'md', 'html']
 
@@ -515,6 +525,13 @@
     lockNoteView()
   }
 
+  function clearSavedPasscode() {
+    if (!note || !canClearSavedPasscode) return
+
+    clearNotePasscode(note.id, passcodeScope)
+    toastInfo(t('savedPasscodeClearedForNextSave'))
+  }
+
   $effect(() => {
     const lockAllTick =
       passcodeScope === 'trash'
@@ -816,6 +833,34 @@
                 </button>
               {/if}
               {#if canShowLockNote}
+                {#if canClearSavedPasscode}
+                  <button
+                    type="button"
+                    class="change-passcode-btn"
+                    onclick={clearSavedPasscode}
+                    title={t('clearSavedPasscodeTooltip')}
+                    aria-label={t('clearSavedPasscode')}
+                  >
+                    <svg class="change-passcode-icon" viewBox="0 0 24 24" aria-hidden="true">
+                      <path
+                        d="M23 4v6h-6"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                      <path
+                        d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
+                  </button>
+                {/if}
                 <button
                   type="button"
                   class="lock-note-btn"
@@ -1283,7 +1328,8 @@
   }
 
   .delete-note-link,
-  .lock-note-btn {
+  .lock-note-btn,
+  .change-passcode-btn {
     flex-shrink: 0;
     display: inline-flex;
     align-items: center;
@@ -1312,6 +1358,24 @@
   }
 
   .lock-note-icon {
+    display: block;
+    width: 1.35em;
+    height: 1.35em;
+    flex-shrink: 0;
+  }
+
+  .change-passcode-btn {
+    border-style: dashed;
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .change-passcode-btn:hover {
+    opacity: 0.9;
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+
+  .change-passcode-icon {
     display: block;
     width: 1.35em;
     height: 1.35em;

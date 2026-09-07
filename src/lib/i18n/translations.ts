@@ -170,6 +170,11 @@ export const translations = {
     unlockShortcutHint: 'Press {shortcut} to open unlock.',
     lockNote: 'Lock note',
     lockNoteWithShortcut: 'Lock note ({shortcut})',
+    clearSavedPasscode: 'Clear saved passcode',
+    clearSavedPasscodeTooltip:
+      'Clear the saved passcode so the next Save asks you to set a new passcode.',
+    savedPasscodeClearedForNextSave:
+      'Saved passcode cleared. The next Save will ask you to set a new passcode.',
     lockAllNotes: 'Lock all notes',
     confirmLockAllNotes:
       'Lock all {count} unlocked notes? Saved passcodes will be cleared and you will need to enter them again to view encrypted content.',
@@ -653,6 +658,11 @@ export const translations = {
     unlockShortcutHint: 'Nhấn {shortcut} để mở khóa.',
     lockNote: 'Khóa ghi chú',
     lockNoteWithShortcut: 'Khóa ghi chú ({shortcut})',
+    clearSavedPasscode: 'Xóa passcode đã lưu',
+    clearSavedPasscodeTooltip:
+      'Xóa passcode đã lưu để lần lưu tới sẽ hỏi bạn tạo passcode mới.',
+    savedPasscodeClearedForNextSave:
+      'Đã xóa passcode đã lưu. Lần lưu tới sẽ hỏi bạn tạo passcode mới.',
     lockAllNotes: 'Khóa tất cả ghi chú',
     confirmLockAllNotes:
       'Khóa tất cả {count} ghi chú đã mở khóa? Mã khóa đã lưu sẽ bị xóa và bạn cần nhập lại để xem nội dung đã mã hóa.',
